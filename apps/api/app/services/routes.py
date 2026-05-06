@@ -9,6 +9,7 @@ from app.models.schemas import GeoPoint, RouteOption
 from app.services.geo import haversine_km, min_distance_to_polyline_km, route_near_point
 
 GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
+FIRE_ROUTE_BUFFER_KM = 5.0
 
 
 def _point(lat: float, lon: float) -> dict[str, float]:
@@ -179,7 +180,7 @@ def _safety_flags(
 
     fire_buffer_hit = False
     for fire in context.get("fires", []):
-        if _route_crosses_fire_buffer(points, fire["location"], 3.0, 2.0):
+        if _route_crosses_fire_buffer(points, fire["location"], FIRE_ROUTE_BUFFER_KM, 2.0):
             fire_buffer_hit = True
             if fire.get("external_id"):
                 evidence_ids.append(fire["external_id"])
@@ -278,37 +279,44 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
     fire_points = [fire["location"] for fire in context.get("fires", [])]
     closure = road_events[0] if road_events else None
     closure_id = closure["external_id"] if closure else None
+    closure_point = closure["location"] if closure else None
     zone_id = zone["zone_id"]
     shelter_id = shelter["shelter_id"]
+    origin = zone["centroid"]
+    dest = shelter["location"]
 
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_A":
-        points = [_point(52.610, -121.875), _point(52.6235, -121.761), _point(52.617, -121.594)]
+        points = [origin, closure_point or origin, dest]
         fire_ids = [
             fire["external_id"]
             for fire in context.get("fires", [])
-            if _route_crosses_fire_buffer(points, fire["location"], 3.0, 2.0)
+            if _route_crosses_fire_buffer(points, fire["location"], FIRE_ROUTE_BUFFER_KM, 2.0)
         ]
-        return _route(zone_id, shelter_id, 25, 23.5, False, ["Route enters the DriveBC closure impact buffer.", "Route crosses active fire-risk buffer.", "Shelter A has insufficient capacity for Zone A."], points, [item for item in [closure_id, *fire_ids] if item])
+        flags = ["Route enters the DriveBC closure impact buffer.", "Shelter A has insufficient capacity for Zone A."]
+        if fire_ids:
+            flags.insert(1, "Route crosses active fire-risk buffer.")
+        return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), False, flags, points, [item for item in [closure_id, *fire_ids] if item])
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_B":
-        return _route(zone_id, shelter_id, 64, 86.9, True, [], [_point(52.610, -121.875), _point(52.36, -121.95), _point(52.1415, -122.1417)], [])
+        points = [origin, dest]
+        return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), True, [], points, [])
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_C":
-        return _route(zone_id, shelter_id, 106, 135.9, False, ["Shelter C has insufficient capacity for Zone A."], [_point(52.610, -121.875), _point(52.82, -122.15), _point(52.9784, -122.4931)], [])
+        points = [origin, dest]
+        return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), False, ["Shelter C has insufficient capacity for Zone A."], points, [])
     if zone_id == "ZONE_B" and shelter_id == "SHELTER_B":
-        return _route(zone_id, shelter_id, 73, 96.0, True, ["Shared rural corridor with Zone A creates congestion risk if simultaneous."], [_point(52.622, -121.660), _point(52.36, -121.95), _point(52.1415, -122.1417)], [])
+        points = [origin, dest]
+        return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), True, ["Shared rural corridor with Zone A creates congestion risk if simultaneous."], points, [])
     if zone_id == "ZONE_C":
-        points = [_point(52.635, -121.800), _point(52.6235, -121.761), _point(52.617, -121.594)]
+        points = [origin, closure_point or origin, dest]
         flags = ["Self-evacuation route crosses fire-risk buffer.", "Low vehicle access and high vulnerable population require dispatch-assisted movement."]
         if closure_id:
             flags.insert(0, "Outbound route enters the DriveBC closure impact buffer.")
         fire_ids = [
             fire["external_id"]
             for fire in context.get("fires", [])
-            if _route_crosses_fire_buffer(points, fire["location"], 3.0, 2.0)
+            if _route_crosses_fire_buffer(points, fire["location"], FIRE_ROUTE_BUFFER_KM, 2.0)
         ]
-        return _route(zone_id, shelter_id, 54, 50.1, False, flags, points, [item for item in [closure_id, *fire_ids] if item])
+        return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), False, flags, points, [item for item in [closure_id, *fire_ids] if item])
 
-    origin = zone["centroid"]
-    dest = shelter["location"]
     points = [origin, dest]
     flags = []
     safe = True
@@ -319,6 +327,17 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
         flags.append("Route is near active fire detections.")
         safe = False
     return _route(zone_id, shelter_id, 48, 55.0, safe, flags, points, [closure_id] if closure_id and not safe else [])
+
+
+def _polyline_distance_km(points: list[dict[str, float]]) -> float:
+    if len(points) < 2:
+        return 0.0
+    return round(sum(haversine_km(start, end) for start, end in zip(points, points[1:])), 1)
+
+
+def _duration_from_points(points: list[dict[str, float]]) -> int:
+    # Offline fallback only: assume rural evacuation traffic averages roughly 55 kph.
+    return max(5, round(_polyline_distance_km(points) / 55 * 60))
 
 
 def best_safe_route(routes: list[RouteOption], zone_id: str) -> RouteOption | None:

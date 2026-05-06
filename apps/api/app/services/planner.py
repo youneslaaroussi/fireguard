@@ -8,19 +8,40 @@ from app.services.actions import create_action, create_approval
 from app.services.routes import best_safe_route, rejected_routes
 
 
+def _by_id(items: list[dict], id_field: str) -> dict[str, dict]:
+    return {item[id_field]: item for item in items}
+
+
+def _zone_name(zones: dict[str, dict], zone_id: str) -> str:
+    return zones.get(zone_id, {}).get("name", zone_id)
+
+
+def _shelter_name(shelters: dict[str, dict], shelter_id: str | None) -> str:
+    if not shelter_id:
+        return "a verified reception centre"
+    return shelters.get(shelter_id, {}).get("name", shelter_id)
+
+
 def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], routes: list) -> EvacuationPlan:
     risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
+    zones_by_id = _by_id(context.get("zones", []), "zone_id")
+    shelters_by_id = _by_id(context.get("shelters", []), "shelter_id")
     steps: list[PlanStep] = []
 
     route_a = best_safe_route(routes, "ZONE_A")
     route_b = best_safe_route(routes, "ZONE_B")
     route_c = best_safe_route(routes, "ZONE_C")
+    zone_a_name = _zone_name(zones_by_id, "ZONE_A")
+    zone_b_name = _zone_name(zones_by_id, "ZONE_B")
+    zone_c_name = _zone_name(zones_by_id, "ZONE_C")
+    zone_a_destination_name = _shelter_name(shelters_by_id, route_a.destination_id if route_a else None)
+    zone_b_destination_name = _shelter_name(shelters_by_id, route_b.destination_id if route_b else None)
     zone_a_strategy = "evacuate_now" if route_a else "shelter_in_place_dispatch_assisted"
     zone_a_destination = route_a.destination_id if route_a else None
     zone_a_message = (
-        "[DEMO - FireGuard] Evacuate Quesnel River West now toward Williams Lake ESS Reception Centre. Avoid Little Lake Quesnel River Road near the DriveBC closure."
+        f"[DEMO - FireGuard] Evacuate {zone_a_name} now toward {zone_a_destination_name}. Avoid Little Lake Quesnel River Road near the DriveBC closure."
         if route_a
-        else "[DEMO - FireGuard] Quesnel River West should shelter in place temporarily. No safe self-evacuation route is currently verified."
+        else f"[DEMO - FireGuard] {zone_a_name} should shelter in place temporarily. No safe self-evacuation route is currently verified."
     )
     zone_a_rationale = (
         ["Critical risk and a safe alternate route exists.", "The nearest shelter route is rejected because it intersects a closure and fire-risk buffer."]
@@ -30,12 +51,12 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     zone_b_strategy = "staged_evacuation" if route_b else "hold_for_route_confirmation"
     zone_b_destination = route_b.destination_id if route_b else None
     zone_b_message = (
-        "[DEMO - FireGuard] Prepare to evacuate Likely East Bench in 15 minutes toward Williams Lake ESS Reception Centre. Wait for traffic-control release."
+        f"[DEMO - FireGuard] Prepare to evacuate {zone_b_name} in 15 minutes toward {zone_b_destination_name}. Wait for traffic-control release."
         if route_b
-        else "[DEMO - FireGuard] Likely East Bench should hold position and prepare. Do not self-evacuate until road ops confirms a safe release corridor."
+        else f"[DEMO - FireGuard] {zone_b_name} should hold position and prepare. Do not self-evacuate until road ops confirms a safe release corridor."
     )
     zone_b_rationale = (
-        ["High risk, but immediate simultaneous departure would overload the shared rural corridor.", "Williams Lake ESS can absorb Zone B after Zone A is staged."]
+        ["High risk, but immediate simultaneous departure would overload the shared rural corridor.", f"{zone_b_destination_name} can absorb Zone B after Zone A is staged."]
         if route_b
         else ["Google Routes-backed route checks did not find a currently safe self-evacuation path.", "Holding avoids routing residents through a closure while road ops verifies release timing."]
     )
@@ -66,7 +87,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         strategy="shelter_in_place_dispatch_assisted",
         destination_id=route_c.destination_id if route_c else None,
         start_after_minutes=0,
-        message="[DEMO - FireGuard] Little Lake Clinic District should shelter in place temporarily. Dispatch-assisted evacuation is being assigned for vulnerable residents.",
+        message=f"[DEMO - FireGuard] {zone_c_name} should shelter in place temporarily. Dispatch-assisted evacuation is being assigned for vulnerable residents.",
         rationale=["Self-evacuation routes cross the closure or fire-risk buffer.", "Vulnerable population and low vehicle access make unsupported evacuation unsafe."],
         evidence_ids=risk_by_zone["ZONE_C"].evidence_ids,
     ))
@@ -75,7 +96,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     return EvacuationPlan(
         plan_id=plan_id,
         incident_id=incident_id,
-        summary="Stage Quesnel River West immediately to Williams Lake ESS, hold Likely East Bench for 15 minutes to avoid corridor congestion, and shelter Little Lake Clinic District in place while dispatch-assisted evacuation is assigned.",
+        summary=f"Stage {zone_a_name} immediately to {zone_a_destination_name}, hold {zone_b_name} for 15 minutes to avoid corridor congestion, and shelter {zone_c_name} in place while dispatch-assisted evacuation is assigned.",
         recommended_strategy="staged_evacuation",
         confidence=0.84,
         zone_risks=zone_risks,
@@ -84,7 +105,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         rejected_alternatives=rejected_routes(routes),
         data_freshness=context.get("data_freshness", []),
         risks_if_wrong=[
-            "If wind shifts north, Likely East Bench may need immediate evacuation instead of staged release.",
+            f"If wind shifts north, {zone_b_name} may need immediate evacuation instead of staged release.",
             "If Williams Lake ESS capacity changes, evacuees may need splitting between Williams Lake and Quesnel reception centres.",
             "If road closure data is stale, road ops must verify before releasing traffic.",
         ],
@@ -96,6 +117,19 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
 def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None = None) -> tuple[str, list, object]:
     bundle_id = f"BUNDLE_{uuid.uuid4().hex[:8].upper()}"
     actions = []
+    zones_by_id = _by_id(context.get("zones", []), "zone_id")
+    shelters_by_id = _by_id(context.get("shelters", []), "shelter_id")
+    arrivals_by_shelter: dict[str, int] = {}
+    for step in plan.steps:
+        if step.destination_id:
+            arrivals_by_shelter[step.destination_id] = (
+                arrivals_by_shelter.get(step.destination_id, 0)
+                + int(zones_by_id.get(step.zone_id, {}).get("population", 0))
+            )
+    primary_shelter_id = max(arrivals_by_shelter, key=arrivals_by_shelter.get, default="SHELTER_B")
+    primary_shelter_name = _shelter_name(shelters_by_id, primary_shelter_id)
+    expected_arrivals = arrivals_by_shelter.get(primary_shelter_id, 0)
+    zone_c_name = _zone_name(zones_by_id, "ZONE_C")
     for step in plan.steps:
         actions.append(create_action(
             bundle_id=bundle_id,
@@ -113,11 +147,11 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
         create_action(
             bundle_id,
             "shelter_notify",
-            "SHELTER_B",
-            "Prepare for staged arrivals from Quesnel River West and Likely East Bench within 75 minutes.",
-            {"shelter_id": "SHELTER_B", "expected_arrivals": 1030, "eta_minutes": 75, "needs": ["accessible_cots", "pet_area"], "source_plan_id": plan.plan_id},
-            "Williams Lake ESS is the selected safe reception centre with enough available capacity.",
-            ["SHELTER_B"],
+            primary_shelter_id,
+            f"Prepare for staged arrivals from approved FireGuard evacuation steps within 75 minutes at {primary_shelter_name}.",
+            {"shelter_id": primary_shelter_id, "expected_arrivals": expected_arrivals, "eta_minutes": 75, "needs": ["accessible_cots", "pet_area"], "source_plan_id": plan.plan_id},
+            f"{primary_shelter_name} is the selected safe reception centre with enough available demo capacity.",
+            [primary_shelter_id],
             plan.confidence,
             settings=settings,
         ),
@@ -136,7 +170,7 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
             bundle_id,
             "dispatch_task",
             "ZONE_C",
-            "Assign accessible bus and responder support to Little Lake Clinic District.",
+            f"Assign accessible bus and responder support to {zone_c_name}.",
             {"task_type": "assist_evacuation", "zone_id": "ZONE_C", "asset_type": "accessible_bus", "priority": "critical", "source_plan_id": plan.plan_id},
             "Zone C has high vulnerable count and unsafe self-evacuation routes.",
             ["ZONE_C", "DISPATCH_BUS_01"],

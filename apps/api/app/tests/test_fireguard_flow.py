@@ -106,12 +106,16 @@ def test_full_assessment_creates_auditable_action_bundle() -> None:
     assert any("closure" in alt["reason"].lower() for alt in assessment.plan.rejected_alternatives)
 
 
-def test_context_labels_synthetic_operational_data() -> None:
+def test_context_labels_source_backed_zones_and_synthetic_operations() -> None:
     store = seeded_store()
     context = store.incident_context()
 
-    assert any(item["scope"] == "zones_shelters_residents_dispatch" and item["synthetic"] for item in context["demo_disclosures"])
-    assert all(zone["synthetic"] and zone["data_origin"] == "synthetic_demo_municipality" for zone in context["zones"])
+    assert any(item["scope"] == "evacuation_zones" and item["synthetic"] is False for item in context["demo_disclosures"])
+    assert any(item["scope"] == "shelters_residents_dispatch" and item["synthetic"] for item in context["demo_disclosures"])
+    assert all(zone["synthetic"] is False and zone["data_origin"] == "bc_historical_orders_alerts_snapshot" for zone in context["zones"])
+    assert all(zone["source_record_id"] for zone in context["zones"])
+    assert all(zone["population_source_field"] == "MULTI_SOURCED_POPULATION" for zone in context["zones"])
+    assert all(zone["vulnerable_count_estimated"] is True for zone in context["zones"])
     assert all(shelter["synthetic"] and shelter["data_origin"] == "synthetic_demo_shelter" for shelter in context["shelters"])
 
 

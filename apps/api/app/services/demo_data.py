@@ -15,8 +15,12 @@ FIRMS_SNAPSHOT_URL = (
     "[MAP_KEY]/VIIRS_NOAA20_SP/-122.2,52.0,-121.3,52.9/5/2024-07-10"
 )
 PUBLIC_BC_CONTEXT_SNAPSHOT = REPO_ROOT / "data" / "public" / "bc" / "public_emergency_context_snapshot.json"
+HISTORICAL_EVACUATION_ZONES_SNAPSHOT = (
+    REPO_ROOT / "data" / "public" / "bc" / "historical_fire_evacuation_zones_snapshot.json"
+)
 SYNTHETIC_MUNICIPAL_LABEL = "Synthetic demo municipality; not official municipal data."
 PUBLIC_BC_CONTEXT_LABEL = "Official BC EmergencyMapBC public data snapshot."
+PUBLIC_BC_HISTORICAL_LABEL = "Official BC Historical Orders and Alerts source snapshot."
 
 
 def _float(value: Any, default: float = 0.0) -> float:
@@ -40,77 +44,108 @@ def _firms_acquired_at(row: dict[str, str]) -> str:
     return f"{row.get('acq_date')}T{acq_time[:2]}:{acq_time[2:]}:00Z"
 
 
-def synthetic_zones() -> list[dict]:
+def _historical_zone_snapshot() -> dict[str, Any]:
+    with HISTORICAL_EVACUATION_ZONES_SNAPSHOT.open() as file:
+        return json.load(file)
+
+
+def _outer_ring(geometry: dict[str, Any]) -> list[list[float]]:
+    coordinates = geometry.get("coordinates", [])
+    if geometry.get("type") == "Polygon" and coordinates:
+        return coordinates[0]
+    if geometry.get("type") == "MultiPolygon" and coordinates:
+        rings = [polygon[0] for polygon in coordinates if polygon]
+        return max(rings, key=len) if rings else []
+    return []
+
+
+def _centroid_from_geometry(geometry: dict[str, Any]) -> dict[str, float]:
+    ring = _outer_ring(geometry)
+    if len(ring) > 1 and ring[0] == ring[-1]:
+        ring = ring[:-1]
+    if not ring:
+        return {"lat": 0.0, "lon": 0.0}
+    lon = sum(point[0] for point in ring) / len(ring)
+    lat = sum(point[1] for point in ring) / len(ring)
+    return {"lat": round(lat, 6), "lon": round(lon, 6)}
+
+
+def _zone_from_historical_feature(
+    feature: dict[str, Any],
+    zone_id: str,
+    vulnerability_ratio: float,
+    vehicle_access_score: float,
+    priority_notes: str,
+) -> dict:
+    snapshot = _historical_zone_snapshot()
+    props = feature["properties"]
+    population = int(props.get("MULTI_SOURCED_POPULATION") or 0)
+    homes = int(props.get("MULTI_SOURCED_HOMES") or 0)
+    source_record_id = str(props["EMRG_OAAH_SYSID"])
+    return {
+        "zone_id": zone_id,
+        "name": props["ORDER_ALERT_NAME"],
+        "data_origin": "bc_historical_orders_alerts_snapshot",
+        "source": "BC_HISTORICAL_ORDERS_ALERTS",
+        "source_label": PUBLIC_BC_HISTORICAL_LABEL,
+        "source_url": snapshot["source_url"],
+        "source_query": snapshot["query"],
+        "source_record_id": source_record_id,
+        "source_record_url": f"{snapshot['source_url']}/{source_record_id}",
+        "captured_at": snapshot["captured_at"],
+        "geometry_simplification": "ArcGIS maxAllowableOffset=0.05; geometryPrecision=5",
+        "geometry": feature["geometry"],
+        "centroid": _centroid_from_geometry(feature["geometry"]),
+        "population": population,
+        "population_source_field": "MULTI_SOURCED_POPULATION",
+        "households": homes,
+        "households_source_field": "MULTI_SOURCED_HOMES",
+        "vulnerable_count": max(1, round(population * vulnerability_ratio)),
+        "vulnerable_count_estimated": True,
+        "vulnerability_source_label": "Derived demo estimate pending StatsCan demographic overlay; not an official source field.",
+        "vehicle_access_score": vehicle_access_score,
+        "vehicle_access_score_estimated": True,
+        "vehicle_access_source_label": "Derived demo access score pending official transport/accessibility data.",
+        "priority_notes": priority_notes,
+        "event_name": props["EVENT_NAME"],
+        "event_type": props["EVENT_TYPE"],
+        "order_alert_status": props["ORDER_ALERT_STATUS"],
+        "issuing_agency": props["ISSUING_AGENCY"],
+        "municipality": props.get("MUNICIPALITY"),
+        "event_start_date_ms": props.get("EVENT_START_DATE"),
+        "all_clear_date_ms": props.get("ALL_CLEAR_DATE"),
+        "synthetic": False,
+    }
+
+
+def evacuation_zones() -> list[dict]:
+    snapshot = _historical_zone_snapshot()
+    features_by_id = {
+        feature["properties"]["EMRG_OAAH_SYSID"]: feature
+        for feature in snapshot["features"]
+    }
     return [
-        {
-            "zone_id": "ZONE_A",
-            "name": "Quesnel River West",
-            "data_origin": "synthetic_demo_municipality",
-            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": [[
-                    [-121.895, 52.600],
-                    [-121.855, 52.600],
-                    [-121.855, 52.620],
-                    [-121.895, 52.620],
-                    [-121.895, 52.600],
-                ]],
-            },
-            "centroid": {"lat": 52.610, "lon": -121.875},
-            "population": 420,
-            "households": 168,
-            "vulnerable_count": 38,
-            "vehicle_access_score": 0.72,
-            "priority_notes": "Rural residential area west of a real DriveBC road closure.",
-            "synthetic": True,
-        },
-        {
-            "zone_id": "ZONE_B",
-            "name": "Likely East Bench",
-            "data_origin": "synthetic_demo_municipality",
-            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": [[
-                    [-121.678, 52.612],
-                    [-121.642, 52.612],
-                    [-121.642, 52.632],
-                    [-121.678, 52.632],
-                    [-121.678, 52.612],
-                ]],
-            },
-            "centroid": {"lat": 52.622, "lon": -121.660},
-            "population": 610,
-            "households": 244,
-            "vulnerable_count": 71,
-            "vehicle_access_score": 0.64,
-            "priority_notes": "East-side area shares limited rural approaches with Zone A traffic.",
-            "synthetic": True,
-        },
-        {
-            "zone_id": "ZONE_C",
-            "name": "Little Lake Clinic District",
-            "data_origin": "synthetic_demo_municipality",
-            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
-            "geometry": {
-                "type": "Polygon",
-                "coordinates": [[
-                    [-121.818, 52.626],
-                    [-121.782, 52.626],
-                    [-121.782, 52.646],
-                    [-121.818, 52.646],
-                    [-121.818, 52.626],
-                ]],
-            },
-            "centroid": {"lat": 52.635, "lon": -121.800},
-            "population": 260,
-            "households": 96,
-            "vulnerable_count": 92,
-            "vehicle_access_score": 0.28,
-            "priority_notes": "Clinic, assisted-living wing, and low vehicle access near the closure.",
-            "synthetic": True,
-        },
+        _zone_from_historical_feature(
+            features_by_id[186],
+            "ZONE_A",
+            vulnerability_ratio=0.16,
+            vehicle_access_score=0.62,
+            priority_notes="Official historical Central Cariboo evacuation polygon used as the primary demo evacuation zone near the DriveBC closure corridor.",
+        ),
+        _zone_from_historical_feature(
+            features_by_id[2989],
+            "ZONE_B",
+            vulnerability_ratio=0.14,
+            vehicle_access_score=0.68,
+            priority_notes="Official historical Williams Lake River Valley evacuation polygon staged after Zone A to avoid overloading the shared reception workflow.",
+        ),
+        _zone_from_historical_feature(
+            features_by_id[3011],
+            "ZONE_C",
+            vulnerability_ratio=0.50,
+            vehicle_access_score=0.28,
+            priority_notes="Official historical Browntop Mountain evacuation polygon used for the dispatch-assisted/shelter-in-place branch because of low access score.",
+        ),
     ]
 
 
@@ -138,8 +173,8 @@ def synthetic_shelters() -> list[dict]:
             "data_origin": "synthetic_demo_shelter",
             "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "location": {"lat": 52.1415, "lon": -122.1417},
-            "capacity_total": 900,
-            "capacity_available": 760,
+            "capacity_total": 3500,
+            "capacity_available": 3200,
             "pet_friendly": True,
             "medical_support": True,
             "accessible": True,
@@ -153,8 +188,8 @@ def synthetic_shelters() -> list[dict]:
             "data_origin": "synthetic_demo_shelter",
             "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "location": {"lat": 52.9784, "lon": -122.4931},
-            "capacity_total": 700,
-            "capacity_available": 360,
+            "capacity_total": 1200,
+            "capacity_available": 900,
             "pet_friendly": False,
             "medical_support": True,
             "accessible": True,
@@ -378,9 +413,15 @@ def demo_disclosures() -> list[dict[str, Any]]:
             "synthetic": False,
         },
         {
-            "scope": "zones_shelters_residents_dispatch",
+            "scope": "evacuation_zones",
+            "label": PUBLIC_BC_HISTORICAL_LABEL,
+            "detail": "Core demo evacuation zones now come from official BC Historical Orders and Alerts fire order/alert polygons. Population and home counts use source fields; vulnerability and vehicle-access scores are derived demo estimates.",
+            "synthetic": False,
+        },
+        {
+            "scope": "shelters_residents_dispatch",
             "label": SYNTHETIC_MUNICIPAL_LABEL,
-            "detail": "Evacuation zones, shelter capacities, resident contacts, and dispatch assets are synthetic operational data built for a safe BC demo scenario.",
+            "detail": "Shelter capacities, resident contacts, and dispatch assets remain synthetic operational data built for a safe BC demo scenario.",
             "synthetic": True,
         },
         {

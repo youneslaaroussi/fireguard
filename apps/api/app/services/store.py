@@ -262,7 +262,7 @@ class FireGuardStore:
         self.ensure_indices()
         self.indices.clear()
         self.ensure_indices()
-        self.bulk_upsert("evacuation_zones", demo_data.synthetic_zones(), "zone_id")
+        self.bulk_upsert("evacuation_zones", demo_data.evacuation_zones(), "zone_id")
         self.bulk_upsert("shelters", demo_data.synthetic_shelters(), "shelter_id")
         self.bulk_upsert("fire_hotspots", demo_data.replay_fire_hotspots(), "external_id")
         self.bulk_upsert("fire_perimeters", demo_data.replay_fire_perimeters(), "fire_number")

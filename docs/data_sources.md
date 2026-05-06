@@ -7,16 +7,17 @@
 - DriveBC/Open511 road events.
 - Open-Meteo wind forecasts.
 - Google Routes API for route duration and polylines.
+- BC Historical Orders and Alerts fire evacuation polygons. The core demo zones are stored in `data/public/bc/historical_fire_evacuation_zones_snapshot.json` with official population/home source fields and simplified geometries.
 
 The Fivetran Connector SDK project in `integrations/fivetran/fireguard_connector` emits normalized tables for environmental and road data. FireGuard then syncs those tables into Elastic for geospatial retrieval.
 
-## Synthetic Sources
+## Synthetic Or Derived Sources
 
-- evacuation zones;
-- shelters;
+- shelter capacities;
 - residents;
 - dispatch assets;
 - municipal webhook endpoints;
 - emergency policy snippets.
+- vulnerability counts and vehicle-access scores derived for the demo from source-backed zones.
 
 Synthetic action endpoints are clearly labeled in the UI and logs. Fire, road, and weather records used in the judged reasoning path must cite a source record or stored replay source snapshot.
