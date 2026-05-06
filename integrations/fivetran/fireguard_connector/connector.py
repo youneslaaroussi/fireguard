@@ -157,7 +157,13 @@ def _firms_rows(configuration: dict[str, Any]) -> Iterable[dict[str, Any]]:
     bbox = configuration.get("nasa_firms_bbox", "-123.2,49.8,-121.0,51.0")
     url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{map_key}/{source}/{bbox}/1"
     ingested_at = now_iso()
-    for row in csv.DictReader(StringIO(_request_text(url))):
+    try:
+        text = _request_text(url)
+    except Exception as exc:
+        log.warning(f"NASA FIRMS fetch failed; emitting labeled replay FIRMS rows: {exc}")
+        yield from _replay_fire_hotspots()
+        return
+    for row in csv.DictReader(StringIO(text)):
         external_id = stable_id(row.get("latitude"), row.get("longitude"), row.get("acq_date"), row.get("acq_time"), row.get("satellite"))
         acq_time = str(row.get("acq_time", "0000")).zfill(4)
         acquired_at = f"{row.get('acq_date')}T{acq_time[:2]}:{acq_time[2:]}:00Z"
@@ -181,7 +187,12 @@ def _firms_rows(configuration: dict[str, Any]) -> Iterable[dict[str, Any]]:
 def _bc_perimeter_rows() -> Iterable[dict[str, Any]]:
     params = {"f": "geojson", "where": "1=1", "outFields": "*", "returnGeometry": "true", "resultRecordCount": "1000"}
     ingested_at = now_iso()
-    payload = _request_json(BC_PERIMETERS_URL, params)
+    try:
+        payload = _request_json(BC_PERIMETERS_URL, params)
+    except Exception as exc:
+        log.warning(f"BC perimeter fetch failed; emitting labeled replay perimeter rows: {exc}")
+        yield from _replay_fire_perimeters()
+        return
     for feature in payload.get("features", []):
         props = feature.get("properties", {})
         fire_number = props.get("FIRE_NUMBER") or props.get("fire_number") or props.get("OBJECTID")
@@ -202,7 +213,12 @@ def _bc_perimeter_rows() -> Iterable[dict[str, Any]]:
 
 def _road_event_rows() -> Iterable[dict[str, Any]]:
     ingested_at = now_iso()
-    payload = _request_json(DRIVEBC_EVENTS_URL, {"format": "json"})
+    try:
+        payload = _request_json(DRIVEBC_EVENTS_URL, {"format": "json"})
+    except Exception as exc:
+        log.warning(f"DriveBC/Open511 fetch failed; emitting labeled replay road-event rows: {exc}")
+        yield from _replay_road_events()
+        return
     events = payload.get("events") if isinstance(payload, dict) else payload
     for event in events or []:
         event_id = event.get("id") or event.get("identifier") or event.get("url") or stable_id(event)
@@ -295,6 +311,54 @@ def _replay_fire_hotspots() -> Iterable[dict[str, Any]]:
             "ingested_at": ingested_at,
             "raw_json": json.dumps({"replay": True}),
         }
+
+
+def _replay_fire_perimeters() -> Iterable[dict[str, Any]]:
+    ingested_at = now_iso()
+    yield {
+        "fire_number": "BC_PERIMETER_REPLAY_001",
+        "source": "BC_WILDFIRE_REPLAY",
+        "fire_name": "Replay wildfire perimeter",
+        "status": "out_of_control",
+        "geometry_json": json.dumps({
+            "type": "Polygon",
+            "coordinates": [[
+                [-121.56, 50.20],
+                [-121.45, 50.20],
+                [-121.45, 50.30],
+                [-121.56, 50.30],
+                [-121.56, 50.20],
+            ]],
+        }),
+        "area_hectares": 740.0,
+        "updated_at": ingested_at,
+        "ingested_at": ingested_at,
+        "raw_json": json.dumps({"replay": True}),
+    }
+
+
+def _replay_road_events() -> Iterable[dict[str, Any]]:
+    ingested_at = now_iso()
+    yield {
+        "external_id": "DBC_REPLAY_CLOSURE_001",
+        "source": "DRIVEBC_OPEN511_REPLAY",
+        "title": "Highway 1 full closure near evacuation corridor",
+        "description": "Replay road event: Highway 1 closed in both directions near the primary evacuation corridor.",
+        "event_type": "closure",
+        "severity": "major",
+        "road_name": "Highway 1",
+        "latitude": 50.244,
+        "longitude": -121.536,
+        "geometry_json": json.dumps({
+            "type": "LineString",
+            "coordinates": [[-121.58, 50.22], [-121.53, 50.24], [-121.48, 50.26]],
+        }),
+        "starts_at": ingested_at,
+        "ends_at": None,
+        "updated_at": ingested_at,
+        "ingested_at": ingested_at,
+        "raw_json": json.dumps({"replay": True}),
+    }
 
 
 def update(configuration: dict[str, Any], state: dict[str, Any]) -> Iterable[Any]:
