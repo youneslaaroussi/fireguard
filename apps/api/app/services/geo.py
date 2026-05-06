@@ -22,10 +22,35 @@ def centroid(points: Iterable[Point]) -> Point:
     }
 
 
+def _point_segment_distance_km(point: Point, start: Point, end: Point) -> float:
+    # Equirectangular projection is accurate enough for short route safety buffers.
+    mean_lat = radians((start["lat"] + end["lat"] + point["lat"]) / 3)
+    km_per_degree_lat = 111.32
+    km_per_degree_lon = 111.32 * cos(mean_lat)
+    px = point["lon"] * km_per_degree_lon
+    py = point["lat"] * km_per_degree_lat
+    ax = start["lon"] * km_per_degree_lon
+    ay = start["lat"] * km_per_degree_lat
+    bx = end["lon"] * km_per_degree_lon
+    by = end["lat"] * km_per_degree_lat
+    dx = bx - ax
+    dy = by - ay
+    if dx == 0 and dy == 0:
+        return haversine_km(point, start)
+    t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+    nearest = {"lon": (ax + t * dx) / km_per_degree_lon, "lat": (ay + t * dy) / km_per_degree_lat}
+    return haversine_km(point, nearest)
+
+
 def min_distance_to_polyline_km(point: Point, polyline: list[Point]) -> float:
     if not polyline:
         return 9999
-    return min(haversine_km(point, vertex) for vertex in polyline)
+    if len(polyline) == 1:
+        return haversine_km(point, polyline[0])
+    return min(
+        _point_segment_distance_km(point, start, end)
+        for start, end in zip(polyline, polyline[1:])
+    )
 
 
 def route_near_point(route: list[Point], point: Point, threshold_km: float) -> bool:

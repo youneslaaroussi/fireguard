@@ -14,6 +14,18 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     route_a = best_safe_route(routes, "ZONE_A")
     route_b = best_safe_route(routes, "ZONE_B")
     route_c = best_safe_route(routes, "ZONE_C")
+    zone_b_strategy = "staged_evacuation" if route_b else "hold_for_route_confirmation"
+    zone_b_destination = route_b.destination_id if route_b else None
+    zone_b_message = (
+        "[DEMO - FireGuard] Prepare to evacuate River Flats in 15 minutes via the westbound alternate route to Lillooet Secondary. Wait for traffic-control release."
+        if route_b
+        else "[DEMO - FireGuard] River Flats should hold position and prepare. Do not self-evacuate until road ops confirms a safe westbound release corridor."
+    )
+    zone_b_rationale = (
+        ["High risk, but immediate simultaneous departure would overload the shared corridor.", "Shelter B can absorb Zone B after Zone A is staged."]
+        if route_b
+        else ["Google Routes-backed route checks did not find a currently safe self-evacuation path.", "Holding avoids routing residents through a closure while road ops verifies release timing."]
+    )
 
     steps.append(PlanStep(
         step_id="STEP_ZONE_A_EVAC_NOW",
@@ -28,12 +40,12 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     steps.append(PlanStep(
         step_id="STEP_ZONE_B_STAGE",
         zone_id="ZONE_B",
-        strategy="staged_evacuation",
-        destination_id=route_b.destination_id if route_b else "SHELTER_B",
+        strategy=zone_b_strategy,
+        destination_id=zone_b_destination,
         start_after_minutes=15,
-        message="[DEMO - FireGuard] Prepare to evacuate River Flats in 15 minutes via the westbound alternate route to Lillooet Secondary. Wait for traffic-control release.",
-        rationale=["High risk, but immediate simultaneous departure would overload the shared corridor.", "Shelter B can absorb Zone B after Zone A is staged."],
-        evidence_ids=risk_by_zone["ZONE_B"].evidence_ids,
+        message=zone_b_message,
+        rationale=zone_b_rationale,
+        evidence_ids=risk_by_zone["ZONE_B"].evidence_ids + (route_b.evidence_ids if route_b else []),
     ))
     steps.append(PlanStep(
         step_id="STEP_ZONE_C_SHELTER_DISPATCH",

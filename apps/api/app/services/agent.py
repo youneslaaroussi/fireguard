@@ -49,7 +49,7 @@ def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_
         [evidence_id for risk in zone_risks for evidence_id in risk.evidence_ids],
     )
 
-    routes = compute_routes(context)
+    routes = compute_routes(context, google_maps_api_key=store.settings.google_maps_api_key)
     trace.add(
         "route",
         "compute_routes",
@@ -115,10 +115,10 @@ def tool_response(name: str, payload: dict[str, Any], store: FireGuardStore) -> 
         zone_context = {**context, "zones": [zone for zone in context["zones"] if not zone_id or zone["zone_id"] == zone_id]}
         return {"risks": [risk.model_dump() for risk in compute_all_zone_risks(zone_context)]}
     if name == "compute_routes":
-        return {"routes": [route.model_dump() for route in compute_routes(context)]}
+        return {"routes": [route.model_dump() for route in compute_routes(context, google_maps_api_key=store.settings.google_maps_api_key)]}
     if name == "draft_evacuation_plan":
         risks = compute_all_zone_risks(context)
-        routes = compute_routes(context)
+        routes = compute_routes(context, google_maps_api_key=store.settings.google_maps_api_key)
         return draft_plan(context["incident_id"], context, risks, routes).model_dump()
     if name == "create_action_bundle":
         assessment = run_assessment(store, context["incident_id"])

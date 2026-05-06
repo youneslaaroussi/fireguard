@@ -41,6 +41,8 @@ class RouteOption(BaseModel):
     risk_flags: list[str]
     polyline: list[GeoPoint]
     evidence_ids: list[str] = Field(default_factory=list)
+    route_source: str = "deterministic_fallback"
+    provider_error: str | None = None
 
 
 class PlanStep(BaseModel):
