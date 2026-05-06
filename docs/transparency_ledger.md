@@ -29,7 +29,7 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 | ID | Shortcut / gap | Impact | Current status | Fix path |
 |---|---|---|---|---|
 | T-001 | Route computation now supports Google Routes for route geometry, duration, and distance when `GOOGLE_MAPS_API_KEY` is configured. Deterministic route fixtures remain as offline fallback. | The route geometry is provider-backed in configured environments, but the decisive closure and fire records can still be replay evidence under T-002/T-003. | Fixed and hosted-verified | Hosted assessment returned `route_sources=["google_routes"]`; keep test fallback deterministic. |
-| T-002 | The decisive road closure now uses real DriveBC/Open511 event `drivebc.ca/DBC-90684` as a source snapshot. | The route-rejection evidence is source-backed, but the surrounding demo zones/shelters/fire placement are still synthetic/replay under T-003/T-004. | Fixed in code, pending hosted redeploy | Hosted assessment must show rejected route evidence includes `drivebc.ca/DBC-90684` and `route_source=google_routes`. |
+| T-002 | The decisive road closure now uses real DriveBC/Open511 event `drivebc.ca/DBC-90684` as a source snapshot. | The route-rejection evidence is source-backed, but the surrounding demo zones/shelters/fire placement are still synthetic/replay under T-003/T-004. | Fixed and hosted-verified | Hosted assessment on `2026-05-06` returned `route_sources=["google_routes"]`; Zone A to Shelter A was unsafe with evidence `drivebc.ca/DBC-90684`, while Zone A to Shelter B was safe. |
 | T-003 | Live FIRMS returned zero current hotspots for the configured BC bbox, so the demo uses labeled `NASA_FIRMS_REPLAY` hotspots near the DriveBC closure scenario. | The fire threat in the staged demo is replay/source-shaped, not current live fire or a stored official historical FIRMS CSV. | Open | Store a real historical FIRMS CSV snapshot from a known BC incident window and expose it as replay source evidence. Also support selecting a live active-fire bbox when available. |
 | T-004 | Evacuation zones, shelters, residents, dispatch assets, and policies are synthetic. | Population and shelter capacity constraints are not official municipal data. | Accepted for hackathon demo, but must stay labeled | Keep labels visible. If time permits, add public shelter/facility data or a clearly sourced emergency-reception-centre dataset. |
 | T-005 | Shelter, road-ops, and dispatch action endpoints are simulated. | Only SMS is a real external action; other operational actions are logs/mock webhooks. | Accepted for safety | Keep as simulated unless integrating a real task system such as Linear/GitHub Issues/Firestore-backed work queue. |
@@ -42,12 +42,12 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 
 ## Fix Order
 
-1. T-002: Redeploy and hosted-verify the real DriveBC/Open511 closure snapshot path.
-2. T-003: Replace source-shaped FIRMS replay with stored real FIRMS CSV snapshot and optional live bbox selector.
-3. T-011/T-007: Fix hosted Phoenix export and improve evaluation proof.
-4. T-008: Make fallback use impossible to miss in UI and ingestion-run records.
-5. T-006: Add formal Google Agent Builder or ADK deployment proof.
-6. T-004/T-005: Keep as clearly labeled synthetic/simulated unless better public data or a safe real task system is added.
+1. T-003: Replace source-shaped FIRMS replay with stored real FIRMS CSV snapshot and optional live bbox selector.
+2. T-011/T-007: Fix hosted Phoenix export and improve evaluation proof.
+3. T-008: Make fallback use impossible to miss in UI and ingestion-run records.
+4. T-006: Add formal Google Agent Builder or ADK deployment proof.
+5. T-005: Keep simulated operational actions clearly labeled unless a safe real task system is added.
+6. T-004: Keep synthetic municipal data clearly labeled unless better public data is added.
 
 ## Rule For Future Changes
 
