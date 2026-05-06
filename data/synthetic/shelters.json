@@ -1,0 +1,35 @@
+[
+  {
+    "shelter_id": "SHELTER_A",
+    "name": "Cache Creek Arena",
+    "location": { "lat": 50.811, "lon": -121.325 },
+    "capacity_total": 500,
+    "capacity_available": 120,
+    "pet_friendly": true,
+    "medical_support": false,
+    "accessible": true,
+    "status": "near_capacity"
+  },
+  {
+    "shelter_id": "SHELTER_B",
+    "name": "Lillooet Secondary Reception Centre",
+    "location": { "lat": 50.687, "lon": -121.932 },
+    "capacity_total": 900,
+    "capacity_available": 760,
+    "pet_friendly": true,
+    "medical_support": true,
+    "accessible": true,
+    "status": "open"
+  },
+  {
+    "shelter_id": "SHELTER_C",
+    "name": "Merritt Civic Centre",
+    "location": { "lat": 50.112, "lon": -120.789 },
+    "capacity_total": 700,
+    "capacity_available": 360,
+    "pet_friendly": false,
+    "medical_support": true,
+    "accessible": true,
+    "status": "open"
+  }
+]

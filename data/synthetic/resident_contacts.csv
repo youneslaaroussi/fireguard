@@ -1,0 +1,4 @@
+resident_id,zone_id,phone,allowlisted
+RES_A_001,ZONE_A,+15555550123,true
+RES_B_001,ZONE_B,+15555550124,true
+RES_C_001,ZONE_C,+15555550125,false

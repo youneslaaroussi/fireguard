@@ -1,0 +1,7 @@
+{
+  "nasa_firms_map_key": "",
+  "nasa_firms_source": "VIIRS_SNPP_NRT",
+  "nasa_firms_bbox": "-123.2,49.8,-121.0,51.0",
+  "weather_latitude": "50.247",
+  "weather_longitude": "-121.568"
+}

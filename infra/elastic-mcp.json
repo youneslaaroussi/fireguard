@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "elasticsearch-fireguard": {
+      "command": "npx",
+      "args": ["-y", "@elastic/mcp-server-elasticsearch"],
+      "env": {
+        "ES_URL": "${ELASTICSEARCH_URL}",
+        "ES_API_KEY": "${ELASTICSEARCH_API_KEY}"
+      }
+    }
+  }
+}

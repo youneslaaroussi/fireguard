@@ -1,0 +1,8 @@
+{
+  "source": "OPEN_METEO_REPLAY",
+  "location": { "lat": 50.247, "lon": -121.568 },
+  "wind_speed_kph": 34.0,
+  "wind_direction_degrees": 248,
+  "wind_gusts_kph": 49.0,
+  "forecast_horizon_hours": 3
+}

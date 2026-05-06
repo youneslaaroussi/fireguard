@@ -1,0 +1,39 @@
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  background: #091016;
+  color: #f4f7f9;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background:
+    linear-gradient(180deg, rgba(9, 16, 22, 0.96), rgba(9, 16, 22, 1)),
+    #091016;
+  color: #f4f7f9;
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button {
+  letter-spacing: 0;
+}
+
+.maplibregl-popup-content {
+  background: #101a22;
+  color: #f4f7f9;
+  border: 1px solid #314554;
+  border-radius: 6px;
+}
+
+.maplibregl-popup-tip {
+  border-top-color: #101a22 !important;
+}

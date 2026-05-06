@@ -1,0 +1,12 @@
+[
+  {
+    "source": "DRIVEBC_OPEN511_REPLAY",
+    "external_id": "DBC_REPLAY_CLOSURE_001",
+    "title": "Highway 1 eastbound closed near Kwoiek Creek",
+    "description": "Full closure due to wildfire operations. Detour unavailable for public traffic.",
+    "event_type": "closure",
+    "severity": "high",
+    "road_name": "Highway 1",
+    "location": { "lat": 50.241, "lon": -121.548 }
+  }
+]

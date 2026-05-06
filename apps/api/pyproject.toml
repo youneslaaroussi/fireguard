@@ -1,0 +1,43 @@
+[project]
+name = "fireguard-api"
+version = "0.1.0"
+description = "FastAPI backend for FireGuard wildfire evacuation orchestration."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.124.0",
+  "uvicorn[standard]>=0.38.0",
+  "pydantic-settings>=2.12.0",
+  "httpx>=0.28.0",
+  "elasticsearch>=8.16.0,<9.0.0",
+  "twilio>=9.4.0",
+  "arize-phoenix>=8.32.0",
+  "arize-phoenix-otel>=0.16.0",
+  "opentelemetry-api>=1.37.0",
+  "google-genai>=1.70.0",
+]
+
+[project.optional-dependencies]
+bigquery = [
+  "google-cloud-bigquery>=3.38.0",
+]
+dev = [
+  "pytest>=9.0.0",
+  "pytest-asyncio>=1.3.0",
+  "ruff>=0.14.0",
+]
+
+[build-system]
+requires = ["setuptools>=69.0.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["app/tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

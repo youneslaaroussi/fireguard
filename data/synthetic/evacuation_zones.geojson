@@ -1,0 +1,53 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "ZONE_A",
+      "properties": {
+        "zone_id": "ZONE_A",
+        "name": "Canyon Ridge",
+        "population": 420,
+        "households": 168,
+        "vulnerable_count": 38,
+        "vehicle_access_score": 0.72
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-121.612, 50.236], [-121.586, 50.236], [-121.586, 50.258], [-121.612, 50.258], [-121.612, 50.236]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ZONE_B",
+      "properties": {
+        "zone_id": "ZONE_B",
+        "name": "River Flats",
+        "population": 610,
+        "households": 244,
+        "vulnerable_count": 71,
+        "vehicle_access_score": 0.64
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-121.585, 50.235], [-121.552, 50.235], [-121.552, 50.258], [-121.585, 50.258], [-121.585, 50.235]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "ZONE_C",
+      "properties": {
+        "zone_id": "ZONE_C",
+        "name": "Pine Clinic District",
+        "population": 260,
+        "households": 96,
+        "vulnerable_count": 92,
+        "vehicle_access_score": 0.28
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-121.578, 50.21], [-121.54, 50.21], [-121.54, 50.233], [-121.578, 50.233], [-121.578, 50.21]]]
+      }
+    }
+  ]
+}

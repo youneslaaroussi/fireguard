@@ -1,0 +1,150 @@
+# FireGuard
+
+FireGuard is an AI evacuation coordinator that turns live wildfire, road, weather, and shelter data into staged, human-approved evacuation actions.
+
+This is a Google Cloud Rapid Agent Hackathon project targeting the Elastic track, with Fivetran ingestion and Arize Phoenix observability as visible supporting integrations. The core demo is not a fire map: it is a tool-using agent loop that retrieves operational context from Elastic, evaluates wildfire evacuation constraints, proposes a staged action bundle, waits for human approval, executes test actions, and records Phoenix-compatible traces.
+
+## Safety Notice
+
+FireGuard is a hackathon prototype. It does not issue official emergency alerts and must not be used for real emergency response. Public-facing actions are blocked until approval and, in demo mode, SMS delivery is restricted to allowlisted test contacts.
+
+## Architecture
+
+```text
+NASA FIRMS + BC Wildfire + DriveBC/Open511 + Open-Meteo
+        |
+        v
+Fivetran Connector SDK -> BigQuery destination
+        |
+        v
+FastAPI Fivetran-to-Elastic sync + deterministic safety services
+        |
+        v
+Elastic operational memory + Elastic MCP server
+        |
+        v
+Gemini / Google ADK tool orchestration
+        |
+        v
+Next.js incident command dashboard
+        |
+        v
+Approval queue -> Twilio allowlisted SMS + simulated shelter/road/dispatch APIs
+        |
+        v
+Arize Phoenix / OpenTelemetry trace and eval proof
+```
+
+## Local Setup
+
+```bash
+cd /Users/mac/dev/fireguard
+cp .env.example .env
+
+cd apps/api
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -e ".[bigquery,dev]"
+
+cd ../web
+npm install
+
+cd /Users/mac/dev/fireguard
+npm run dev:api
+npm run dev:web
+```
+
+Open:
+
+- API: http://localhost:8000/docs
+- Web: http://localhost:3000
+
+The app runs in replay mode without secrets. Add real keys to `.env` to enable Fivetran, Elastic Cloud, Gemini, Google Routes, Twilio, and hosted/local Phoenix paths.
+
+## Required Environment Variables
+
+See `.env.example`. The keys needed for a full submission are:
+
+- `ELASTICSEARCH_URL` and `ELASTICSEARCH_API_KEY`
+- `FIVETRAN_API_KEY`, `FIVETRAN_API_SECRET`, `FIVETRAN_DESTINATION_NAME`
+- `FIVETRAN_BIGQUERY_PROJECT`, `FIVETRAN_BIGQUERY_DATASET`
+- `NASA_FIRMS_MAP_KEY`
+- `GOOGLE_CLOUD_PROJECT`
+- `GOOGLE_MAPS_API_KEY`
+- `PHOENIX_COLLECTOR_ENDPOINT`, `PHOENIX_PROJECT_NAME`, optional `PHOENIX_API_KEY`
+- `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `TWILIO_ALLOWLIST`
+
+## Fivetran Connector
+
+The production ingestion contract lives in `integrations/fivetran/fireguard_connector`.
+Use `fireguard_ingestion` as the Fivetran connection name so the BigQuery
+dataset matches `FIVETRAN_BIGQUERY_DATASET`.
+
+```bash
+cd integrations/fivetran/fireguard_connector
+python3 -m venv .venv
+. .venv/bin/activate
+pip install "fivetran-connector-sdk==2.8.1" -r requirements.txt
+cp configuration.json.example configuration.json
+fivetran debug . --configuration configuration.json
+```
+
+After Fivetran syncs into BigQuery, call:
+
+```bash
+curl -X POST http://localhost:8000/sync/fivetran-to-elastic
+```
+
+Direct `/ingest/*` API routes remain as replay/dev fallback only.
+
+## Arize Phoenix
+
+For local Phoenix:
+
+```bash
+python3 -m pip install arize-phoenix
+phoenix serve
+```
+
+The API exports spans to `PHOENIX_COLLECTOR_ENDPOINT`, defaulting to `http://localhost:6006/v1/traces`. Hosted Arize uses `PHOENIX_API_KEY`.
+
+## Demo Flow
+
+1. Load the dashboard.
+2. Click `Reset Demo`.
+3. Click `Sync Fivetran To Elastic`.
+4. Click `Run Agent Assessment`.
+5. Confirm that the obvious route is rejected due to a road closure and fire-risk buffer.
+6. Approve the action bundle.
+7. Execute actions.
+8. Open the trace panel and inspect evidence, freshness, Phoenix span IDs, eval score, approval, and execution results.
+
+## Data Sources
+
+Live/open sources ingested through Fivetran:
+
+- NASA FIRMS active fire detections
+- BC Wildfire current fire perimeters
+- DriveBC/Open511 road events
+- Open-Meteo wind forecast
+- Google Routes API
+
+Synthetic demo data:
+
+- evacuation zones
+- shelters and capacity
+- resident contacts
+- dispatch assets
+- municipal action endpoints
+
+Replay mode uses source-shaped records and transparent labels so the demo remains deterministic.
+
+## Tests
+
+```bash
+cd apps/api
+. .venv/bin/activate
+pytest
+```
+
+The test suite covers route rejection, shelter overflow, unsafe evacuation, stale data, SMS allowlist enforcement, Fivetran sync/status, and eval scoring.

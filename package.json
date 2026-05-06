@@ -1,0 +1,18 @@
+{
+  "name": "fireguard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AI wildfire evacuation orchestration agent for the Google Cloud Rapid Agent Hackathon.",
+  "scripts": {
+    "dev:web": "npm --prefix apps/web run dev",
+    "build:web": "npm --prefix apps/web run build",
+    "lint:web": "npm --prefix apps/web run lint",
+    "dev:api": "cd apps/api && . .venv/bin/activate && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000",
+    "test:api": "cd apps/api && . .venv/bin/activate && pytest",
+    "test": "npm run test:api && npm run lint:web && npm run build:web"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}
