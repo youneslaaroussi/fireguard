@@ -6,6 +6,7 @@ from typing import Any
 
 from app.config import Settings
 from app.services import demo_data
+from app.services.actions import github_issue_tasks_enabled
 from app.services.geo import haversine_km
 from app.services.time import freshness_minutes, iso_string, now_iso
 
@@ -279,6 +280,19 @@ class FireGuardStore:
     def incident_context(self, incident_id: str = demo_data.INCIDENT_ID) -> dict[str, Any]:
         self.ensure_seeded()
         weather = self.list("weather_observations")
+        disclosures = demo_data.demo_disclosures()
+        if github_issue_tasks_enabled(self.settings):
+            disclosures = [
+                {
+                    **item,
+                    "label": "Real GitHub issue task backend",
+                    "detail": "Shelter notification, road-ops task, and dispatch task actions create real GitHub issues in the configured demo repository after human approval. They are still not official emergency-system integrations.",
+                    "synthetic": False,
+                }
+                if item.get("scope") == "shelter_road_ops_dispatch_actions"
+                else item
+                for item in disclosures
+            ]
         context = {
             "incident_id": incident_id,
             "mode": "replay" if self.settings.demo_mode else "live",
@@ -293,7 +307,7 @@ class FireGuardStore:
             "policies": self.list("policies"),
             "data_freshness": self.data_freshness(),
             "provider_status": self.provider_status(),
-            "demo_disclosures": demo_data.demo_disclosures(),
+            "demo_disclosures": disclosures,
         }
         return context
 
@@ -331,6 +345,12 @@ class FireGuardStore:
                 "endpoint": self.settings.phoenix_collector_endpoint,
                 "project": self.settings.phoenix_project_name,
                 "exported_span_count": len(phoenix_span_ids),
+            },
+            "action_tasks": {
+                "backend": self.settings.action_task_backend,
+                "github_repo": self.settings.github_repo,
+                "configured": github_issue_tasks_enabled(self.settings),
+                "official_emergency_system": False,
             },
         }
 

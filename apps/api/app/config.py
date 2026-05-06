@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     phoenix_storage_backend: str = "local_or_external"
 
     action_webhook_secret: str = "dev-secret"
+    action_task_backend: str = "simulated_webhook"
+    github_repo: str | None = None
+    github_token: str | None = None
+    github_api_url: str = "https://api.github.com"
     shelter_webhook_url: str | None = None
     road_ops_webhook_url: str | None = None
     dispatch_webhook_url: str | None = None

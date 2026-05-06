@@ -37,7 +37,7 @@ Gemini / Google ADK tool orchestration
 Next.js incident command dashboard
         |
         v
-Approval queue -> Twilio allowlisted SMS + simulated shelter/road/dispatch APIs
+Approval queue -> Twilio allowlisted SMS + GitHub Issues task backend for shelter/road/dispatch
         |
         v
 Arize Phoenix / OpenTelemetry spans + eval trace annotations
@@ -120,6 +120,18 @@ curl -X POST http://localhost:8000/sync/fivetran-to-elastic
 
 Direct `/ingest/*` API routes remain as replay/dev fallback only.
 
+## Action Task Backend
+
+Approved shelter, road-ops, and dispatch actions can create real GitHub issues in the configured demo repository:
+
+```bash
+ACTION_TASK_BACKEND=github_issues
+GITHUB_REPO=youneslaaroussi/fireguard
+GITHUB_TOKEN=...
+```
+
+This is a real task record for the hackathon demo, not an official emergency-system integration. The normal `POST /actions/{bundle_id}/execute` path executes the full approved bundle. For provider verification without resending SMS, the API also supports `?action_types=shelter_notify,road_ops_task,dispatch_task`.
+
 ## Arize Phoenix
 
 For local Phoenix:
@@ -160,9 +172,9 @@ Synthetic demo data:
 - shelters and capacity
 - resident contacts
 - dispatch assets
-- municipal action endpoints
+- municipal action endpoints, unless the GitHub Issues task backend is configured
 
-Replay mode uses stored real source snapshots where live data is quiet. The FIRMS replay file is an official NASA FIRMS Area API CSV snapshot with the MAP_KEY redacted from provenance; municipal zones, shelters, dispatch assets, and action endpoints remain synthetic/simulated and labeled.
+Replay mode uses stored real source snapshots where live data is quiet. The FIRMS replay file is an official NASA FIRMS Area API CSV snapshot with the MAP_KEY redacted from provenance; municipal zones, shelters, and dispatch assets remain synthetic and labeled. Shelter, road-ops, and dispatch actions create GitHub Issues when configured, otherwise they remain simulated and labeled.
 
 ## Tests
 

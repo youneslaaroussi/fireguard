@@ -61,7 +61,7 @@ def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_
     plan = draft_plan(incident_id, context, zone_risks, routes)
     trace.add("plan", "draft_evacuation_plan", {"incident_id": incident_id}, plan.model_dump(), [])
 
-    bundle_id, actions, approval = create_bundle(plan, context)
+    bundle_id, actions, approval = create_bundle(plan, context, store.settings)
     trace.add(
         "act",
         "create_action_bundle",

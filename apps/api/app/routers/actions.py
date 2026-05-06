@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.config import Settings, get_settings
 from app.routers.dependencies import store_dependency
@@ -39,18 +39,28 @@ def reject(approval_id: str, store: FireGuardStore = Depends(store_dependency)) 
 
 
 @router.post("/actions/{bundle_id}/execute")
-def execute(bundle_id: str, settings: Settings = Depends(get_settings), store: FireGuardStore = Depends(store_dependency)) -> dict:
+def execute(
+    bundle_id: str,
+    action_types: str | None = Query(default=None, description="Optional comma-separated action types to execute from this approved bundle."),
+    settings: Settings = Depends(get_settings),
+    store: FireGuardStore = Depends(store_dependency),
+) -> dict:
     actions = _actions_for_bundle(store, bundle_id)
     if not actions:
         raise HTTPException(status_code=404, detail="Action bundle not found")
+    selected_types = {item.strip() for item in action_types.split(",") if item.strip()} if action_types else set()
     residents = store.list("resident_contacts")
     executed = []
     failed = []
+    skipped = []
     for action in actions:
+        if selected_types and action["action_type"] not in selected_types:
+            skipped.append(action)
+            continue
         updated = execute_action(action, settings, residents)
         store.upsert("action_logs", updated["action_id"], updated)
         if updated["status"] == "executed":
             executed.append(updated)
         else:
             failed.append(updated)
-    return {"bundle_id": bundle_id, "executed": executed, "failed": failed}
+    return {"bundle_id": bundle_id, "executed": executed, "failed": failed, "skipped": skipped}

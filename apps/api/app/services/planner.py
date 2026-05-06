@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from app.config import Settings
 from app.models.schemas import EvacuationPlan, PlanStep, ZoneRisk
 from app.services.actions import create_action, create_approval
 from app.services.routes import best_safe_route, rejected_routes
@@ -92,7 +93,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     )
 
 
-def create_bundle(plan: EvacuationPlan, context: dict) -> tuple[str, list, object]:
+def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None = None) -> tuple[str, list, object]:
     bundle_id = f"BUNDLE_{uuid.uuid4().hex[:8].upper()}"
     actions = []
     for step in plan.steps:
@@ -105,6 +106,7 @@ def create_bundle(plan: EvacuationPlan, context: dict) -> tuple[str, list, objec
             reason="Resident instruction from approved staged evacuation plan.",
             evidence_ids=step.evidence_ids,
             confidence=plan.confidence,
+            settings=settings,
         ))
 
     actions.extend([
@@ -117,6 +119,7 @@ def create_bundle(plan: EvacuationPlan, context: dict) -> tuple[str, list, objec
             "Williams Lake ESS is the selected safe reception centre with enough available capacity.",
             ["SHELTER_B"],
             plan.confidence,
+            settings=settings,
         ),
         create_action(
             bundle_id,
@@ -127,6 +130,7 @@ def create_bundle(plan: EvacuationPlan, context: dict) -> tuple[str, list, objec
             "The nearest route approaches a real DriveBC road closure and fire-risk buffer.",
             ["drivebc.ca/DBC-90684"],
             plan.confidence,
+            settings=settings,
         ),
         create_action(
             bundle_id,
@@ -137,6 +141,7 @@ def create_bundle(plan: EvacuationPlan, context: dict) -> tuple[str, list, objec
             "Zone C has high vulnerable count and unsafe self-evacuation routes.",
             ["ZONE_C", "DISPATCH_BUS_01"],
             plan.confidence,
+            settings=settings,
         ),
     ])
     approval = create_approval(bundle_id)

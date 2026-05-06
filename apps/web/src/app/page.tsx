@@ -109,7 +109,7 @@ export default function Home() {
     setError(null);
     try {
       const result = await executeBundle(assessment.bundle_id);
-      const nextActions = [...result.executed, ...result.failed];
+      const nextActions = [...result.executed, ...result.failed, ...(result.skipped || [])];
       setActions(nextActions);
       setAssessment({ ...assessment, actions: nextActions });
       const traces = await getTraces(assessment.incident_id);
@@ -313,6 +313,11 @@ export default function Home() {
                   </div>
                   <p className="mt-2 text-slate-300">{action.message}</p>
                   <p className="mt-2 text-xs text-slate-500">{action.target}</p>
+                  {typeof action.payload.github_issue_url === "string" ? (
+                    <a className="mt-2 block text-xs text-shelter underline underline-offset-4" href={action.payload.github_issue_url} target="_blank" rel="noreferrer">
+                      GitHub task #{String(action.payload.github_issue_number || "")}
+                    </a>
+                  ) : null}
                   {action.simulation_label ? <p className="mt-1 text-xs text-slate-500">{action.simulation_label}</p> : null}
                 </div>
               ))
@@ -359,8 +364,10 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
   const arizeDetail = evalChecks
     ? `${passed}/${Object.keys(evalChecks).length} eval checks passed; ${arizeStorage}`
     : `${arizeDeployment}; ${arizeStorage}; ${String(arizeCheck?.status || "unchecked")}`;
+  const taskBackend = String(status?.action_tasks?.backend || "pending");
+  const taskRepo = String(status?.action_tasks?.github_repo || "no repo configured");
   return (
-    <section className="grid gap-2 border-b border-line bg-panel/70 px-4 py-3 md:grid-cols-4">
+    <section className="grid gap-2 border-b border-line bg-panel/70 px-4 py-3 md:grid-cols-5">
       <ProviderCard
         title="Fivetran"
         icon={<Database size={16} />}
@@ -388,6 +395,13 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
         value={evalResult ? `eval ${Math.round(Number(evalResult.score || 0) * 100)}%` : "trace-ready"}
         detail={arizeDetail}
         tone={arizeOk ? "ok" : "warn"}
+      />
+      <ProviderCard
+        title="Action Tasks"
+        icon={<ClipboardCheck size={16} />}
+        value={taskBackend}
+        detail={taskRepo}
+        tone={status?.action_tasks?.configured ? "ok" : "warn"}
       />
     </section>
   );

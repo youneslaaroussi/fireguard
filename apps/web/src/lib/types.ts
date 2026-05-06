@@ -161,4 +161,5 @@ export type IntegrationStatus = {
   elastic: Record<string, unknown>;
   gemini: Record<string, unknown>;
   arize: Record<string, unknown>;
+  action_tasks?: Record<string, unknown>;
 };

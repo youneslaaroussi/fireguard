@@ -17,6 +17,7 @@ def integration_status(settings: Settings = Depends(get_settings), store: FireGu
         "elastic": store.provider_status()["elastic"],
         "gemini": gemini_status(settings),
         "arize": phoenix_status(settings),
+        "action_tasks": store.provider_status()["action_tasks"],
     }
 
 

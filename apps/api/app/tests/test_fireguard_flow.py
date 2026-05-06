@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from app.config import Settings
+from app.routers.actions import execute as execute_bundle
 from app.services.actions import approve_actions, execute_action
 from app.services.agent import run_assessment
 from app.services.evals import evaluate_incident
@@ -126,6 +127,69 @@ def test_action_metadata_labels_simulated_endpoints() -> None:
         assert by_type[action_type].external_system == "simulated_municipal_webhook"
 
 
+def test_github_issue_backend_creates_real_demo_tasks(monkeypatch) -> None:
+    settings = Settings(
+        demo_mode=True,
+        twilio_allowlist="+15555550123,+15555550124",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+        action_task_backend="github_issues",
+        github_repo="youneslaaroussi/fireguard",
+        github_token="test-token\n",
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+    assessment = run_assessment(store)
+    by_type = {action.action_type: action for action in assessment.actions}
+    context = store.incident_context()
+
+    assert by_type["road_ops_task"].is_simulated_endpoint is False
+    assert by_type["road_ops_task"].external_system == "github_issues_operational_task"
+    assert any(
+        item["scope"] == "shelter_road_ops_dispatch_actions" and item["label"] == "Real GitHub issue task backend"
+        for item in context["demo_disclosures"]
+    )
+
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps({
+                "html_url": "https://github.com/youneslaaroussi/fireguard/issues/123",
+                "number": 123,
+                "url": "https://api.github.com/repos/youneslaaroussi/fireguard/issues/123",
+            }).encode("utf-8")
+
+    def fake_urlopen(request, timeout):
+        captured["url"] = request.full_url
+        captured["body"] = json.loads(request.data.decode("utf-8"))
+        captured["authorization"] = request.get_header("Authorization")
+        captured["timeout"] = timeout
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.actions.urllib.request.urlopen", fake_urlopen)
+
+    actions = [action.model_dump() for action in assessment.actions]
+    approved_actions, _ = approve_actions(actions, assessment.approval.model_dump())
+    road_task = [action for action in approved_actions if action["action_type"] == "road_ops_task"][0]
+    executed = execute_action(road_task, settings, store.list("resident_contacts"))
+
+    assert executed["status"] == "executed"
+    assert executed["payload"]["delivery_mode"] == "github_issue"
+    assert executed["payload"]["github_issue_url"].endswith("/issues/123")
+    assert captured["url"] == "https://api.github.com/repos/youneslaaroussi/fireguard/issues"
+    assert captured["authorization"] == "Bearer test-token"
+    assert "[FireGuard DEMO] Road Ops Task" in captured["body"]["title"]
+
+
 def test_fivetran_sync_indexes_provider_lineage() -> None:
     store = seeded_store()
     result = sync_fivetran_to_elastic(store)
@@ -180,3 +244,55 @@ def test_eval_records_safety_and_grounding() -> None:
     assert result["score"] >= 0.84
     assert result["checks"]["route_safety"] is True
     assert result["checks"]["approval_enforcement"] is True
+
+
+def test_execute_endpoint_can_filter_action_types(monkeypatch) -> None:
+    settings = Settings(
+        demo_mode=True,
+        twilio_allowlist="+15555550123,+15555550124",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+        action_task_backend="github_issues",
+        github_repo="youneslaaroussi/fireguard",
+        github_token="test-token",
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+    assessment = run_assessment(store)
+    approved_actions, approval = approve_actions(
+        [action.model_dump() for action in assessment.actions],
+        assessment.approval.model_dump(),
+    )
+    for action in approved_actions:
+        store.upsert("action_logs", action["action_id"], action)
+    store.upsert("approval_requests", approval["approval_id"], approval)
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self) -> bytes:
+            return json.dumps({
+                "html_url": "https://github.com/youneslaaroussi/fireguard/issues/456",
+                "number": 456,
+                "url": "https://api.github.com/repos/youneslaaroussi/fireguard/issues/456",
+            }).encode("utf-8")
+
+    monkeypatch.setattr("app.services.actions.urllib.request.urlopen", lambda *_args, **_kwargs: FakeResponse())
+
+    result = execute_bundle(
+        assessment.bundle_id,
+        action_types="shelter_notify,road_ops_task,dispatch_task",
+        settings=settings,
+        store=store,
+    )
+
+    assert len(result["executed"]) == 3
+    assert len(result["skipped"]) == 3
+    assert {action["action_type"] for action in result["skipped"]} == {"resident_sms"}
+    assert all(action["payload"]["delivery_mode"] == "github_issue" for action in result["executed"])

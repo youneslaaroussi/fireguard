@@ -35,7 +35,7 @@ export function approveBundle(approvalId: string) {
 }
 
 export function executeBundle(bundleId: string) {
-  return request<{ bundle_id: string; executed: AssessmentResult["actions"]; failed: AssessmentResult["actions"] }>(`/actions/${bundleId}/execute`, { method: "POST" });
+  return request<{ bundle_id: string; executed: AssessmentResult["actions"]; failed: AssessmentResult["actions"]; skipped?: AssessmentResult["actions"] }>(`/actions/${bundleId}/execute`, { method: "POST" });
 }
 
 export function getTraces(incidentId: string) {
