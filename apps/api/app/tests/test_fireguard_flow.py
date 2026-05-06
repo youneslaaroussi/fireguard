@@ -1,3 +1,6 @@
+import json
+from pathlib import Path
+
 from app.config import Settings
 from app.services.actions import approve_actions, execute_action
 from app.services.agent import run_assessment
@@ -124,6 +127,28 @@ def test_fivetran_status_exposes_latest_run() -> None:
     assert status["fallback_active"] is True
     assert status["warnings"]
     assert "fire_hotspots" in status["streams"]
+
+
+def test_google_adk_openapi_spec_declares_required_tools() -> None:
+    repo_root = Path(__file__).resolve().parents[4]
+    spec_path = repo_root / "integrations" / "google_adk" / "fireguard_agent" / "tools.openapi.json"
+    spec = json.loads(spec_path.read_text())
+    operation_ids = {
+        operation["operationId"]
+        for methods in spec["paths"].values()
+        for operation in methods.values()
+    }
+
+    assert {
+        "get_incident_context",
+        "search_operational_memory",
+        "compute_zone_risk",
+        "compute_routes",
+        "draft_evacuation_plan",
+        "create_action_bundle",
+        "request_human_approval",
+        "execute_approved_actions",
+    }.issubset(operation_ids)
 
 
 def test_eval_records_safety_and_grounding() -> None:

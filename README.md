@@ -82,6 +82,21 @@ See `.env.example`. The keys needed for a full submission are:
 - `PHOENIX_COLLECTOR_ENDPOINT`, `PHOENIX_PROJECT_NAME`, optional `PHOENIX_API_KEY`
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `TWILIO_ALLOWLIST`
 
+## Google ADK Agent
+
+The code-first ADK agent lives in `integrations/google_adk/fireguard_agent`. It loads `tools.openapi.json` with ADK's OpenAPI toolset and points at the same hosted FastAPI tool endpoints used by the web demo.
+
+```bash
+cd integrations/google_adk
+python3 -m venv .venv
+. .venv/bin/activate
+pip install -r requirements.txt
+cp fireguard_agent/.env.example fireguard_agent/.env
+adk run fireguard_agent
+```
+
+This is stronger than a prompt-only Gemini call: the agent has a runnable `root_agent`, eight OpenAPI tools, and the backend still owns route safety, approval gates, and action enforcement.
+
 ## Fivetran Connector
 
 The production ingestion contract lives in `integrations/fivetran/fireguard_connector`.

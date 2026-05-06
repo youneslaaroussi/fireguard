@@ -45,6 +45,12 @@ def agent_manifest(settings: Settings) -> dict:
         "developer_instruction": DEVELOPER_INSTRUCTION,
         "tool_endpoints": TOOL_ENDPOINTS,
         "openapi_url": "/openapi.json",
+        "google_adk": {
+            "agent_path": "integrations/google_adk/fireguard_agent",
+            "tool_spec": "integrations/google_adk/fireguard_agent/tools.openapi.json",
+            "run_command": "cd integrations/google_adk && adk run fireguard_agent",
+            "purpose": "Code-first ADK agent that uses FireGuard's OpenAPI tool endpoints while backend services enforce deterministic safety and approvals.",
+        },
         "supporting_integrations": {
             "fivetran": {
                 "connector_path": "integrations/fivetran/fireguard_connector",

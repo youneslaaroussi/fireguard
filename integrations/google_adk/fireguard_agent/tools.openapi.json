@@ -1,0 +1,301 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "FireGuard Agent Tool API",
+    "version": "0.1.0",
+    "description": "OpenAPI tool surface for the FireGuard ADK agent. Public-facing actions remain blocked by backend approval and allowlist enforcement."
+  },
+  "servers": [
+    {
+      "url": "https://fireguard-api-dovhkdlznq-uc.a.run.app"
+    }
+  ],
+  "paths": {
+    "/tools/get_incident_context": {
+      "post": {
+        "operationId": "get_incident_context",
+        "summary": "Retrieve current wildfire incident context from Elastic-backed operational memory.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolRequest"
+              },
+              "example": {
+                "payload": {
+                  "incident_id": "demo-incident-bc-001"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Incident context with fires, road events, weather, zones, shelters, and source freshness.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tools/search_operational_memory": {
+      "post": {
+        "operationId": "search_operational_memory",
+        "summary": "Search Elastic-backed operational memory and policy snippets for incident evidence.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolRequest"
+              },
+              "example": {
+                "payload": {
+                  "query": "closure fire buffer shelter capacity approval"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Search hits and evidence references.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tools/compute_zone_risk": {
+      "post": {
+        "operationId": "compute_zone_risk",
+        "summary": "Compute deterministic zone risk scores with evidence IDs and confidence.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolRequest"
+              },
+              "example": {
+                "payload": {
+                  "zone_ids": ["ZONE_A", "ZONE_B", "ZONE_C"]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Risk results for evacuation zones.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tools/compute_routes": {
+      "post": {
+        "operationId": "compute_routes",
+        "summary": "Compute evacuation routes and mark unsafe alternatives from closures, fire buffers, capacity, and congestion.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolRequest"
+              },
+              "example": {
+                "payload": {
+                  "origins": ["ZONE_A", "ZONE_B", "ZONE_C"],
+                  "destinations": ["SHELTER_A", "SHELTER_B", "SHELTER_C"]
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Route options with safety flags and provider source.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tools/draft_evacuation_plan": {
+      "post": {
+        "operationId": "draft_evacuation_plan",
+        "summary": "Draft a staged evacuation plan from deterministic risk, route, and shelter constraints.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolRequest"
+              },
+              "example": {
+                "payload": {
+                  "incident_id": "demo-incident-bc-001"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Evacuation plan with steps, rejected alternatives, confidence, and fallback plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tools/create_action_bundle": {
+      "post": {
+        "operationId": "create_action_bundle",
+        "summary": "Create the resident, shelter, road-ops, dispatch, and timeline actions for a plan.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolRequest"
+              },
+              "example": {
+                "payload": {
+                  "plan_id": "PLAN_DEMO_BC"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Action bundle that requires human approval before public-facing execution.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tools/request_human_approval": {
+      "post": {
+        "operationId": "request_human_approval",
+        "summary": "Create or retrieve the human approval gate for an action bundle.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolRequest"
+              },
+              "example": {
+                "payload": {
+                  "bundle_id": "BUNDLE_DEMO_BC",
+                  "approver_role": "incident_commander"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Approval status and approval URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tools/execute_approved_actions": {
+      "post": {
+        "operationId": "execute_approved_actions",
+        "summary": "Execute only actions whose bundle already has human approval.",
+        "description": "The backend rejects execution unless approval is already recorded and SMS recipients are allowlisted.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ToolRequest"
+              },
+              "example": {
+                "payload": {
+                  "approval_id": "APPROVAL_DEMO_BC"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Executed and failed action results.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ToolResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ToolRequest": {
+        "type": "object",
+        "required": ["payload"],
+        "properties": {
+          "payload": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ToolResponse": {
+        "type": "object",
+        "additionalProperties": true
+      }
+    }
+  }
+}
