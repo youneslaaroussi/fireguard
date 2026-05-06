@@ -177,12 +177,14 @@ Synthetic or operator-entered demo data:
 
 - Shelter A identity/location
 - shelter capacity numbers
-- resident contacts
+- resident-contact placeholders, except Zone A can use `DEMO_RESIDENT_ZONE_A_PHONE` as an operator-provided Twilio test recipient
 - dispatch assets
 - municipal action endpoints, unless the GitHub Issues task backend is configured
 - vulnerability counts and vehicle-access scores derived from the source-backed evacuation zones
 
-Replay mode uses stored real source snapshots where live data is quiet. The FIRMS replay file is an official NASA FIRMS Area API CSV snapshot with the MAP_KEY redacted from provenance. The core evacuation zones use official BC Historical Orders and Alerts polygons with source-backed population/home counts. Shelter B/C identity and location use official BC ESS facility records, but capacity numbers remain operator-entered demo assumptions because the public ESS layer does not expose capacity. Resident contacts and dispatch assets remain synthetic and labeled. Shelter, road-ops, and dispatch actions create GitHub Issues when configured, otherwise they remain simulated and labeled.
+Replay mode uses stored real source snapshots where live data is quiet. The FIRMS replay file is an official NASA FIRMS Area API CSV snapshot with the MAP_KEY redacted from provenance. The core evacuation zones use official BC Historical Orders and Alerts polygons with source-backed population/home counts. Shelter B/C identity and location use official BC ESS facility records, but capacity numbers remain operator-entered demo assumptions because the public ESS layer does not expose capacity. Zone A can use an operator-provided Twilio test recipient; other resident contacts and dispatch assets remain synthetic and labeled. Shelter, road-ops, and dispatch actions create GitHub Issues when configured, otherwise they remain simulated and labeled.
+
+Remaining non-authoritative operational inputs are exposed as `operational_assumptions` in the API, displayed in the web UI, attached to route/action `assumption_ids`, and exported to Phoenix spans as `fireguard.assumption_ids`. The demo should not describe any assumption as official capacity, official resident registry, or official dispatch availability.
 
 ## Tests
 

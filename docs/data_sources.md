@@ -16,9 +16,10 @@ The Fivetran Connector SDK project in `integrations/fivetran/fireguard_connector
 ## Synthetic Or Derived Sources
 
 - shelter capacities and Shelter A identity/location;
-- residents;
+- resident-contact placeholders, except configured opt-in Twilio test recipients;
 - dispatch assets;
 - municipal webhook endpoints;
 - vulnerability counts and vehicle-access scores derived for the demo from source-backed zones.
 
 Synthetic action endpoints are clearly labeled in the UI and logs. Fire, road, and weather records used in the judged reasoning path must cite a source record or stored replay source snapshot.
+Every non-authoritative operational input is also emitted as an `operational_assumptions` record with a fix path, then attached to affected route, plan, action, trace, and Phoenix span records through `assumption_ids`.

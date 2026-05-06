@@ -41,6 +41,7 @@ class RouteOption(BaseModel):
     risk_flags: list[str]
     polyline: list[GeoPoint]
     evidence_ids: list[str] = Field(default_factory=list)
+    assumption_ids: list[str] = Field(default_factory=list)
     route_source: str = "deterministic_fallback"
     provider_error: str | None = None
 
@@ -54,6 +55,7 @@ class PlanStep(BaseModel):
     message: str
     rationale: list[str]
     evidence_ids: list[str]
+    assumption_ids: list[str] = Field(default_factory=list)
 
 
 class ActionItem(BaseModel):
@@ -66,6 +68,7 @@ class ActionItem(BaseModel):
     payload: dict[str, Any]
     reason: str
     evidence_ids: list[str]
+    assumption_ids: list[str] = Field(default_factory=list)
     confidence: float
     external_system: str
     is_simulated_endpoint: bool
@@ -86,6 +89,7 @@ class EvacuationPlan(BaseModel):
     routes: list[RouteOption]
     steps: list[PlanStep]
     rejected_alternatives: list[dict[str, Any]]
+    operational_assumptions: list[dict[str, Any]] = Field(default_factory=list)
     data_freshness: list[dict[str, Any]]
     risks_if_wrong: list[str]
     fallback_plan: str

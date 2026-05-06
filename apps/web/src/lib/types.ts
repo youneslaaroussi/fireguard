@@ -24,6 +24,9 @@ export type Shelter = {
   location: GeoPoint;
   capacity_total: number;
   capacity_available: number;
+  capacity_is_operator_assumption?: boolean;
+  capacity_source_label?: string;
+  official_facility_status?: string;
   status: string;
   medical_support: boolean;
   accessible: boolean;
@@ -92,6 +95,7 @@ export type IncidentContext = {
   shelters: Shelter[];
   public_evacuation_orders?: PublicEvacuationOrder[];
   public_ess_facilities?: PublicEssFacility[];
+  operational_assumptions?: Array<Record<string, unknown>>;
   data_freshness: Array<Record<string, unknown>>;
   provider_status: Record<string, Record<string, unknown>>;
   demo_disclosures: Array<Record<string, unknown>>;
@@ -116,6 +120,7 @@ export type RouteOption = {
   risk_flags: string[];
   polyline: GeoPoint[];
   evidence_ids: string[];
+  assumption_ids?: string[];
 };
 
 export type PlanStep = {
@@ -127,6 +132,7 @@ export type PlanStep = {
   message: string;
   rationale: string[];
   evidence_ids: string[];
+  assumption_ids?: string[];
 };
 
 export type EvacuationPlan = {
@@ -139,6 +145,7 @@ export type EvacuationPlan = {
   routes: RouteOption[];
   steps: PlanStep[];
   rejected_alternatives: Array<Record<string, unknown>>;
+  operational_assumptions?: Array<Record<string, unknown>>;
   data_freshness: Array<Record<string, unknown>>;
   risks_if_wrong: string[];
   fallback_plan: string;
@@ -154,6 +161,7 @@ export type ActionItem = {
   message: string;
   payload: Record<string, unknown>;
   reason: string;
+  assumption_ids?: string[];
   confidence: number;
   external_system: string;
   is_simulated_endpoint: boolean;

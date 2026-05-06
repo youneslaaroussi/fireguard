@@ -325,6 +325,10 @@ class FireGuardStore:
                 else item
                 for item in disclosures
             ]
+        shelters = self.list("shelters")
+        zones = self.list("evacuation_zones")
+        dispatch_assets = self.list("dispatch_assets")
+        resident_contacts = self.list("resident_contacts")
         context = {
             "incident_id": incident_id,
             "mode": "replay" if self.settings.demo_mode else "live",
@@ -333,12 +337,18 @@ class FireGuardStore:
             "perimeters": self.list("fire_perimeters"),
             "road_events": self.list("road_events"),
             "weather": weather[0] if weather else {},
-            "zones": self.list("evacuation_zones"),
-            "shelters": self.list("shelters"),
-            "dispatch_assets": self.list("dispatch_assets"),
+            "zones": zones,
+            "shelters": shelters,
+            "dispatch_assets": dispatch_assets,
             "public_evacuation_orders": self.list("public_evacuation_orders"),
             "public_ess_facilities": self.list("public_ess_facilities"),
             "policies": self.list("policies"),
+            "operational_assumptions": demo_data.operational_assumptions(
+                shelters,
+                zones,
+                dispatch_assets,
+                resident_contacts,
+            ),
             "data_freshness": self.data_freshness(),
             "provider_status": self.provider_status(),
             "demo_disclosures": disclosures,

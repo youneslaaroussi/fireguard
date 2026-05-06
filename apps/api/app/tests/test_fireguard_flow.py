@@ -55,7 +55,15 @@ def test_shelter_capacity_overflow_is_reflected_in_plan() -> None:
     assessment = run_assessment(store)
 
     rejected = " ".join(item["reason"] for item in assessment.plan.rejected_alternatives)
-    assert "Shelter A has insufficient capacity" in rejected
+    assert "Operator-entered capacity assumption" in rejected
+    assert any(
+        "ASSUMPTION_SHELTER_A_CAPACITY" in item.get("assumption_ids", [])
+        for item in assessment.plan.rejected_alternatives
+    )
+    assert any(
+        item["assumption_id"] == "ASSUMPTION_SHELTER_B_CAPACITY"
+        for item in assessment.plan.operational_assumptions
+    )
     assert assessment.plan.steps[0].destination_id == "SHELTER_B"
 
 
@@ -126,6 +134,16 @@ def test_context_labels_source_backed_zones_and_synthetic_operations() -> None:
     assert shelters["SHELTER_C"]["synthetic"] is False
     assert shelters["SHELTER_C"]["source_record_id"] == "BC_ESS_85"
     assert all(shelter["capacity_is_operator_assumption"] is True for shelter in context["shelters"])
+    assert any(
+        item["assumption_id"] == "ASSUMPTION_SHELTER_A_CAPACITY"
+        and item["status"] == "needs_authoritative_feed"
+        for item in context["operational_assumptions"]
+    )
+    assert any(
+        item["assumption_id"] == "ASSUMPTION_RES_B_001_CONTACT"
+        and item["blocks_execution"] is True
+        for item in context["operational_assumptions"]
+    )
 
 
 def test_action_metadata_labels_simulated_endpoints() -> None:
@@ -138,6 +156,29 @@ def test_action_metadata_labels_simulated_endpoints() -> None:
     for action_type in ["shelter_notify", "road_ops_task", "dispatch_task"]:
         assert by_type[action_type].is_simulated_endpoint is True
         assert by_type[action_type].external_system == "simulated_municipal_webhook"
+    shelter_action = by_type["shelter_notify"]
+    assert shelter_action.payload["capacity_is_operator_assumption"] is True
+    assert "ASSUMPTION_SHELTER_B_CAPACITY" in shelter_action.assumption_ids
+
+
+def test_resident_contact_provenance_uses_operator_number_when_configured() -> None:
+    settings = Settings(
+        demo_mode=True,
+        demo_resident_zone_a_phone="+15066396110",
+        twilio_allowlist="+15066396110",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+    residents = {resident["resident_id"]: resident for resident in store.list("resident_contacts")}
+
+    assert residents["RES_A_001"]["phone"] == "+15066396110"
+    assert residents["RES_A_001"]["synthetic"] is False
+    assert residents["RES_A_001"]["data_origin"] == "operator_provided_twilio_test_recipient"
+    assert residents["RES_B_001"]["synthetic"] is True
 
 
 def test_public_bc_emergency_context_is_source_backed() -> None:

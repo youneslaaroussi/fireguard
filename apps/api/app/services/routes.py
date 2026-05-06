@@ -25,6 +25,7 @@ def _route(
     flags: list[str],
     points: list[dict[str, float]],
     evidence_ids: list[str],
+    assumption_ids: list[str] | None = None,
     route_source: str = "deterministic_fallback",
     provider_error: str | None = None,
 ) -> RouteOption:
@@ -37,6 +38,7 @@ def _route(
         risk_flags=flags,
         polyline=[GeoPoint(lat=point["lat"], lon=point["lon"]) for point in points],
         evidence_ids=evidence_ids,
+        assumption_ids=assumption_ids or [],
         route_source=route_source,
         provider_error=provider_error,
     )
@@ -60,7 +62,7 @@ def compute_routes(
             )
             if google_route:
                 points = google_route["polyline"]
-                flags, evidence_ids, blocking = _safety_flags(context, zone, shelter, points)
+                flags, evidence_ids, assumption_ids, blocking = _safety_flags(context, zone, shelter, points)
                 routes.append(
                     _route(
                         zone["zone_id"],
@@ -71,6 +73,7 @@ def compute_routes(
                         flags,
                         points,
                         evidence_ids,
+                        assumption_ids,
                         route_source="google_routes",
                     )
                 )
@@ -158,14 +161,24 @@ def _safety_flags(
     zone: dict[str, Any],
     shelter: dict[str, Any],
     points: list[dict[str, float]],
-) -> tuple[list[str], list[str], bool]:
+) -> tuple[list[str], list[str], list[str], bool]:
     flags: list[str] = []
     evidence_ids: list[str] = []
+    assumption_ids: list[str] = []
     blocking = False
 
     if zone.get("population", 0) > shelter.get("capacity_available", 0):
-        shelter_label = shelter["shelter_id"].replace("_", " ").title()
-        flags.append(f"{shelter_label} has insufficient capacity for {zone['zone_id']}.")
+        shelter_label = shelter.get("name") or shelter["shelter_id"].replace("_", " ").title()
+        capacity_assumption_id = f"ASSUMPTION_{shelter['shelter_id']}_CAPACITY"
+        if shelter.get("capacity_is_operator_assumption"):
+            flags.append(
+                "Operator-entered capacity assumption: "
+                f"{shelter_label} has {shelter.get('capacity_available', 0)} available places "
+                f"for {zone.get('population', 0)} people in {zone['zone_id']}."
+            )
+            assumption_ids.append(capacity_assumption_id)
+        else:
+            flags.append(f"{shelter_label} has insufficient sourced capacity for {zone['zone_id']}.")
         blocking = True
 
     for event in context.get("road_events", []):
@@ -195,7 +208,7 @@ def _safety_flags(
         flags.append("Low vehicle access and high vulnerable population require dispatch-assisted movement.")
         blocking = True
 
-    return flags, sorted(set(evidence_ids)), blocking
+    return flags, sorted(set(evidence_ids)), sorted(set(assumption_ids)), blocking
 
 
 def _is_closure_event(event: dict[str, Any]) -> bool:
@@ -292,16 +305,39 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
             for fire in context.get("fires", [])
             if _route_crosses_fire_buffer(points, fire["location"], FIRE_ROUTE_BUFFER_KM, 2.0)
         ]
-        flags = ["Route enters the DriveBC closure impact buffer.", "Shelter A has insufficient capacity for Zone A."]
+        flags = [
+            "Route enters the DriveBC closure impact buffer.",
+            "Operator-entered capacity assumption: Shelter A has insufficient capacity for Zone A.",
+        ]
         if fire_ids:
             flags.insert(1, "Route crosses active fire-risk buffer.")
-        return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), False, flags, points, [item for item in [closure_id, *fire_ids] if item])
+        return _route(
+            zone_id,
+            shelter_id,
+            _duration_from_points(points),
+            _polyline_distance_km(points),
+            False,
+            flags,
+            points,
+            [item for item in [closure_id, *fire_ids] if item],
+            ["ASSUMPTION_SHELTER_A_CAPACITY"],
+        )
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_B":
         points = [origin, dest]
         return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), True, [], points, [])
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_C":
         points = [origin, dest]
-        return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), False, ["Shelter C has insufficient capacity for Zone A."], points, [])
+        return _route(
+            zone_id,
+            shelter_id,
+            _duration_from_points(points),
+            _polyline_distance_km(points),
+            False,
+            ["Operator-entered capacity assumption: Shelter C has insufficient capacity for Zone A."],
+            points,
+            [],
+            ["ASSUMPTION_SHELTER_C_CAPACITY"],
+        )
     if zone_id == "ZONE_B" and shelter_id == "SHELTER_B":
         points = [origin, dest]
         return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), True, ["Shared rural corridor with Zone A creates congestion risk if simultaneous."], points, [])
@@ -355,6 +391,7 @@ def rejected_routes(routes: list[RouteOption]) -> list[dict]:
             "reason": "; ".join(route.risk_flags),
             "duration_minutes": route.duration_minutes,
             "evidence_ids": route.evidence_ids,
+            "assumption_ids": route.assumption_ids,
             "route_source": route.route_source,
         }
         for route in routes

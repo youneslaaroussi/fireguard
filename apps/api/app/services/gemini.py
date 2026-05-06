@@ -116,10 +116,13 @@ def run_gemini_tool_assessment(
                     "shelter_id": shelter["shelter_id"],
                     "name": shelter["name"],
                     "capacity_available": shelter["capacity_available"],
+                    "capacity_is_operator_assumption": shelter.get("capacity_is_operator_assumption"),
+                    "capacity_source_label": shelter.get("capacity_source_label"),
                     "status": shelter["status"],
                 }
                 for shelter in context["shelters"]
             ],
+            "operational_assumptions": context.get("operational_assumptions", [])[:8],
             "data_freshness": context["data_freshness"],
         }
 
@@ -299,6 +302,7 @@ def _route_for_llm(route: RouteOption) -> dict[str, Any]:
         "safe": route.safe,
         "risk_flags": route.risk_flags[:8],
         "evidence_ids": route.evidence_ids[:10],
+        "assumption_ids": route.assumption_ids[:10],
         "route_source": route.route_source,
         "provider_error": route.provider_error,
         "polyline_point_count": len(route.polyline),
@@ -316,6 +320,7 @@ def _plan_for_llm(plan: EvacuationPlan) -> dict[str, Any]:
         "routes": [_route_for_llm(route) for route in plan.routes],
         "steps": [step.model_dump() for step in plan.steps],
         "rejected_alternatives": plan.rejected_alternatives[:8],
+        "operational_assumptions": plan.operational_assumptions[:8],
         "data_freshness": plan.data_freshness,
         "risks_if_wrong": plan.risks_if_wrong,
         "fallback_plan": plan.fallback_plan,
@@ -332,6 +337,7 @@ def _action_for_llm(action: ActionItem) -> dict[str, Any]:
         "message": action.message,
         "reason": action.reason,
         "evidence_ids": action.evidence_ids[:10],
+        "assumption_ids": action.assumption_ids[:10],
         "confidence": action.confidence,
         "external_system": action.external_system,
         "is_simulated_endpoint": action.is_simulated_endpoint,

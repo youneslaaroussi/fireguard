@@ -163,6 +163,7 @@ def trace_tool_span(
     inputs: dict[str, Any],
     output: Any,
     evidence_ids: list[str],
+    assumption_ids: list[str] | None = None,
 ) -> str | None:
     global _last_error, _disabled_after_error
     tracer = _get_tracer(settings)
@@ -177,6 +178,7 @@ def trace_tool_span(
             span.set_attribute("fireguard.step", step)
             span.set_attribute("fireguard.tool", tool)
             span.set_attribute("fireguard.evidence_ids", json.dumps(evidence_ids))
+            span.set_attribute("fireguard.assumption_ids", json.dumps(assumption_ids or []))
             span.set_attribute("fireguard.inputs", json.dumps(inputs, default=str)[:4000])
             span.set_attribute("fireguard.output_type", type(output).__name__)
             span.set_attribute("openinference.span.kind", "TOOL")

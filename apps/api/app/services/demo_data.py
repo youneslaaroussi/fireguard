@@ -421,11 +421,117 @@ def policies() -> list[dict]:
 
 def resident_contacts(zone_a_phone: str | None = None) -> list[dict]:
     zone_a_number = zone_a_phone or "+15555550123"
+    zone_a_source = (
+        {
+            "data_origin": "operator_provided_twilio_test_recipient",
+            "source_label": "Operator-provided allowlisted Twilio test recipient; not a public resident registry.",
+            "synthetic": False,
+            "consent_source_label": "Demo operator-provided test number.",
+        }
+        if zone_a_phone
+        else {
+            "data_origin": "synthetic_demo_resident",
+            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
+            "synthetic": True,
+            "consent_source_label": "Synthetic placeholder.",
+        }
+    )
     return [
-        {"resident_id": "RES_A_001", "zone_id": "ZONE_A", "phone": zone_a_number, "allowlisted": True, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True},
-        {"resident_id": "RES_B_001", "zone_id": "ZONE_B", "phone": "+15555550124", "allowlisted": True, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True},
-        {"resident_id": "RES_C_001", "zone_id": "ZONE_C", "phone": "+15555550125", "allowlisted": False, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True},
+        {"resident_id": "RES_A_001", "zone_id": "ZONE_A", "phone": zone_a_number, "allowlisted": True, **zone_a_source},
+        {"resident_id": "RES_B_001", "zone_id": "ZONE_B", "phone": "+15555550124", "allowlisted": False, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True, "consent_source_label": "Synthetic placeholder."},
+        {"resident_id": "RES_C_001", "zone_id": "ZONE_C", "phone": "+15555550125", "allowlisted": False, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True, "consent_source_label": "Synthetic placeholder."},
     ]
+
+
+def operational_assumptions(
+    shelters: list[dict[str, Any]],
+    zones: list[dict[str, Any]],
+    dispatch: list[dict[str, Any]],
+    residents: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    assumptions: list[dict[str, Any]] = []
+    for shelter in shelters:
+        if shelter.get("capacity_is_operator_assumption"):
+            assumptions.append({
+                "assumption_id": f"ASSUMPTION_{shelter['shelter_id']}_CAPACITY",
+                "component": "shelter_capacity",
+                "target": shelter["shelter_id"],
+                "label": f"{shelter['name']} capacity is operator-entered",
+                "detail": shelter.get("capacity_source_label", "Capacity source is not official."),
+                "affects_decision": True,
+                "current_value": {
+                    "capacity_total": shelter.get("capacity_total"),
+                    "capacity_available": shelter.get("capacity_available"),
+                },
+                "fix_path": "Replace with an authorized ESS/municipal shelter-capacity feed or an operator-updated capacity form with named approver and timestamp.",
+                "status": "needs_authoritative_feed",
+            })
+        if shelter.get("synthetic"):
+            assumptions.append({
+                "assumption_id": f"ASSUMPTION_{shelter['shelter_id']}_IDENTITY",
+                "component": "shelter_identity",
+                "target": shelter["shelter_id"],
+                "label": f"{shelter['name']} is operator-entered",
+                "detail": shelter.get("source_label", SYNTHETIC_MUNICIPAL_LABEL),
+                "affects_decision": True,
+                "fix_path": "Replace with a source-backed ESS facility record or remove the shelter from judged routing.",
+                "status": "operator_entered",
+            })
+
+    for zone in zones:
+        if zone.get("vulnerable_count_estimated"):
+            assumptions.append({
+                "assumption_id": f"ASSUMPTION_{zone['zone_id']}_VULNERABILITY",
+                "component": "zone_demographics",
+                "target": zone["zone_id"],
+                "label": f"{zone['zone_id']} vulnerable count is derived",
+                "detail": zone.get("vulnerability_source_label", "Derived demo estimate."),
+                "affects_decision": True,
+                "current_value": {"vulnerable_count": zone.get("vulnerable_count")},
+                "fix_path": "Replace with StatsCan dissemination-area demographics or authorized municipal vulnerable-population registry aggregates.",
+                "status": "derived_estimate",
+            })
+        if zone.get("vehicle_access_score_estimated"):
+            assumptions.append({
+                "assumption_id": f"ASSUMPTION_{zone['zone_id']}_VEHICLE_ACCESS",
+                "component": "zone_accessibility",
+                "target": zone["zone_id"],
+                "label": f"{zone['zone_id']} vehicle-access score is derived",
+                "detail": zone.get("vehicle_access_source_label", "Derived demo access score."),
+                "affects_decision": True,
+                "current_value": {"vehicle_access_score": zone.get("vehicle_access_score")},
+                "fix_path": "Replace with municipal transport/accessibility data or a responder-confirmed access assessment.",
+                "status": "derived_estimate",
+            })
+
+    for asset in dispatch:
+        if asset.get("synthetic"):
+            assumptions.append({
+                "assumption_id": f"ASSUMPTION_{asset['asset_id']}_DISPATCH_ASSET",
+                "component": "dispatch_asset",
+                "target": asset["asset_id"],
+                "label": f"{asset['asset_id']} is a synthetic dispatch asset",
+                "detail": asset.get("source_label", SYNTHETIC_MUNICIPAL_LABEL),
+                "affects_decision": True,
+                "fix_path": "Replace with authorized dispatch/AVL data or keep the action as an operator task instead of claiming asset availability.",
+                "status": "synthetic_demo_data",
+            })
+
+    for resident in residents:
+        if resident.get("synthetic"):
+            assumptions.append({
+                "assumption_id": f"ASSUMPTION_{resident['resident_id']}_CONTACT",
+                "component": "resident_contact",
+                "target": resident["zone_id"],
+                "label": f"{resident['zone_id']} resident contact is a placeholder",
+                "detail": resident.get("source_label", SYNTHETIC_MUNICIPAL_LABEL),
+                "affects_decision": False,
+                "blocks_execution": True,
+                "fix_path": "Provide an opt-in, Twilio-verified test recipient for this zone or keep the message as a draft.",
+                "status": "placeholder_contact",
+            })
+
+    return assumptions
 
 
 def demo_disclosures() -> list[dict[str, Any]]:
@@ -451,7 +557,7 @@ def demo_disclosures() -> list[dict[str, Any]]:
         {
             "scope": "shelters_residents_dispatch",
             "label": SYNTHETIC_MUNICIPAL_LABEL,
-            "detail": "Shelter B/C facility identities and locations come from the official BC ESS layer, but all shelter capacity numbers are operator-entered demo assumptions. Shelter A, resident contacts, and dispatch assets remain synthetic demo data.",
+            "detail": "Shelter B/C facility identities and locations come from the official BC ESS layer, but all shelter capacity numbers are operator-entered demo assumptions. Shelter A and dispatch assets remain synthetic. Zone A resident contact is operator-provided when DEMO_RESIDENT_ZONE_A_PHONE is configured; other resident contacts are placeholders.",
             "synthetic": True,
         },
         {

@@ -217,6 +217,43 @@ export default function Home() {
                 </div>
               ))}
             </div>
+            <div className="mt-4 border border-amber/40 bg-amber/10 p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-amber-100">Operational Assumptions To Clear</span>
+                <StatusBadge label={`${context?.operational_assumptions?.length ?? 0} open`} tone={(context?.operational_assumptions?.length ?? 0) ? "warn" : "ok"} />
+              </div>
+              <div className="mt-2 grid gap-2">
+                {(context?.operational_assumptions || []).slice(0, 4).map((item) => (
+                  <div key={String(item.assumption_id)} className="border border-line bg-command/70 px-2 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="truncate font-semibold text-slate-200">{String(item.label)}</span>
+                      <StatusBadge label={String(item.status || "open")} tone="warn" />
+                    </div>
+                    <p className="mt-1 text-slate-500">{shortText(String(item.fix_path || item.detail || ""), 120)}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="mt-4 border border-line bg-command/70 p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-200">Shelter Capacity Provenance</span>
+                <StatusBadge label="not official capacity" tone="warn" />
+              </div>
+              <div className="mt-2 grid gap-2">
+                {(context?.shelters || []).map((shelter) => (
+                  <div key={shelter.shelter_id} className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-slate-300">{shelter.name}</p>
+                      <p className="text-slate-500">{shortText(shelter.capacity_source_label || shelter.source_label || "capacity source unknown", 96)}</p>
+                    </div>
+                    <StatusBadge
+                      label={`${shelter.capacity_available}/${shelter.capacity_total}`}
+                      tone={shelter.capacity_is_operator_assumption ? "warn" : "ok"}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="mt-4 grid gap-2">
               {context?.data_freshness.map((item) => (
                 <div key={String(item.source)} className="flex items-center justify-between border border-line bg-command/70 px-3 py-2 text-xs">
@@ -277,6 +314,16 @@ export default function Home() {
                   <p className="mt-2 text-xs text-slate-400">{risk.reasoning_factors[0]}</p>
                 </div>
               ))}
+              {assessment.plan.operational_assumptions?.length ? (
+                <div className="border border-amber/40 bg-amber/10 p-3 text-sm">
+                  <p className="font-semibold text-amber-100">Plan assumptions</p>
+                  <div className="mt-2 grid gap-1 text-xs text-slate-300">
+                    {assessment.plan.operational_assumptions.slice(0, 4).map((item) => (
+                      <p key={String(item.assumption_id)}>{String(item.label)}</p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : (
             <p className="mt-3 text-sm text-slate-400">No plan yet.</p>
@@ -335,6 +382,10 @@ export default function Home() {
                   </div>
                   <p className="mt-2 text-slate-300">{action.message}</p>
                   <p className="mt-2 text-xs text-slate-500">{action.target}</p>
+                  {action.assumption_ids?.length ? <p className="mt-1 text-xs text-amber-200">Assumptions: {action.assumption_ids.join(", ")}</p> : null}
+                  {typeof action.payload.capacity_source_label === "string" ? (
+                    <p className="mt-1 text-xs text-slate-500">Capacity source: {String(action.payload.capacity_source_label)}</p>
+                  ) : null}
                   {typeof action.payload.github_issue_url === "string" ? (
                     <a className="mt-2 block text-xs text-shelter underline underline-offset-4" href={action.payload.github_issue_url} target="_blank" rel="noreferrer">
                       GitHub task #{String(action.payload.github_issue_number || "")}
@@ -360,6 +411,7 @@ export default function Home() {
                 <StatusBadge label={String(event.tool)} tone="info" />
               </div>
               <p className="mt-2 text-xs text-slate-400">Evidence: {Array.isArray(event.evidence_ids) ? event.evidence_ids.join(", ") || "none" : "none"}</p>
+              <p className="mt-1 text-xs text-amber-200">Assumptions: {Array.isArray(event.assumption_ids) ? event.assumption_ids.join(", ") || "none" : "none"}</p>
               <p className="mt-1 text-xs text-slate-500">Phoenix: {String(event.phoenix_trace_id || "pending/local-disabled")}</p>
             </div>
           ))}

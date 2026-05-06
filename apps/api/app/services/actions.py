@@ -49,7 +49,19 @@ def _action_metadata(action_type: str, settings: Settings | None = None) -> dict
     }
 
 
-def create_action(bundle_id: str, action_type: str, target: str, message: str, payload: dict[str, Any], reason: str, evidence_ids: list[str], confidence: float, requires_approval: bool = True, settings: Settings | None = None) -> ActionItem:
+def create_action(
+    bundle_id: str,
+    action_type: str,
+    target: str,
+    message: str,
+    payload: dict[str, Any],
+    reason: str,
+    evidence_ids: list[str],
+    confidence: float,
+    requires_approval: bool = True,
+    settings: Settings | None = None,
+    assumption_ids: list[str] | None = None,
+) -> ActionItem:
     metadata = _action_metadata(action_type, settings)
     return ActionItem(
         action_id=f"ACTION_{uuid.uuid4().hex[:10].upper()}",
@@ -61,6 +73,7 @@ def create_action(bundle_id: str, action_type: str, target: str, message: str, p
         payload=payload,
         reason=reason,
         evidence_ids=evidence_ids,
+        assumption_ids=assumption_ids or [],
         confidence=confidence,
         external_system=metadata["external_system"],
         is_simulated_endpoint=metadata["is_simulated_endpoint"],

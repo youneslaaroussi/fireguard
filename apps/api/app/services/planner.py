@@ -22,6 +22,10 @@ def _shelter_name(shelters: dict[str, dict], shelter_id: str | None) -> str:
     return shelters.get(shelter_id, {}).get("name", shelter_id)
 
 
+def _route_assumption_ids(route) -> list[str]:
+    return list(getattr(route, "assumption_ids", []) or [])
+
+
 def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], routes: list) -> EvacuationPlan:
     risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
     zones_by_id = _by_id(context.get("zones", []), "zone_id")
@@ -70,6 +74,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         message=zone_a_message,
         rationale=zone_a_rationale,
         evidence_ids=risk_by_zone["ZONE_A"].evidence_ids + (route_a.evidence_ids if route_a else []),
+        assumption_ids=_route_assumption_ids(route_a),
     ))
     steps.append(PlanStep(
         step_id="STEP_ZONE_B_STAGE",
@@ -80,6 +85,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         message=zone_b_message,
         rationale=zone_b_rationale,
         evidence_ids=risk_by_zone["ZONE_B"].evidence_ids + (route_b.evidence_ids if route_b else []),
+        assumption_ids=_route_assumption_ids(route_b),
     ))
     steps.append(PlanStep(
         step_id="STEP_ZONE_C_SHELTER_DISPATCH",
@@ -90,6 +96,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         message=f"[DEMO - FireGuard] {zone_c_name} should shelter in place temporarily. Dispatch-assisted evacuation is being assigned for vulnerable residents.",
         rationale=["Self-evacuation routes cross the closure or fire-risk buffer.", "Vulnerable population and low vehicle access make unsupported evacuation unsafe."],
         evidence_ids=risk_by_zone["ZONE_C"].evidence_ids,
+        assumption_ids=["ASSUMPTION_ZONE_C_VULNERABILITY", "ASSUMPTION_ZONE_C_VEHICLE_ACCESS", "ASSUMPTION_DISPATCH_BUS_01_DISPATCH_ASSET"],
     ))
 
     plan_id = f"PLAN_{uuid.uuid4().hex[:8].upper()}"
@@ -103,10 +110,15 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         routes=routes,
         steps=steps,
         rejected_alternatives=rejected_routes(routes),
+        operational_assumptions=[
+            assumption
+            for assumption in context.get("operational_assumptions", [])
+            if assumption.get("affects_decision") or assumption.get("blocks_execution")
+        ],
         data_freshness=context.get("data_freshness", []),
         risks_if_wrong=[
             f"If wind shifts north, {zone_b_name} may need immediate evacuation instead of staged release.",
-            "If Williams Lake ESS capacity changes, evacuees may need splitting between Williams Lake and Quesnel reception centres.",
+            "Shelter capacity numbers are operator-entered demo assumptions; confirm with the ESS coordinator before treating them as authoritative.",
             "If road closure data is stale, road ops must verify before releasing traffic.",
         ],
         fallback_plan="If alternate evacuation routes become unsafe, expand shelter-in-place, assign door-to-door checks, and request additional accessible transport for vulnerable residents.",
@@ -128,6 +140,7 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
             )
     primary_shelter_id = max(arrivals_by_shelter, key=arrivals_by_shelter.get, default="SHELTER_B")
     primary_shelter_name = _shelter_name(shelters_by_id, primary_shelter_id)
+    primary_shelter = shelters_by_id.get(primary_shelter_id, {})
     expected_arrivals = arrivals_by_shelter.get(primary_shelter_id, 0)
     zone_c_name = _zone_name(zones_by_id, "ZONE_C")
     for step in plan.steps:
@@ -141,6 +154,7 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
             evidence_ids=step.evidence_ids,
             confidence=plan.confidence,
             settings=settings,
+            assumption_ids=step.assumption_ids,
         ))
 
     actions.extend([
@@ -149,11 +163,22 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
             "shelter_notify",
             primary_shelter_id,
             f"Prepare for staged arrivals from approved FireGuard evacuation steps within 75 minutes at {primary_shelter_name}.",
-            {"shelter_id": primary_shelter_id, "expected_arrivals": expected_arrivals, "eta_minutes": 75, "needs": ["accessible_cots", "pet_area"], "source_plan_id": plan.plan_id},
-            f"{primary_shelter_name} is the selected safe reception centre with enough available demo capacity.",
+            {
+                "shelter_id": primary_shelter_id,
+                "expected_arrivals": expected_arrivals,
+                "eta_minutes": 75,
+                "needs": ["accessible_cots", "pet_area"],
+                "source_plan_id": plan.plan_id,
+                "capacity_available": primary_shelter.get("capacity_available"),
+                "capacity_total": primary_shelter.get("capacity_total"),
+                "capacity_is_operator_assumption": primary_shelter.get("capacity_is_operator_assumption", False),
+                "capacity_source_label": primary_shelter.get("capacity_source_label"),
+            },
+            f"{primary_shelter_name} is selected using operator-entered capacity that must be confirmed by the ESS coordinator before real-world use.",
             [primary_shelter_id],
             plan.confidence,
             settings=settings,
+            assumption_ids=[f"ASSUMPTION_{primary_shelter_id}_CAPACITY"],
         ),
         create_action(
             bundle_id,
@@ -176,6 +201,7 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
             ["ZONE_C", "DISPATCH_BUS_01"],
             plan.confidence,
             settings=settings,
+            assumption_ids=["ASSUMPTION_DISPATCH_BUS_01_DISPATCH_ASSET", "ASSUMPTION_ZONE_C_VULNERABILITY", "ASSUMPTION_ZONE_C_VEHICLE_ACCESS"],
         ),
     ])
     approval = create_approval(bundle_id)

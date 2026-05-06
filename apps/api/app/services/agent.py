@@ -50,24 +50,35 @@ def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_
     )
 
     routes = compute_routes(context, google_maps_api_key=store.settings.google_maps_api_key)
+    route_assumption_ids = sorted({assumption_id for route in routes for assumption_id in route.assumption_ids})
     trace.add(
         "route",
         "compute_routes",
         {"origins": [zone["zone_id"] for zone in context["zones"]], "destinations": [shelter["shelter_id"] for shelter in context["shelters"]]},
         [route.model_dump() for route in routes],
         [evidence_id for route in routes for evidence_id in route.evidence_ids],
+        route_assumption_ids,
     )
 
     plan = draft_plan(incident_id, context, zone_risks, routes)
-    trace.add("plan", "draft_evacuation_plan", {"incident_id": incident_id}, plan.model_dump(), [])
+    trace.add(
+        "plan",
+        "draft_evacuation_plan",
+        {"incident_id": incident_id},
+        plan.model_dump(),
+        [],
+        [item["assumption_id"] for item in plan.operational_assumptions],
+    )
 
     bundle_id, actions, approval = create_bundle(plan, context, store.settings)
+    action_assumption_ids = sorted({assumption_id for action in actions for assumption_id in action.assumption_ids})
     trace.add(
         "act",
         "create_action_bundle",
         {"plan_id": plan.plan_id},
         {"bundle_id": bundle_id, "actions": [action.model_dump() for action in actions]},
         [evidence_id for action in actions for evidence_id in action.evidence_ids],
+        action_assumption_ids,
     )
     trace.add("approval", "request_human_approval", {"bundle_id": bundle_id}, approval.model_dump(), [])
 
