@@ -52,7 +52,7 @@ export function MapPanel({ context, assessment }: Props) {
   const collections = useMemo(() => {
     const empty = { type: "FeatureCollection" as const, features: [] };
     if (!context) {
-      return { zones: empty, shelters: empty, fires: empty, roads: empty, perimeters: empty, routes: empty };
+      return { zones: empty, shelters: empty, fires: empty, roads: empty, perimeters: empty, publicOrders: empty, publicEss: empty, routes: empty };
     }
 
     return {
@@ -119,6 +119,26 @@ export function MapPanel({ context, assessment }: Props) {
           geometry: perimeter.geometry,
         })),
       },
+      publicOrders: {
+        type: "FeatureCollection" as const,
+        features: (context.public_evacuation_orders || []).map((order) =>
+          pointFeature(order.order_alert_id, [order.location.lon, order.location.lat], {
+            label: order.order_alert_name,
+            status: order.status,
+            agency: order.issuing_agency,
+          }),
+        ),
+      },
+      publicEss: {
+        type: "FeatureCollection" as const,
+        features: (context.public_ess_facilities || []).map((facility) =>
+          pointFeature(facility.facility_id, [facility.location.lon, facility.location.lat], {
+            label: facility.name,
+            status: facility.status,
+            community: facility.community,
+          }),
+        ),
+      },
       routes: {
         type: "FeatureCollection" as const,
         features: assessment?.plan.routes.map(routeFeature) || [],
@@ -157,7 +177,7 @@ export function MapPanel({ context, assessment }: Props) {
 
     map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-left");
     map.on("load", () => {
-      for (const sourceId of ["perimeters", "zones", "roads", "routes", "fires", "shelters"]) {
+      for (const sourceId of ["perimeters", "zones", "roads", "routes", "fires", "shelters", "public-orders", "public-ess"]) {
         map.addSource(sourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
       }
 
@@ -223,6 +243,28 @@ export function MapPanel({ context, assessment }: Props) {
           "circle-stroke-width": 2,
         },
       });
+      map.addLayer({
+        id: "public-orders",
+        type: "circle",
+        source: "public-orders",
+        paint: {
+          "circle-color": ["case", ["==", ["get", "status"], "Order"], "#ff4d4d", "#ffb04d"],
+          "circle-radius": 6,
+          "circle-stroke-color": "#fff2d6",
+          "circle-stroke-width": 1.5,
+        },
+      });
+      map.addLayer({
+        id: "public-ess",
+        type: "circle",
+        source: "public-ess",
+        paint: {
+          "circle-color": ["case", ["==", ["get", "status"], "OPEN"], "#45d483", "#7aa2ff"],
+          "circle-radius": 5,
+          "circle-stroke-color": "#d9f2ff",
+          "circle-stroke-width": 1.5,
+        },
+      });
     });
 
     mapRef.current = map;
@@ -241,6 +283,8 @@ export function MapPanel({ context, assessment }: Props) {
       setSourceData(map, "fires", collections.fires);
       setSourceData(map, "roads", collections.roads);
       setSourceData(map, "perimeters", collections.perimeters);
+      setSourceData(map, "public-orders", collections.publicOrders);
+      setSourceData(map, "public-ess", collections.publicEss);
       setSourceData(map, "routes", collections.routes);
     };
     if (map.isStyleLoaded()) apply();
@@ -255,6 +299,7 @@ export function MapPanel({ context, assessment }: Props) {
         <span className="w-fit border border-fire/50 bg-fire/15 px-2 py-1 text-orange-100">Fire + perimeter</span>
         <span className="w-fit border border-amber/50 bg-amber/15 px-2 py-1 text-amber-100">Road closure</span>
         <span className="w-fit border border-shelter/50 bg-shelter/15 px-2 py-1 text-sky-100">Shelters</span>
+        <span className="w-fit border border-emerald-400/50 bg-emerald-500/15 px-2 py-1 text-emerald-100">Public BC emergency context</span>
       </div>
     </section>
   );

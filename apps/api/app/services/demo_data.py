@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,9 @@ FIRMS_SNAPSHOT_URL = (
     "https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
     "[MAP_KEY]/VIIRS_NOAA20_SP/-122.2,52.0,-121.3,52.9/5/2024-07-10"
 )
+PUBLIC_BC_CONTEXT_SNAPSHOT = REPO_ROOT / "data" / "public" / "bc" / "public_emergency_context_snapshot.json"
 SYNTHETIC_MUNICIPAL_LABEL = "Synthetic demo municipality; not official municipal data."
+PUBLIC_BC_CONTEXT_LABEL = "Official BC EmergencyMapBC public data snapshot."
 
 
 def _float(value: Any, default: float = 0.0) -> float:
@@ -159,6 +162,51 @@ def synthetic_shelters() -> list[dict]:
             "updated_at": updated_at,
             "synthetic": True,
         },
+    ]
+
+
+def _public_bc_snapshot() -> dict[str, Any]:
+    with PUBLIC_BC_CONTEXT_SNAPSHOT.open() as file:
+        return json.load(file)
+
+
+def public_evacuation_orders_alerts() -> list[dict]:
+    snapshot = _public_bc_snapshot()
+    source = snapshot["evacuation_orders_alerts"]
+    ingested_at = now_iso()
+    return [
+        {
+            **record,
+            "source": "BC_EMERGENCYMAPBC_EVACUATION_ORDERS_ALERTS",
+            "source_url": source["source_url"],
+            "source_query": source["query"],
+            "source_label": PUBLIC_BC_CONTEXT_LABEL,
+            "data_origin": "bc_emergencymapbc_public_snapshot",
+            "captured_at": snapshot["captured_at"],
+            "ingested_at": ingested_at,
+            "synthetic": False,
+        }
+        for record in source["records"]
+    ]
+
+
+def public_ess_facilities() -> list[dict]:
+    snapshot = _public_bc_snapshot()
+    source = snapshot["ess_facilities"]
+    ingested_at = now_iso()
+    return [
+        {
+            **record,
+            "source": "BC_EMERGENCYMAPBC_ESS_FACILITIES",
+            "source_url": source["source_url"],
+            "source_query": source["query"],
+            "source_label": PUBLIC_BC_CONTEXT_LABEL,
+            "data_origin": "bc_emergencymapbc_public_snapshot",
+            "captured_at": snapshot["captured_at"],
+            "ingested_at": ingested_at,
+            "synthetic": False,
+        }
+        for record in source["records"]
     ]
 
 
@@ -334,6 +382,12 @@ def demo_disclosures() -> list[dict[str, Any]]:
             "label": SYNTHETIC_MUNICIPAL_LABEL,
             "detail": "Evacuation zones, shelter capacities, resident contacts, and dispatch assets are synthetic operational data built for a safe BC demo scenario.",
             "synthetic": True,
+        },
+        {
+            "scope": "public_bc_emergency_context",
+            "label": PUBLIC_BC_CONTEXT_LABEL,
+            "detail": "Current BC Evacuation Orders/Alerts and ESS facility candidates are stored from official public ArcGIS layers. They provide source-backed context, but FireGuard does not infer shelter capacity from ESS facility status.",
+            "synthetic": False,
         },
         {
             "scope": "shelter_road_ops_dispatch_actions",

@@ -183,6 +183,28 @@ export default function Home() {
               <Metric label="Road events" value={context?.road_events.length ?? 0} />
               <Metric label="Zones" value={context?.zones.length ?? 0} />
               <Metric label="Shelters" value={context?.shelters.length ?? 0} />
+              <Metric label="Public orders" value={context?.public_evacuation_orders?.length ?? 0} />
+              <Metric label="Public ESS sites" value={context?.public_ess_facilities?.length ?? 0} />
+            </div>
+            <div className="mt-4 border border-line bg-command/70 p-3 text-xs">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-200">Public BC EmergencyMapBC Context</span>
+                <StatusBadge label="source-backed" tone="ok" />
+              </div>
+              <div className="mt-2 grid gap-2">
+                {(context?.public_evacuation_orders || []).slice(0, 2).map((order) => (
+                  <div key={order.order_alert_id} className="flex items-center justify-between gap-3">
+                    <span className="truncate text-slate-300">{order.order_alert_name}</span>
+                    <StatusBadge label={order.status} tone={order.status === "Order" ? "danger" : "warn"} />
+                  </div>
+                ))}
+                {(context?.public_ess_facilities || []).slice(0, 3).map((facility) => (
+                  <div key={facility.facility_id} className="flex items-center justify-between gap-3">
+                    <span className="truncate text-slate-300">{facility.name} - {facility.community}</span>
+                    <StatusBadge label={facility.status} tone={facility.status === "OPEN" ? "ok" : "neutral"} />
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="mt-4 grid gap-2">
               {(context?.demo_disclosures || []).map((item) => (

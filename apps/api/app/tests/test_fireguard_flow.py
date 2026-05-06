@@ -127,6 +127,22 @@ def test_action_metadata_labels_simulated_endpoints() -> None:
         assert by_type[action_type].external_system == "simulated_municipal_webhook"
 
 
+def test_public_bc_emergency_context_is_source_backed() -> None:
+    store = seeded_store()
+    context = store.incident_context()
+
+    assert len(context["public_evacuation_orders"]) == 8
+    assert len(context["public_ess_facilities"]) == 10
+    assert all(order["synthetic"] is False for order in context["public_evacuation_orders"])
+    assert all(facility["synthetic"] is False for facility in context["public_ess_facilities"])
+    assert any(order["status"] == "Order" for order in context["public_evacuation_orders"])
+    assert any(facility["status"] == "OPEN" for facility in context["public_ess_facilities"])
+    assert any(
+        item["scope"] == "public_bc_emergency_context" and item["synthetic"] is False
+        for item in context["demo_disclosures"]
+    )
+
+
 def test_github_issue_backend_creates_real_demo_tasks(monkeypatch) -> None:
     settings = Settings(
         demo_mode=True,

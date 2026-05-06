@@ -21,6 +21,8 @@ INDEX_NAMES = [
     "resident_contacts",
     "policies",
     "weather_observations",
+    "public_evacuation_orders",
+    "public_ess_facilities",
     "action_logs",
     "approval_requests",
     "traces",
@@ -71,6 +73,32 @@ INDEX_MAPPINGS: dict[str, dict[str, Any]] = {
     "traces": {"properties": {"trace_id": {"type": "keyword"}, "incident_id": {"type": "keyword"}, "created_at": {"type": "date"}, "phoenix_trace_ids": {"type": "keyword"}}},
     "evals": {"properties": {"eval_id": {"type": "keyword"}, "incident_id": {"type": "keyword"}, "score": {"type": "float"}, "created_at": {"type": "date"}}},
     "ingestion_runs": {"properties": {"run_id": {"type": "keyword"}, "provider": {"type": "keyword"}, "status": {"type": "keyword"}, "created_at": {"type": "date"}}},
+    "public_evacuation_orders": {
+        "properties": {
+            "order_alert_id": {"type": "keyword"},
+            "source": {"type": "keyword"},
+            "status": {"type": "keyword"},
+            "event_name": {"type": "text"},
+            "issuing_agency": {"type": "keyword"},
+            "location": {"type": "geo_point"},
+            "updated_at": {"type": "date"},
+            "captured_at": {"type": "date"},
+        }
+    },
+    "public_ess_facilities": {
+        "properties": {
+            "facility_id": {"type": "keyword"},
+            "source": {"type": "keyword"},
+            "name": {"type": "text"},
+            "facility_type_code": {"type": "keyword"},
+            "community": {"type": "keyword"},
+            "municipality": {"type": "keyword"},
+            "status": {"type": "keyword"},
+            "location": {"type": "geo_point"},
+            "updated_at": {"type": "date"},
+            "captured_at": {"type": "date"},
+        }
+    },
 }
 
 
@@ -240,6 +268,8 @@ class FireGuardStore:
         self.bulk_upsert("fire_perimeters", demo_data.replay_fire_perimeters(), "fire_number")
         self.bulk_upsert("road_events", demo_data.replay_road_events(), "external_id")
         self.bulk_upsert("weather_observations", demo_data.replay_weather(), "weather_id")
+        self.bulk_upsert("public_evacuation_orders", demo_data.public_evacuation_orders_alerts(), "order_alert_id")
+        self.bulk_upsert("public_ess_facilities", demo_data.public_ess_facilities(), "facility_id")
         self.bulk_upsert("dispatch_assets", demo_data.dispatch_assets(), "asset_id")
         self.bulk_upsert("resident_contacts", demo_data.resident_contacts(self.settings.demo_resident_zone_a_phone), "resident_id")
         self.bulk_upsert("policies", demo_data.policies(), "policy_id")
@@ -257,6 +287,8 @@ class FireGuardStore:
                     "fire_perimeters": len(self.indices["fire_perimeters"]),
                     "road_events": len(self.indices["road_events"]),
                     "weather_observations": len(self.indices["weather_observations"]),
+                    "public_evacuation_orders": len(self.indices["public_evacuation_orders"]),
+                    "public_ess_facilities": len(self.indices["public_ess_facilities"]),
                 },
                 "fallback_active": True,
                 "warnings": [
@@ -304,6 +336,8 @@ class FireGuardStore:
             "zones": self.list("evacuation_zones"),
             "shelters": self.list("shelters"),
             "dispatch_assets": self.list("dispatch_assets"),
+            "public_evacuation_orders": self.list("public_evacuation_orders"),
+            "public_ess_facilities": self.list("public_ess_facilities"),
             "policies": self.list("policies"),
             "data_freshness": self.data_freshness(),
             "provider_status": self.provider_status(),
@@ -356,22 +390,34 @@ class FireGuardStore:
 
     def data_freshness(self) -> list[dict[str, Any]]:
         freshness = []
-        for index in ["fire_hotspots", "fire_perimeters", "road_events", "weather_observations", "shelters"]:
+        for index in [
+            "fire_hotspots",
+            "fire_perimeters",
+            "road_events",
+            "weather_observations",
+            "shelters",
+            "public_evacuation_orders",
+            "public_ess_facilities",
+        ]:
             docs = self.list(index)
             if not docs:
                 freshness.append({"source": index, "freshness_minutes": None, "stale": True, "status": "missing"})
                 continue
+            timestamp_field = "captured_at" if index.startswith("public_") else "updated_at"
             newest = max(
-                iso_string(doc.get("updated_at") or doc.get("ingested_at") or now_iso())
+                iso_string(doc.get(timestamp_field) or doc.get("updated_at") or doc.get("ingested_at") or now_iso())
                 for doc in docs
             )
             minutes = freshness_minutes(newest)
-            stale_after = 180 if index == "road_events" else 360
+            stale_after = 180 if index == "road_events" else 1440 if index.startswith("public_") else 360
+            status = "stale" if minutes > stale_after else "fresh"
+            if index.startswith("public_"):
+                status = "snapshot_stale" if minutes > stale_after else "source_snapshot"
             freshness.append({
                 "source": index,
                 "freshness_minutes": round(minutes, 1),
                 "stale": minutes > stale_after,
-                "status": "stale" if minutes > stale_after else "fresh",
+                "status": status,
             })
         return freshness
 

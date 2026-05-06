@@ -166,6 +166,11 @@ Live/open sources ingested through Fivetran:
 - Open-Meteo wind forecast
 - Google Routes API
 
+Additional public BC emergency context:
+
+- EmergencyMapBC Evacuation Orders and Alerts snapshot
+- BC Emergency Social Services Facilities snapshot
+
 Synthetic demo data:
 
 - evacuation zones
@@ -174,7 +179,7 @@ Synthetic demo data:
 - dispatch assets
 - municipal action endpoints, unless the GitHub Issues task backend is configured
 
-Replay mode uses stored real source snapshots where live data is quiet. The FIRMS replay file is an official NASA FIRMS Area API CSV snapshot with the MAP_KEY redacted from provenance; municipal zones, shelters, and dispatch assets remain synthetic and labeled. Shelter, road-ops, and dispatch actions create GitHub Issues when configured, otherwise they remain simulated and labeled.
+Replay mode uses stored real source snapshots where live data is quiet. The FIRMS replay file is an official NASA FIRMS Area API CSV snapshot with the MAP_KEY redacted from provenance. The public BC emergency context file stores official ArcGIS snapshot records for current evacuation orders/alerts and ESS facility candidates. Municipal evacuation zones, shelter capacities, resident contacts, and dispatch assets remain synthetic and labeled. Shelter, road-ops, and dispatch actions create GitHub Issues when configured, otherwise they remain simulated and labeled.
 
 ## Tests
 

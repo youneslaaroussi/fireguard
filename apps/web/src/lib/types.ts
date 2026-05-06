@@ -56,6 +56,30 @@ export type Perimeter = {
   geometry: GeoJSON.Polygon | GeoJSON.MultiPolygon;
 };
 
+export type PublicEvacuationOrder = {
+  order_alert_id: string;
+  event_name: string;
+  event_type: string;
+  order_alert_name: string;
+  status: string;
+  issuing_agency: string;
+  population: number;
+  homes: number;
+  location: GeoPoint;
+  source_url?: string;
+};
+
+export type PublicEssFacility = {
+  facility_id: string;
+  name: string;
+  facility_type: string;
+  community: string;
+  municipality: string;
+  status: string;
+  location: GeoPoint;
+  source_url?: string;
+};
+
 export type IncidentContext = {
   incident_id: string;
   mode: string;
@@ -66,6 +90,8 @@ export type IncidentContext = {
   weather: Record<string, unknown>;
   zones: Zone[];
   shelters: Shelter[];
+  public_evacuation_orders?: PublicEvacuationOrder[];
+  public_ess_facilities?: PublicEssFacility[];
   data_freshness: Array<Record<string, unknown>>;
   provider_status: Record<string, Record<string, unknown>>;
   demo_disclosures: Array<Record<string, unknown>>;
