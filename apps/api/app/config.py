@@ -29,9 +29,9 @@ class Settings(BaseSettings):
     nasa_firms_bbox: str = "-123.2,49.8,-121.0,51.0"
 
     google_cloud_project: str | None = None
-    google_cloud_location: str = "us-central1"
+    google_cloud_location: str = "global"
     google_application_credentials: str | None = None
-    gemini_model: str = "gemini-2.5-flash"
+    gemini_model: str = "gemini-3.1-flash-lite-preview"
     google_genai_use_vertexai: bool = True
     gemini_assessment_enabled: bool = True
     google_maps_api_key: str | None = None

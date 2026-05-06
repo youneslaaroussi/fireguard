@@ -4,7 +4,7 @@ import json
 from typing import Any
 
 from app.config import Settings
-from app.models.schemas import ActionItem, EvacuationPlan
+from app.models.schemas import ActionItem, EvacuationPlan, RouteOption
 
 SYSTEM_INSTRUCTION = """You are FireGuard, an emergency evacuation coordination agent.
 Synthesize wildfire, road, weather, shelter, and evacuation-zone data into safe,
@@ -64,6 +64,16 @@ def agent_manifest(settings: Settings) -> dict:
     }
 
 
+def gemini_status(settings: Settings) -> dict[str, Any]:
+    return {
+        "configured": bool(settings.google_cloud_project),
+        "assessment_enabled": settings.gemini_assessment_enabled,
+        "model": settings.gemini_model,
+        "location": settings.google_cloud_location,
+        "vertexai": settings.google_genai_use_vertexai,
+    }
+
+
 def run_gemini_tool_assessment(
     settings: Settings,
     incident_id: str,
@@ -83,9 +93,9 @@ def run_gemini_tool_assessment(
         tool_calls.append("get_incident_context")
         return {
             "incident_id": context["incident_id"],
-            "fires": context["fires"][:3],
-            "road_events": context["road_events"][:5],
-            "weather": context["weather"],
+            "fires": [_fire_for_llm(fire) for fire in context["fires"][:3]],
+            "road_events": [_road_event_for_llm(event) for event in context["road_events"][:5]],
+            "weather": _weather_for_llm(context["weather"]),
             "zones": [
                 {
                     "zone_id": zone["zone_id"],
@@ -119,7 +129,7 @@ def run_gemini_tool_assessment(
         return {
             "query": query,
             "hits": policies[:4],
-            "road_events": context["road_events"][:3],
+            "road_events": [_road_event_for_llm(event) for event in context["road_events"][:3]],
             "fire_evidence_ids": [fire["external_id"] for fire in context["fires"][:3]],
         }
 
@@ -129,20 +139,20 @@ def run_gemini_tool_assessment(
         return {"zone_risks": [risk.model_dump() for risk in plan.zone_risks]}
 
     def compute_routes() -> dict[str, Any]:
-        """Return deterministic route options including rejected unsafe routes."""
+        """Return route options including rejected unsafe routes without map polylines."""
         tool_calls.append("compute_routes")
-        return {"routes": [route.model_dump() for route in plan.routes]}
+        return {"routes": [_route_for_llm(route) for route in plan.routes]}
 
     def draft_evacuation_plan() -> dict[str, Any]:
-        """Return the deterministic staged evacuation plan."""
+        """Return the staged evacuation plan without map geometry payloads."""
         tool_calls.append("draft_evacuation_plan")
-        return plan.model_dump()
+        return _plan_for_llm(plan)
 
     def create_action_bundle() -> dict[str, Any]:
         """Return the pending action bundle that requires human approval."""
         tool_calls.append("create_action_bundle")
         return {
-            "actions": [action.model_dump() for action in actions],
+            "actions": [_action_for_llm(action) for action in actions],
             "requires_approval": any(action.requires_human_approval for action in actions),
         }
 
@@ -235,3 +245,87 @@ def _parse_json_response(text: str) -> dict[str, Any]:
             except json.JSONDecodeError:
                 pass
     return {"raw": text}
+
+
+def _fire_for_llm(fire: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "external_id": fire.get("external_id"),
+        "source": fire.get("source"),
+        "location": fire.get("location"),
+        "confidence": fire.get("confidence"),
+        "frp": fire.get("frp"),
+        "acquired_at": fire.get("acquired_at"),
+        "ingested_at": fire.get("ingested_at"),
+    }
+
+
+def _road_event_for_llm(event: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "external_id": event.get("external_id"),
+        "source": event.get("source"),
+        "title": event.get("title"),
+        "event_type": event.get("event_type"),
+        "severity": event.get("severity"),
+        "road_name": event.get("road_name"),
+        "location": event.get("location"),
+        "updated_at": event.get("updated_at"),
+        "description": str(event.get("description") or "")[:280],
+    }
+
+
+def _weather_for_llm(weather: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "source": weather.get("source"),
+        "weather_id": weather.get("weather_id"),
+        "wind_speed_kph": weather.get("wind_speed_kph"),
+        "wind_direction_degrees": weather.get("wind_direction_degrees"),
+        "gust_kph": weather.get("gust_kph"),
+        "updated_at": weather.get("updated_at"),
+    }
+
+
+def _route_for_llm(route: RouteOption) -> dict[str, Any]:
+    return {
+        "origin_id": route.origin_id,
+        "destination_id": route.destination_id,
+        "duration_minutes": route.duration_minutes,
+        "distance_km": route.distance_km,
+        "safe": route.safe,
+        "risk_flags": route.risk_flags[:8],
+        "evidence_ids": route.evidence_ids[:10],
+        "route_source": route.route_source,
+        "provider_error": route.provider_error,
+        "polyline_point_count": len(route.polyline),
+    }
+
+
+def _plan_for_llm(plan: EvacuationPlan) -> dict[str, Any]:
+    return {
+        "plan_id": plan.plan_id,
+        "incident_id": plan.incident_id,
+        "summary": plan.summary,
+        "recommended_strategy": plan.recommended_strategy,
+        "confidence": plan.confidence,
+        "zone_risks": [risk.model_dump() for risk in plan.zone_risks],
+        "routes": [_route_for_llm(route) for route in plan.routes],
+        "steps": [step.model_dump() for step in plan.steps],
+        "rejected_alternatives": plan.rejected_alternatives[:8],
+        "data_freshness": plan.data_freshness,
+        "risks_if_wrong": plan.risks_if_wrong,
+        "fallback_plan": plan.fallback_plan,
+        "requires_approval": plan.requires_approval,
+    }
+
+
+def _action_for_llm(action: ActionItem) -> dict[str, Any]:
+    return {
+        "action_id": action.action_id,
+        "action_type": action.action_type,
+        "target": action.target,
+        "status": action.status,
+        "message": action.message,
+        "reason": action.reason,
+        "evidence_ids": action.evidence_ids[:10],
+        "confidence": action.confidence,
+        "requires_human_approval": action.requires_human_approval,
+    }

@@ -307,6 +307,9 @@ class FireGuardStore:
             "gemini": {
                 "configured": bool(self.settings.google_cloud_project),
                 "model": self.settings.gemini_model,
+                "location": self.settings.google_cloud_location,
+                "vertexai": self.settings.google_genai_use_vertexai,
+                "assessment_enabled": self.settings.gemini_assessment_enabled,
             },
             "phoenix": {
                 "enabled": self.settings.phoenix_tracing_enabled,

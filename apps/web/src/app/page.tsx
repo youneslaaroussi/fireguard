@@ -349,7 +349,7 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
       <ProviderCard
         title="Gemini"
         icon={<Activity size={16} />}
-        value={String(status?.gemini?.model || "gemini-2.5-flash")}
+        value={String(status?.gemini?.model || "gemini-3.1-flash-lite-preview")}
         detail={status?.gemini?.configured ? "Google Cloud project configured" : "tool API ready, project needed"}
         tone={status?.gemini?.configured ? "ok" : "warn"}
       />
