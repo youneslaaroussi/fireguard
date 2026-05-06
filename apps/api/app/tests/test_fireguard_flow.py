@@ -118,7 +118,14 @@ def test_context_labels_source_backed_zones_and_synthetic_operations() -> None:
     assert all(zone["vulnerable_count_estimated"] is True for zone in context["zones"])
     assert all(policy["synthetic"] is False and policy["data_origin"] == "official_bc_public_guidance_snapshot" for policy in context["policies"])
     assert any(item["scope"] == "emergency_guidance_policies" and item["synthetic"] is False for item in context["demo_disclosures"])
-    assert all(shelter["synthetic"] and shelter["data_origin"] == "synthetic_demo_shelter" for shelter in context["shelters"])
+    shelters = {shelter["shelter_id"]: shelter for shelter in context["shelters"]}
+    assert shelters["SHELTER_A"]["synthetic"] is True
+    assert shelters["SHELTER_A"]["data_origin"] == "operator_entered_demo_shelter"
+    assert shelters["SHELTER_B"]["synthetic"] is False
+    assert shelters["SHELTER_B"]["source_record_id"] == "BC_ESS_86"
+    assert shelters["SHELTER_C"]["synthetic"] is False
+    assert shelters["SHELTER_C"]["source_record_id"] == "BC_ESS_85"
+    assert all(shelter["capacity_is_operator_assumption"] is True for shelter in context["shelters"])
 
 
 def test_action_metadata_labels_simulated_endpoints() -> None:

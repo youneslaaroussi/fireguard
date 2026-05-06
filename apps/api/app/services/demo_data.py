@@ -156,48 +156,23 @@ def synthetic_shelters() -> list[dict]:
         {
             "shelter_id": "SHELTER_A",
             "name": "Likely Community Hall",
-            "data_origin": "synthetic_demo_shelter",
-            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
+            "data_origin": "operator_entered_demo_shelter",
+            "source_label": "Operator-entered demo shelter; not an official ESS facility record.",
             "location": {"lat": 52.617, "lon": -121.594},
             "capacity_total": 500,
             "capacity_available": 120,
+            "capacity_is_operator_assumption": True,
+            "capacity_source_label": "Operator-entered demo capacity; not official municipal capacity data.",
             "pet_friendly": True,
             "medical_support": False,
             "accessible": True,
             "status": "near_capacity",
+            "status_source_label": "Demo operational status assumption.",
             "updated_at": updated_at,
             "synthetic": True,
         },
-        {
-            "shelter_id": "SHELTER_B",
-            "name": "Williams Lake ESS Reception Centre",
-            "data_origin": "synthetic_demo_shelter",
-            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
-            "location": {"lat": 52.1415, "lon": -122.1417},
-            "capacity_total": 3500,
-            "capacity_available": 3200,
-            "pet_friendly": True,
-            "medical_support": True,
-            "accessible": True,
-            "status": "open",
-            "updated_at": updated_at,
-            "synthetic": True,
-        },
-        {
-            "shelter_id": "SHELTER_C",
-            "name": "Quesnel Reception Centre",
-            "data_origin": "synthetic_demo_shelter",
-            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
-            "location": {"lat": 52.9784, "lon": -122.4931},
-            "capacity_total": 1200,
-            "capacity_available": 900,
-            "pet_friendly": False,
-            "medical_support": True,
-            "accessible": True,
-            "status": "open",
-            "updated_at": updated_at,
-            "synthetic": True,
-        },
+        _source_backed_shelter("SHELTER_B", "BC_ESS_86", 3500, 3200, "demo_open_assumption", True, True, True),
+        _source_backed_shelter("SHELTER_C", "BC_ESS_85", 1200, 900, "demo_open_assumption", False, True, True),
     ]
 
 
@@ -249,6 +224,53 @@ def public_ess_facilities() -> list[dict]:
         }
         for record in source["records"]
     ]
+
+
+def _public_ess_record(facility_id: str) -> dict[str, Any]:
+    source = _public_bc_snapshot()["ess_facilities"]
+    return next(record for record in source["records"] if record["facility_id"] == facility_id)
+
+
+def _source_backed_shelter(
+    shelter_id: str,
+    facility_id: str,
+    capacity_total: int,
+    capacity_available: int,
+    status: str,
+    pet_friendly: bool,
+    medical_support: bool,
+    accessible: bool,
+) -> dict:
+    snapshot = _public_bc_snapshot()
+    facility = _public_ess_record(facility_id)
+    return {
+        "shelter_id": shelter_id,
+        "name": facility["name"],
+        "data_origin": "bc_ess_facility_with_operator_capacity_assumption",
+        "source": "BC_EMERGENCYMAPBC_ESS_FACILITIES",
+        "source_label": PUBLIC_BC_CONTEXT_LABEL,
+        "source_url": snapshot["ess_facilities"]["source_url"],
+        "source_query": snapshot["ess_facilities"]["query"],
+        "source_record_id": facility_id,
+        "captured_at": snapshot["captured_at"],
+        "location": facility["location"],
+        "community": facility["community"],
+        "municipality": facility["municipality"],
+        "facility_type": facility["facility_type"],
+        "official_facility_status": facility["status"],
+        "official_status_updated_at": facility["updated_at"],
+        "capacity_total": capacity_total,
+        "capacity_available": capacity_available,
+        "capacity_is_operator_assumption": True,
+        "capacity_source_label": "Operator-entered demo capacity; the public BC ESS facility layer does not expose capacity.",
+        "pet_friendly": pet_friendly,
+        "medical_support": medical_support,
+        "accessible": accessible,
+        "status": status,
+        "status_source_label": "Demo operational status assumption for FireGuard replay; official ESS status is preserved separately.",
+        "updated_at": now_iso(),
+        "synthetic": False,
+    }
 
 
 def replay_fire_hotspots() -> list[dict]:
@@ -429,7 +451,7 @@ def demo_disclosures() -> list[dict[str, Any]]:
         {
             "scope": "shelters_residents_dispatch",
             "label": SYNTHETIC_MUNICIPAL_LABEL,
-            "detail": "Shelter capacities, resident contacts, and dispatch assets remain synthetic operational data built for a safe BC demo scenario.",
+            "detail": "Shelter B/C facility identities and locations come from the official BC ESS layer, but all shelter capacity numbers are operator-entered demo assumptions. Shelter A, resident contacts, and dispatch assets remain synthetic demo data.",
             "synthetic": True,
         },
         {
