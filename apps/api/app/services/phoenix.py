@@ -21,12 +21,17 @@ def phoenix_package_installed() -> bool:
 
 def phoenix_status(settings: Settings) -> dict[str, Any]:
     endpoint = _collector_endpoint(settings)
+    auth_enabled = _auth_enabled(settings, endpoint)
     return {
         "enabled": settings.phoenix_tracing_enabled,
         "package_installed": phoenix_package_installed(),
         "endpoint": endpoint,
+        "application_url": _application_url(endpoint),
         "project": settings.phoenix_project_name,
-        "hosted": bool(settings.phoenix_api_key and not _is_local_endpoint(endpoint)),
+        "deployment": _deployment_kind(endpoint),
+        "auth_enabled": auth_enabled,
+        "api_key_configured": bool(settings.phoenix_api_key),
+        "connection_check": _connection_check(settings, endpoint, auth_enabled),
         "last_error": _last_error,
         "disabled_after_error": _disabled_after_error,
     }
@@ -47,8 +52,8 @@ def _get_tracer(settings: Settings) -> Any | None:
         from phoenix.otel import register
 
         endpoint = _collector_endpoint(settings)
-        use_hosted_auth = bool(settings.phoenix_api_key and not _is_local_endpoint(endpoint))
-        if use_hosted_auth:
+        use_auth = _auth_enabled(settings, endpoint)
+        if use_auth:
             # phoenix.otel also accepts api_key directly, but setting the env var keeps
             # hosted Phoenix auth behavior aligned with the package defaults.
             os.environ["PHOENIX_API_KEY"] = settings.phoenix_api_key
@@ -59,7 +64,7 @@ def _get_tracer(settings: Settings) -> Any | None:
         _provider = register(
             endpoint=endpoint,
             project_name=settings.phoenix_project_name,
-            api_key=settings.phoenix_api_key if use_hosted_auth else None,
+            api_key=settings.phoenix_api_key if use_auth else None,
             protocol="http/protobuf" if endpoint.endswith("/v1/traces") else None,
             batch=False,
             verbose=False,
@@ -89,6 +94,25 @@ def _collector_reachable(settings: Settings) -> bool:
         return False
 
 
+def _connection_check(settings: Settings, endpoint: str, auth_enabled: bool) -> dict[str, Any]:
+    if not settings.phoenix_tracing_enabled:
+        return {"status": "skipped", "reason": "Phoenix tracing is disabled."}
+    base_url = _application_url(endpoint)
+    headers = {}
+    if auth_enabled and settings.phoenix_api_key:
+        headers["Authorization"] = f"Bearer {settings.phoenix_api_key}"
+    try:
+        request = urllib.request.Request(f"{base_url}/v1/projects", headers=headers)
+        with urllib.request.urlopen(request, timeout=2) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        projects = [item.get("name") for item in payload.get("data", []) if item.get("name")]
+        return {"status": "ok", "http_status": 200, "projects": projects[:10]}
+    except urllib.error.HTTPError as exc:
+        return {"status": "failed", "http_status": exc.code, "error": "Phoenix REST check failed."}
+    except Exception as exc:  # pragma: no cover - network/provider dependent
+        return {"status": "failed", "error": str(exc)}
+
+
 def _collector_endpoint(settings: Settings) -> str:
     endpoint = settings.phoenix_collector_endpoint.rstrip("/")
     if endpoint == "https://app.phoenix.arize.com":
@@ -96,6 +120,32 @@ def _collector_endpoint(settings: Settings) -> str:
     if endpoint.startswith("https://app.phoenix.arize.com") and not endpoint.endswith("/v1/traces"):
         return f"{endpoint}/v1/traces"
     return endpoint
+
+
+def _application_url(endpoint: str) -> str:
+    return endpoint.removesuffix("/v1/traces").rstrip("/")
+
+
+def _deployment_kind(endpoint: str) -> str:
+    if _is_local_endpoint(endpoint):
+        return "local"
+    if _is_phoenix_cloud_endpoint(endpoint):
+        return "phoenix_cloud"
+    return "self_hosted"
+
+
+def _auth_enabled(settings: Settings, endpoint: str) -> bool:
+    if not settings.phoenix_api_key:
+        return False
+    if _is_local_endpoint(endpoint):
+        return False
+    if _is_phoenix_cloud_endpoint(endpoint):
+        return True
+    return settings.phoenix_auth_enabled
+
+
+def _is_phoenix_cloud_endpoint(endpoint: str) -> bool:
+    return endpoint.startswith("https://app.phoenix.arize.com")
 
 
 def _is_local_endpoint(endpoint: str) -> bool:

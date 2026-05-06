@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     phoenix_collector_endpoint: str = "http://localhost:6006/v1/traces"
     phoenix_project_name: str = "fireguard"
     phoenix_api_key: str | None = None
+    phoenix_auth_enabled: bool = False
 
     action_webhook_secret: str = "dev-secret"
     shelter_webhook_url: str | None = None
