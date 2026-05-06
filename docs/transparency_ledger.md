@@ -30,7 +30,7 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 |---|---|---|---|---|
 | T-001 | Route computation now supports Google Routes for route geometry, duration, and distance when `GOOGLE_MAPS_API_KEY` is configured. Deterministic route fixtures remain as offline fallback. | The route geometry is provider-backed in configured environments, but the decisive closure and fire records can still be replay evidence under T-002/T-003. | Fixed and hosted-verified | Hosted assessment returned `route_sources=["google_routes"]`; keep test fallback deterministic. |
 | T-002 | The decisive road closure now uses real DriveBC/Open511 event `drivebc.ca/DBC-90684` as a source snapshot. | The route-rejection evidence is source-backed, but the surrounding demo zones/shelters/fire placement are still synthetic/replay under T-003/T-004. | Fixed and hosted-verified | Hosted assessment on `2026-05-06` returned `route_sources=["google_routes"]`; Zone A to Shelter A was unsafe with evidence `drivebc.ca/DBC-90684`, while Zone A to Shelter B was safe. |
-| T-003 | Live FIRMS returned zero current hotspots for the configured BC bbox, so replay mode now uses stored real NASA FIRMS Area API CSV rows from `VIIRS_NOAA20_SP`, bbox `-122.2,52.0,-121.3,52.9`, day range `5`, start date `2024-07-10`. | The fire threat is still historical replay, not current live fire. | Fixed in code, pending hosted redeploy | Hosted assessment must show `NASA_FIRMS_HISTORICAL_SNAPSHOT` fire evidence from `data/replay/bc_demo/firms_snapshot.csv` and route rejection caused by a real FIRMS point plus `drivebc.ca/DBC-90684`. |
+| T-003 | Live FIRMS returned zero current hotspots for the configured BC bbox, so replay mode now uses stored real NASA FIRMS Area API CSV rows from `VIIRS_NOAA20_SP`, bbox `-122.2,52.0,-121.3,52.9`, day range `5`, start date `2024-07-10`. | The fire threat is still historical replay, not current live fire; the API correctly marks fire freshness as stale. | Fixed and hosted-verified | Hosted assessment on `2026-05-06` returned 45 `NASA_FIRMS_HISTORICAL_SNAPSHOT` records, redacted `[MAP_KEY]` source URL, `route_sources=["google_routes"]`, Shelter A unsafe with FIRMS + `drivebc.ca/DBC-90684` evidence, and Shelter B safe. |
 | T-004 | Evacuation zones, shelters, residents, dispatch assets, and policies are synthetic. | Population and shelter capacity constraints are not official municipal data. | Accepted for hackathon demo, but must stay labeled | Keep labels visible. If time permits, add public shelter/facility data or a clearly sourced emergency-reception-centre dataset. |
 | T-005 | Shelter, road-ops, and dispatch action endpoints are simulated. | Only SMS is a real external action; other operational actions are logs/mock webhooks. | Accepted for safety | Keep as simulated unless integrating a real task system such as Linear/GitHub Issues/Firestore-backed work queue. |
 | T-006 | Gemini is used through Vertex SDK, not a configured Google Agent Builder console agent. | The app satisfies Gemini tool orchestration technically, but the Agent Builder proof is weaker. | Open | Register the OpenAPI tool surface in Google Agent Builder or document ADK-compatible setup with deployable agent config. |
@@ -42,12 +42,11 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 
 ## Fix Order
 
-1. T-003: Redeploy and hosted-verify the real NASA FIRMS historical snapshot path.
-2. T-011/T-007: Fix hosted Phoenix export and improve evaluation proof.
-3. T-008: Make fallback use impossible to miss in UI and ingestion-run records.
-4. T-006: Add formal Google Agent Builder or ADK deployment proof.
-5. T-005: Keep simulated operational actions clearly labeled unless a safe real task system is added.
-6. T-004: Keep synthetic municipal data clearly labeled unless better public data is added.
+1. T-011/T-007: Fix hosted Phoenix export and improve evaluation proof.
+2. T-008: Make fallback use impossible to miss in UI and ingestion-run records.
+3. T-006: Add formal Google Agent Builder or ADK deployment proof.
+4. T-005: Keep simulated operational actions clearly labeled unless a safe real task system is added.
+5. T-004: Keep synthetic municipal data clearly labeled unless better public data is added.
 
 ## Rule For Future Changes
 
