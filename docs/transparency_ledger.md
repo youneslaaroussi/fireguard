@@ -17,7 +17,7 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 | Hosted web app | Real | Cloud Run web service at `https://fireguard-web-dovhkdlznq-uc.a.run.app`. |
 | Hosted API | Real | Cloud Run API service at `https://fireguard-api-dovhkdlznq-uc.a.run.app`. |
 | Elastic | Real | API reports `store_backend=elastic-mirrored`; Elasticsearch runs on GCE and is reached through a private VPC connector in Cloud Run. |
-| Fivetran | Real, with fallback behavior | Fivetran Connector SDK sync exists; BigQuery tables are read by `/sync/fivetran-to-elastic`. |
+| Fivetran | Real, with visible fallback behavior | Fivetran Connector SDK sync exists; BigQuery tables are read by `/sync/fivetran-to-elastic`. Hosted sync on `2026-05-06` read BigQuery rows for `fire_perimeters` (44), `road_events` (50), and `weather_observations` (1), then emitted a visible `fire_hotspots` fallback warning because the live FIRMS stream was empty for the configured BC bbox. |
 | BigQuery bridge | Real | Backend reads `fireguard_ingestion` tables and indexes records into Elastic. |
 | Gemini | Real | Backend uses Vertex Gemini through `google-genai`; hosted assessment verified `gemini_status=completed` with `gemini-3.1-flash-lite-preview`, `GOOGLE_CLOUD_LOCATION=global`, and five tool calls. |
 | Twilio | Real for allowlisted SMS | Zone A demo SMS has been sent through Twilio as `queued` after approval. |
@@ -36,19 +36,18 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 | T-006 | Gemini is used through Vertex SDK, not a configured Google Agent Builder console agent. | The app satisfies Gemini tool orchestration technically, but the Agent Builder proof is weaker. | Open | Register the OpenAPI tool surface in Google Agent Builder or document ADK-compatible setup with deployable agent config. |
 | T-010 | Hosted assessments briefly failed with Vertex `429 RESOURCE_EXHAUSTED` on `gemini-2.5-flash`; the first `gemini-3.1-flash-lite-preview` deploy used `us-central1` and the SDK returned `404 NOT_FOUND`; the next run hit oversized tool payloads. | The deterministic plan still generated, but Gemini tool orchestration did not complete in those runs. | Fixed and hosted-verified | Hosted assessment now returns `gemini_status=completed` with `gemini-3.1-flash-lite-preview`, `GOOGLE_CLOUD_LOCATION=global`, and trimmed LLM tool payloads. |
 | T-007 | In-app eval is deterministic local code, not a hosted Arize evaluator. | The scoring rubric is still local deterministic code, but eval output is exported to Phoenix as an OpenTelemetry span. | Partially fixed and hosted-verified | Hosted `/evals/demo-incident-bc-001` returned score `1.0` and `eval_phoenix_trace_id`; add a Phoenix-hosted evaluator workflow only if required by judging. |
-| T-008 | Fivetran connector has replay fallbacks on source timeout/failure. | Connector debug and demos remain stable, but a source outage may silently switch streams to replay unless the warning/run metadata is inspected. | Partially fixed | Preserve sync warnings in `ingestion_runs`, surface fallback stream warnings in the provider strip, and fail production mode if fallback is disallowed. |
+| T-008 | Fivetran connector and backend sync can use replay/snapshot fallbacks on source timeout, missing config, or empty live FIRMS rows. | Demo stability is preserved, and fallback use is now visible in API status and the web provider strip. It is still not a pure-live wildfire feed when FIRMS is quiet. | Fixed and hosted-verified | Connector `ingestion_runs` now includes `fallback_warnings_json`; backend sync/seed runs include `fallback_active` and `warnings`; `/integrations/status` exposes `fivetran.fallback_active`; the web provider strip shows `fallback active` with an attention badge. Hosted `/sync/fivetran-to-elastic` returned `mode=bigquery_with_replay_fallback`, `fallback_active=true`, and a `fire_hotspots` warning for 45 historical FIRMS rows. |
 | T-009 | The app runs with `DEMO_MODE=true` in Cloud Run. | Hosted app is intentionally a demo, not a live authority workflow. | Accepted, must stay visible | Keep UI safety labels and prevent unapproved/non-allowlisted public messaging. |
 | T-011 | The provided Arize Cloud API key does not authenticate against Phoenix Cloud REST, so Arize Cloud export is not proven. | We can prove self-hosted Phoenix export on Cloud Run, but not Arize Cloud hosted receipt with the current key. | Blocked on valid Arize Cloud key/space | Hosted self-hosted Phoenix is fixed: `/integrations/arize/status` returns `deployment=self_hosted`, `connection_check.status=ok`, and project `fireguard`. API Phoenix REST checks now use `PHOENIX_STATUS_TIMEOUT_SECONDS=10` instead of a brittle 2 second timeout. To switch to Arize Cloud, provide the exact Phoenix Cloud space URL and a key that returns 200 for `/v1/projects`. |
 | T-012 | Self-hosted Phoenix currently uses container-local SQLite storage. | Trace export is real and demo-visible, but traces can disappear after Cloud Run replacement/restart. | Open, demo-mitigated | Cloud Run Phoenix now has `minScale=1`, which keeps the demo service warm but is not persistence. Configure Phoenix with `PHOENIX_SQL_DATABASE_URL` backed by Cloud SQL PostgreSQL, or switch to working Arize Cloud credentials before claiming durable hosted trace retention. |
 
 ## Fix Order
 
-1. T-008: Make fallback use impossible to miss in UI and ingestion-run records.
-2. T-006: Add formal Google Agent Builder or ADK deployment proof.
-3. T-011: Switch from self-hosted Phoenix to Arize Cloud only after receiving a valid Phoenix Cloud key/space.
-4. T-012: Add persistent PostgreSQL storage for self-hosted Phoenix if Arize Cloud remains blocked.
-5. T-005: Keep simulated operational actions clearly labeled unless a safe real task system is added.
-6. T-004: Keep synthetic municipal data clearly labeled unless better public data is added.
+1. T-006: Add formal Google Agent Builder or ADK deployment proof.
+2. T-011: Switch from self-hosted Phoenix to Arize Cloud only after receiving a valid Phoenix Cloud key/space.
+3. T-012: Add persistent PostgreSQL storage for self-hosted Phoenix if Arize Cloud remains blocked.
+4. T-005: Keep simulated operational actions clearly labeled unless a safe real task system is added.
+5. T-004: Keep synthetic municipal data clearly labeled unless better public data is added.
 
 ## Rule For Future Changes
 

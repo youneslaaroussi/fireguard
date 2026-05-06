@@ -108,6 +108,8 @@ def test_fivetran_sync_indexes_provider_lineage() -> None:
 
     assert result["provider"] == "fivetran"
     assert result["mode"] == "replay"
+    assert result["fallback_active"] is True
+    assert result["warnings"][0]["status"] == "fallback_active"
     assert result["streams"]["fire_hotspots"] >= 2
     assert all(doc["ingestion_provider"] == "fivetran" for doc in store.list("fire_hotspots"))
 
@@ -119,6 +121,8 @@ def test_fivetran_status_exposes_latest_run() -> None:
 
     assert status["provider"] == "fivetran"
     assert status["latest_run"]["status"] == "synced"
+    assert status["fallback_active"] is True
+    assert status["warnings"]
     assert "fire_hotspots" in status["streams"]
 
 

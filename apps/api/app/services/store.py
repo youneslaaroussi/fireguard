@@ -257,6 +257,18 @@ class FireGuardStore:
                     "road_events": len(self.indices["road_events"]),
                     "weather_observations": len(self.indices["weather_observations"]),
                 },
+                "fallback_active": True,
+                "warnings": [
+                    {
+                        "stream": "all",
+                        "status": "fallback_active",
+                        "count": sum(
+                            len(self.indices[index])
+                            for index in ["fire_hotspots", "fire_perimeters", "road_events", "weather_observations"]
+                        ),
+                        "reason": "Demo seed loaded replay/snapshot records before a Fivetran warehouse sync.",
+                    }
+                ],
                 "created_at": now_iso(),
             },
         )
@@ -298,6 +310,8 @@ class FireGuardStore:
                 "destination": self.settings.fivetran_destination_name,
                 "dataset": self.settings.fivetran_bigquery_dataset,
                 "latest_run": latest_ingestion,
+                "fallback_active": bool(latest_ingestion and latest_ingestion.get("fallback_active")),
+                "warnings": latest_ingestion.get("warnings", []) if latest_ingestion else [],
             },
             "elastic": {
                 "configured": bool(self.settings.elasticsearch_api_key and (self.settings.elasticsearch_url or self.settings.elasticsearch_cloud_id)),

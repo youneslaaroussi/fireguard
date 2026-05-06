@@ -156,6 +156,7 @@ def schema(configuration: dict[str, Any]) -> list[dict[str, Any]]:
                 "provider": "STRING",
                 "status": "STRING",
                 "streams_json": "STRING",
+                "fallback_warnings_json": "STRING",
                 "created_at": "UTC_DATETIME",
             },
         },
@@ -200,7 +201,7 @@ def _firms_rows(configuration: dict[str, Any]) -> Iterable[dict[str, Any]]:
     map_key = configuration.get("nasa_firms_map_key")
     if not map_key:
         log.warning("NASA FIRMS map key missing; emitting stored historical FIRMS snapshot.")
-        yield from _replay_fire_hotspots()
+        yield from _replay_fire_hotspots("NASA FIRMS map key missing")
         return
 
     source = configuration.get("nasa_firms_source", "VIIRS_SNPP_NRT")
@@ -229,7 +230,7 @@ def _bc_perimeter_rows() -> Iterable[dict[str, Any]]:
         payload = _request_json(BC_PERIMETERS_URL, params)
     except Exception as exc:
         log.warning(f"BC perimeter fetch failed; emitting labeled replay perimeter rows: {exc}")
-        yield from _replay_fire_perimeters()
+        yield from _replay_fire_perimeters(str(exc))
         return
     for feature in payload.get("features", []):
         props = feature.get("properties", {})
@@ -255,7 +256,7 @@ def _road_event_rows() -> Iterable[dict[str, Any]]:
         payload = _request_json(DRIVEBC_EVENTS_URL, {"format": "json"})
     except Exception as exc:
         log.warning(f"DriveBC/Open511 fetch failed; emitting labeled replay road-event rows: {exc}")
-        yield from _replay_road_events()
+        yield from _replay_road_events(str(exc))
         return
     events = payload.get("events") if isinstance(payload, dict) else payload
     for event in events or []:
@@ -350,7 +351,7 @@ def _replay_fire_hotspots(reason: str | None = None) -> Iterable[dict[str, Any]]
         )
 
 
-def _replay_fire_perimeters() -> Iterable[dict[str, Any]]:
+def _replay_fire_perimeters(reason: str | None = None) -> Iterable[dict[str, Any]]:
     ingested_at = now_iso()
     yield {
         "fire_number": "BC_PERIMETER_REPLAY_001",
@@ -370,11 +371,11 @@ def _replay_fire_perimeters() -> Iterable[dict[str, Any]]:
         "area_hectares": 740.0,
         "updated_at": ingested_at,
         "ingested_at": ingested_at,
-        "raw_json": json.dumps({"replay": True}),
+        "raw_json": json.dumps({"replay": True, "fallback_reason": reason}),
     }
 
 
-def _replay_road_events() -> Iterable[dict[str, Any]]:
+def _replay_road_events(reason: str | None = None) -> Iterable[dict[str, Any]]:
     ingested_at = now_iso()
     yield {
         "external_id": "drivebc.ca/DBC-90684",
@@ -397,7 +398,33 @@ def _replay_road_events() -> Iterable[dict[str, Any]]:
         "raw_json": json.dumps({
             "source_snapshot": True,
             "captured_from": "https://api.open511.gov.bc.ca/events/drivebc.ca/DBC-90684",
+            "fallback_reason": reason,
         }),
+    }
+
+
+def _fallback_warning_from_rows(table: str, rows: list[dict[str, Any]]) -> dict[str, Any] | None:
+    reasons: set[str] = set()
+    for row in rows:
+        raw_json = row.get("raw_json")
+        raw = json.loads(raw_json) if isinstance(raw_json, str) and raw_json else {}
+        source = str(row.get("source", "")).upper()
+        if raw.get("fallback_reason"):
+            reasons.add(str(raw["fallback_reason"]))
+        elif raw.get("source_error"):
+            reasons.add(f"Source fetch failed: {raw['source_error']}")
+        elif raw.get("historical_replay") or raw.get("source_snapshot") or raw.get("replay"):
+            reasons.add("Stored source snapshot or replay row emitted by connector.")
+        elif "REPLAY" in source or "SNAPSHOT" in source:
+            reasons.add("Source label indicates replay or stored snapshot data.")
+    if not reasons:
+        return None
+    return {
+        "stream": table,
+        "status": "fallback_active",
+        "count": len(rows),
+        "reason": sorted(reasons)[0],
+        "all_reasons": sorted(reasons)[:5],
     }
 
 
@@ -409,12 +436,15 @@ def update(configuration: dict[str, Any], state: dict[str, Any]) -> Iterable[Any
         "road_events": _road_event_rows(),
         "weather_observations": _weather_rows(configuration),
     }
+    fallback_warnings: list[dict[str, Any]] = []
     for table, rows in streams.items():
-        count = 0
-        for row in rows:
-            count += 1
+        materialized_rows = list(rows)
+        warning = _fallback_warning_from_rows(table, materialized_rows)
+        if warning:
+            fallback_warnings.append(warning)
+        for row in materialized_rows:
             yield op.upsert(table=table, data=row)
-        stream_counts[table] = count
+        stream_counts[table] = len(materialized_rows)
 
     run_id = f"FIVETRAN_RUN_{now_iso()}"
     yield op.upsert(
@@ -422,8 +452,9 @@ def update(configuration: dict[str, Any], state: dict[str, Any]) -> Iterable[Any
         data={
             "run_id": run_id,
             "provider": "fivetran",
-            "status": "synced",
+            "status": "synced_with_fallback" if fallback_warnings else "synced",
             "streams_json": json.dumps(stream_counts),
+            "fallback_warnings_json": json.dumps(fallback_warnings),
             "created_at": now_iso(),
         },
     )

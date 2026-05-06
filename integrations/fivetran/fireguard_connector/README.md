@@ -21,7 +21,7 @@ cp configuration.json.example configuration.json
 fivetran debug . --configuration configuration.json
 ```
 
-If `nasa_firms_map_key` is empty, fails, or returns zero rows for the configured bbox, the connector emits the stored NASA FIRMS historical snapshot from `data/replay/bc_demo/firms_snapshot.csv` and logs the fallback.
+If `nasa_firms_map_key` is empty, fails, or returns zero rows for the configured bbox, the connector emits the stored NASA FIRMS historical snapshot from `data/replay/bc_demo/firms_snapshot.csv` and logs the fallback. The `ingestion_runs.fallback_warnings_json` column records stream-level fallback warnings so the backend and UI can show when replay/snapshot data was used.
 
 ## Deploy
 

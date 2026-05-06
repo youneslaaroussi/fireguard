@@ -328,6 +328,12 @@ export default function Home() {
 
 function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | null; evalResult: Record<string, unknown> | null }) {
   const fivetranRun = status?.fivetran?.latest_run as Record<string, unknown> | null | undefined;
+  const fivetranWarnings = asRecordArray(fivetranRun?.warnings ?? status?.fivetran?.warnings);
+  const fivetranFallbackActive = status?.fivetran?.fallback_active === true || fivetranRun?.fallback_active === true || fivetranWarnings.length > 0;
+  const firstFivetranWarning = fivetranWarnings[0];
+  const fivetranDetail = fivetranFallbackActive
+    ? `${fivetranWarnings.length || 1} fallback warning: ${shortText(`${String(firstFivetranWarning?.stream || "stream")} - ${String(firstFivetranWarning?.reason || "replay/snapshot records in use")}`, 86)}`
+    : `dataset ${String(status?.fivetran?.bigquery_dataset || status?.fivetran?.dataset || "fireguard_ingestion")}`;
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
   const passed = evalChecks ? Object.values(evalChecks).filter(Boolean).length : 0;
   const arizeCheck = status?.arize?.connection_check as Record<string, unknown> | undefined;
@@ -341,9 +347,9 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
       <ProviderCard
         title="Fivetran"
         icon={<Database size={16} />}
-        value={fivetranRun ? String(fivetranRun.status) : "waiting"}
-        detail={`dataset ${String(status?.fivetran?.bigquery_dataset || status?.fivetran?.dataset || "fireguard_ingestion")}`}
-        tone={status?.fivetran?.configured ? "ok" : "warn"}
+        value={fivetranFallbackActive ? "fallback active" : fivetranRun ? String(fivetranRun.status) : "waiting"}
+        detail={fivetranDetail}
+        tone={status?.fivetran?.configured && !fivetranFallbackActive ? "ok" : "warn"}
       />
       <ProviderCard
         title="Elastic"
@@ -378,12 +384,21 @@ function ProviderCard({ title, icon, value, detail, tone }: { title: string; ico
           {icon}
           {title}
         </div>
-        <StatusBadge label={tone === "ok" ? "active" : "needs key"} tone={tone} />
+        <StatusBadge label={tone === "ok" ? "active" : "attention"} tone={tone} />
       </div>
       <p className="mt-2 text-sm text-slate-200">{value}</p>
       <p className="mt-1 text-xs text-slate-500">{detail}</p>
     </div>
   );
+}
+
+function asRecordArray(value: unknown): Record<string, unknown>[] {
+  return Array.isArray(value) ? value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object") : [];
+}
+
+function shortText(value: string, maxLength: number) {
+  if (value.length <= maxLength) return value;
+  return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
 }
 
 function Metric({ label, value }: { label: string; value: number }) {

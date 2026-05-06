@@ -47,6 +47,41 @@ def _replay_fallback_docs(stream: str, reason: str) -> list[dict[str, Any]]:
     return docs
 
 
+def _fallback_reason_from_doc(doc: dict[str, Any]) -> str | None:
+    raw = doc.get("raw") if isinstance(doc.get("raw"), dict) else {}
+    source = str(doc.get("source", "")).upper()
+    if doc.get("fallback_reason"):
+        return str(doc["fallback_reason"])
+    if raw.get("fallback_reason"):
+        return str(raw["fallback_reason"])
+    if raw.get("source_error"):
+        return f"Source fetch failed: {raw['source_error']}"
+    if doc.get("ingestion_mode") in {"replay", "bigquery_empty_replay_fallback"}:
+        return "Replay records are being used instead of current Fivetran warehouse rows."
+    if raw.get("historical_replay") or raw.get("source_snapshot") or raw.get("replay"):
+        return "Stored source snapshot or replay record is being used."
+    if "REPLAY" in source or "SNAPSHOT" in source:
+        return "Source label indicates replay or stored snapshot data."
+    return None
+
+
+def _fallbacks_from_streams(streams: dict[str, list[dict[str, Any]]], source_error: str | None = None) -> dict[str, Any]:
+    fallbacks: dict[str, Any] = {}
+    for stream, docs in streams.items():
+        reasons = sorted({reason for doc in docs if (reason := _fallback_reason_from_doc(doc))})
+        if source_error and docs and all(doc.get("ingestion_mode") == "replay" for doc in docs):
+            reasons.insert(0, f"BigQuery sync unavailable: {source_error[:500]}")
+        if reasons:
+            fallbacks[stream] = {
+                "stream": stream,
+                "status": "fallback_active",
+                "count": len(docs),
+                "reason": reasons[0],
+                "all_reasons": reasons[:5],
+            }
+    return fallbacks
+
+
 def _row_to_doc(stream: str, row: dict[str, Any]) -> dict[str, Any]:
     raw_json = row.get("raw_json")
     raw = json.loads(raw_json) if isinstance(raw_json, str) and raw_json else row.get("raw", {})
@@ -153,7 +188,6 @@ def _query_bigquery(settings: Settings) -> dict[str, list[dict[str, Any]]]:
 def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
     settings = store.settings
     mode = "bigquery"
-    fallbacks: dict[str, Any] = {}
     try:
         streams = _query_bigquery(settings)
     except Exception as exc:
@@ -165,12 +199,10 @@ def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
         if not streams.get("fire_hotspots"):
             reason = "Fivetran BigQuery FIRMS stream returned zero current hotspot rows for the configured BC bbox."
             streams["fire_hotspots"] = _replay_fallback_docs("fire_hotspots", reason)
-            fallbacks["fire_hotspots"] = {
-                "reason": reason,
-                "replacement": "Stored NASA FIRMS historical snapshot keeps the demo threat deterministic while live FIRMS is quiet.",
-                "count": len(streams["fire_hotspots"]),
-            }
             mode = "bigquery_with_replay_fallback"
+
+    fallbacks = _fallbacks_from_streams(streams, source_error)
+    warnings = list(fallbacks.values())
 
     counts: dict[str, int] = {}
     for stream, docs in streams.items():
@@ -186,6 +218,8 @@ def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
         "mode": mode,
         "streams": counts,
         "fallbacks": fallbacks,
+        "fallback_active": bool(warnings),
+        "warnings": warnings,
         "source_error": source_error,
         "destination": settings.fivetran_destination_name,
         "dataset": settings.fivetran_bigquery_dataset,
@@ -197,6 +231,8 @@ def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
 
 def fivetran_status(store: FireGuardStore) -> dict[str, Any]:
     latest_run = sorted(store.list("ingestion_runs"), key=lambda run: run.get("created_at", ""))[-1:] or [None]
+    run = latest_run[0]
+    warnings = run.get("warnings", []) if isinstance(run, dict) else []
     return {
         "provider": "fivetran",
         "configured": bool(store.settings.fivetran_api_key and store.settings.fivetran_api_secret),
@@ -206,6 +242,8 @@ def fivetran_status(store: FireGuardStore) -> dict[str, Any]:
         "bigquery_project": store.settings.fivetran_bigquery_project,
         "bigquery_dataset": store.settings.fivetran_bigquery_dataset,
         "streams": STREAMS,
-        "latest_run": latest_run[0],
+        "latest_run": run,
+        "fallback_active": bool(run and run.get("fallback_active")),
+        "warnings": warnings,
         "local_connector_path": "integrations/fivetran/fireguard_connector",
     }
