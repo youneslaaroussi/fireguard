@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     phoenix_api_key: str | None = None
     phoenix_auth_enabled: bool = False
     phoenix_status_timeout_seconds: float = 10.0
+    phoenix_storage_backend: str = "local_or_external"
 
     action_webhook_secret: str = "dev-secret"
     shelter_webhook_url: str | None = None

@@ -355,9 +355,10 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
   const arizeCheck = status?.arize?.connection_check as Record<string, unknown> | undefined;
   const arizeOk = status?.arize?.enabled === true && arizeCheck?.status === "ok";
   const arizeDeployment = String(status?.arize?.deployment || "local");
+  const arizeStorage = String(status?.arize?.storage_backend || "storage unreported");
   const arizeDetail = evalChecks
-    ? `${passed}/${Object.keys(evalChecks).length} eval checks passed`
-    : `${arizeDeployment}; ${String(arizeCheck?.status || "unchecked")}`;
+    ? `${passed}/${Object.keys(evalChecks).length} eval checks passed; ${arizeStorage}`
+    : `${arizeDeployment}; ${arizeStorage}; ${String(arizeCheck?.status || "unchecked")}`;
   return (
     <section className="grid gap-2 border-b border-line bg-panel/70 px-4 py-3 md:grid-cols-4">
       <ProviderCard

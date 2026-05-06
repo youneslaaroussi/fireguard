@@ -131,7 +131,7 @@ phoenix serve
 
 The API exports spans to `PHOENIX_COLLECTOR_ENDPOINT`, defaulting to `http://localhost:6006/v1/traces`. The deployed demo currently uses a self-hosted Arize Phoenix service on Cloud Run because the provided Arize Cloud key returns `401` against Phoenix Cloud REST. Hosted Arize Cloud can be enabled by setting `PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/v1/traces`, `PHOENIX_API_KEY`, and `PHOENIX_AUTH_ENABLED=true` after a valid Phoenix Cloud key/space is available.
 
-The Cloud Run Phoenix service is real tracing infrastructure, but it must use PostgreSQL through `PHOENIX_SQL_DATABASE_URL` before claiming production-grade persistence. The current demo deployment keeps the Phoenix instance warm for demo reliability and re-creates visible traces during each assessment/eval run.
+The Cloud Run Phoenix service now uses Cloud SQL PostgreSQL through `PHOENIX_SQL_DATABASE_URL` stored in Secret Manager. The API reports the expected status through `PHOENIX_STORAGE_BACKEND=cloud_sql_postgresql` in deployed environments.
 
 ## Demo Flow
 

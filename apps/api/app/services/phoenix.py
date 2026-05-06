@@ -29,6 +29,7 @@ def phoenix_status(settings: Settings) -> dict[str, Any]:
         "application_url": _application_url(endpoint),
         "project": settings.phoenix_project_name,
         "deployment": _deployment_kind(endpoint),
+        "storage_backend": settings.phoenix_storage_backend,
         "auth_enabled": auth_enabled,
         "api_key_configured": bool(settings.phoenix_api_key),
         "connection_check": _connection_check(settings, endpoint, auth_enabled),
