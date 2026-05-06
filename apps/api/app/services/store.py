@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+import json
 from typing import Any
 
 from app.config import Settings
@@ -137,11 +138,19 @@ class FireGuardStore:
         self.indices[index][doc_id] = record
         if self.es and not self.elastic_error:
             try:
-                elastic_record = {key: value for key, value in record.items() if key != "_id"}
+                elastic_record = self._elastic_document(index, record)
                 self.es.index(index=index, id=doc_id, document=elastic_record)
             except Exception as exc:  # pragma: no cover - external Elastic only
                 self.elastic_error = str(exc)
         return record
+
+    def _elastic_document(self, index: str, record: dict[str, Any]) -> dict[str, Any]:
+        elastic_record = {key: value for key, value in record.items() if key != "_id"}
+        if index == "traces":
+            events = elastic_record.pop("events", [])
+            elastic_record["event_count"] = len(events) if isinstance(events, list) else 0
+            elastic_record["events_json"] = json.dumps(events, default=str)[:20000]
+        return elastic_record
 
     def bulk_upsert(self, index: str, docs: list[dict[str, Any]], id_field: str) -> list[dict[str, Any]]:
         return [self.upsert(index, str(doc[id_field]), doc) for doc in docs if doc.get(id_field)]
