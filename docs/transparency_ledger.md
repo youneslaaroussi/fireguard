@@ -6,7 +6,7 @@ This file is the source of truth for what is real, what is simulated, and what s
 
 ## Current Truth Summary
 
-FireGuard is a real hosted Cloud Run app with a real FastAPI backend, real Next.js frontend, real Elastic-backed operational memory, a real Fivetran Connector SDK path into BigQuery, real Vertex Gemini calls, real Twilio allowlisted SMS execution, and real OpenTelemetry span export to a self-hosted Arize Phoenix service on Cloud Run. The provided Arize Cloud API key still returns `401` against Phoenix Cloud REST, so Arize Cloud hosted export remains blocked pending a valid Phoenix Cloud key/space.
+FireGuard is a real hosted Cloud Run app with a real FastAPI backend, real Next.js frontend, real Elastic-backed operational memory, a real Fivetran Connector SDK path into BigQuery, real Vertex Gemini calls, real Twilio allowlisted SMS execution, and real OpenTelemetry span export to a self-hosted Arize Phoenix service on Cloud Run. The provided Arize Cloud API key still returns `401` against Phoenix Cloud REST, so Arize Cloud hosted export remains blocked pending a valid Phoenix Cloud key/space. The current self-hosted Phoenix deployment uses container-local SQLite storage unless PostgreSQL is configured, so traces are demo-visible but not yet production-durable across service replacement.
 
 FireGuard is not yet a fully real emergency orchestration system. The demo-critical evacuation scenario still uses replay and synthetic operational records, but the fire and road replay evidence is now stored from real source snapshots rather than invented rows.
 
@@ -21,7 +21,7 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 | BigQuery bridge | Real | Backend reads `fireguard_ingestion` tables and indexes records into Elastic. |
 | Gemini | Real | Backend uses Vertex Gemini through `google-genai`; hosted assessment verified `gemini_status=completed` with `gemini-3.1-flash-lite-preview`, `GOOGLE_CLOUD_LOCATION=global`, and five tool calls. |
 | Twilio | Real for allowlisted SMS | Zone A demo SMS has been sent through Twilio as `queued` after approval. |
-| Phoenix/OpenTelemetry | Real self-hosted Phoenix export; Arize Cloud auth blocked | Phoenix runs at `https://fireguard-phoenix-dovhkdlznq-uc.a.run.app`; hosted assessment exported 8 trace spans and eval exported a Phoenix span. Phoenix REST lists the `fireguard` project. The provided Arize Cloud key returns `401` against `https://app.phoenix.arize.com/v1/projects`. |
+| Phoenix/OpenTelemetry | Real self-hosted Phoenix export; Arize Cloud auth blocked; persistence not production-grade yet | Phoenix runs at `https://fireguard-phoenix-dovhkdlznq-uc.a.run.app`; Cloud Run revision `fireguard-phoenix-00002-zzw` has `minScale=1`; hosted assessment exported 8 trace spans and eval exported Phoenix trace `8b61da5b3907143984a626d14da35417:f9e47d7ea730bfc9`. Phoenix REST lists the `fireguard` project after assessment/eval. The provided Arize Cloud key returns `401` against `https://app.phoenix.arize.com/v1/projects`. Phoenix logs show default `sqlite:////root/.phoenix/phoenix.db` storage, so PostgreSQL is still needed for durable production trace storage. |
 | Human approval gate | Real backend enforcement | Public-facing action execution fails before approval and SMS is allowlist-filtered. |
 
 ## Known Shortcuts And Gaps
@@ -38,15 +38,17 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 | T-007 | In-app eval is deterministic local code, not a hosted Arize evaluator. | The scoring rubric is still local deterministic code, but eval output is exported to Phoenix as an OpenTelemetry span. | Partially fixed and hosted-verified | Hosted `/evals/demo-incident-bc-001` returned score `1.0` and `eval_phoenix_trace_id`; add a Phoenix-hosted evaluator workflow only if required by judging. |
 | T-008 | Fivetran connector has replay fallbacks on source timeout/failure. | Connector debug and demos remain stable, but a source outage may silently switch streams to replay unless the warning/run metadata is inspected. | Partially fixed | Preserve sync warnings in `ingestion_runs`, surface fallback stream warnings in the provider strip, and fail production mode if fallback is disallowed. |
 | T-009 | The app runs with `DEMO_MODE=true` in Cloud Run. | Hosted app is intentionally a demo, not a live authority workflow. | Accepted, must stay visible | Keep UI safety labels and prevent unapproved/non-allowlisted public messaging. |
-| T-011 | The provided Arize Cloud API key does not authenticate against Phoenix Cloud REST, so Arize Cloud export is not proven. | We can prove self-hosted Phoenix export on Cloud Run, but not Arize Cloud hosted receipt with the current key. | Blocked on valid Arize Cloud key/space | Hosted self-hosted Phoenix is fixed: `/integrations/arize/status` returns `deployment=self_hosted`, `connection_check.status=ok`, and project `fireguard`. To switch to Arize Cloud, provide the exact Phoenix Cloud space URL and a key that returns 200 for `/v1/projects`. |
+| T-011 | The provided Arize Cloud API key does not authenticate against Phoenix Cloud REST, so Arize Cloud export is not proven. | We can prove self-hosted Phoenix export on Cloud Run, but not Arize Cloud hosted receipt with the current key. | Blocked on valid Arize Cloud key/space | Hosted self-hosted Phoenix is fixed: `/integrations/arize/status` returns `deployment=self_hosted`, `connection_check.status=ok`, and project `fireguard`. API Phoenix REST checks now use `PHOENIX_STATUS_TIMEOUT_SECONDS=10` instead of a brittle 2 second timeout. To switch to Arize Cloud, provide the exact Phoenix Cloud space URL and a key that returns 200 for `/v1/projects`. |
+| T-012 | Self-hosted Phoenix currently uses container-local SQLite storage. | Trace export is real and demo-visible, but traces can disappear after Cloud Run replacement/restart. | Open, demo-mitigated | Cloud Run Phoenix now has `minScale=1`, which keeps the demo service warm but is not persistence. Configure Phoenix with `PHOENIX_SQL_DATABASE_URL` backed by Cloud SQL PostgreSQL, or switch to working Arize Cloud credentials before claiming durable hosted trace retention. |
 
 ## Fix Order
 
 1. T-008: Make fallback use impossible to miss in UI and ingestion-run records.
 2. T-006: Add formal Google Agent Builder or ADK deployment proof.
 3. T-011: Switch from self-hosted Phoenix to Arize Cloud only after receiving a valid Phoenix Cloud key/space.
-4. T-005: Keep simulated operational actions clearly labeled unless a safe real task system is added.
-5. T-004: Keep synthetic municipal data clearly labeled unless better public data is added.
+4. T-012: Add persistent PostgreSQL storage for self-hosted Phoenix if Arize Cloud remains blocked.
+5. T-005: Keep simulated operational actions clearly labeled unless a safe real task system is added.
+6. T-004: Keep synthetic municipal data clearly labeled unless better public data is added.
 
 ## Rule For Future Changes
 

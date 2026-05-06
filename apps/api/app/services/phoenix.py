@@ -103,7 +103,7 @@ def _connection_check(settings: Settings, endpoint: str, auth_enabled: bool) -> 
         headers["Authorization"] = f"Bearer {settings.phoenix_api_key}"
     try:
         request = urllib.request.Request(f"{base_url}/v1/projects", headers=headers)
-        with urllib.request.urlopen(request, timeout=2) as response:
+        with urllib.request.urlopen(request, timeout=settings.phoenix_status_timeout_seconds) as response:
             payload = json.loads(response.read().decode("utf-8"))
         projects = [item.get("name") for item in payload.get("data", []) if item.get("name")]
         return {"status": "ok", "http_status": 200, "projects": projects[:10]}

@@ -47,6 +47,7 @@ class Settings(BaseSettings):
     phoenix_project_name: str = "fireguard"
     phoenix_api_key: str | None = None
     phoenix_auth_enabled: bool = False
+    phoenix_status_timeout_seconds: float = 10.0
 
     action_webhook_secret: str = "dev-secret"
     shelter_webhook_url: str | None = None
