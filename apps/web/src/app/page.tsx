@@ -330,6 +330,12 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
   const fivetranRun = status?.fivetran?.latest_run as Record<string, unknown> | null | undefined;
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
   const passed = evalChecks ? Object.values(evalChecks).filter(Boolean).length : 0;
+  const arizeCheck = status?.arize?.connection_check as Record<string, unknown> | undefined;
+  const arizeOk = status?.arize?.enabled === true && arizeCheck?.status === "ok";
+  const arizeDeployment = String(status?.arize?.deployment || "local");
+  const arizeDetail = evalChecks
+    ? `${passed}/${Object.keys(evalChecks).length} eval checks passed`
+    : `${arizeDeployment}; ${String(arizeCheck?.status || "unchecked")}`;
   return (
     <section className="grid gap-2 border-b border-line bg-panel/70 px-4 py-3 md:grid-cols-4">
       <ProviderCard
@@ -357,8 +363,8 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
         title="Arize Phoenix"
         icon={<Activity size={16} />}
         value={evalResult ? `eval ${Math.round(Number(evalResult.score || 0) * 100)}%` : "trace-ready"}
-        detail={evalChecks ? `${passed}/${Object.keys(evalChecks).length} eval checks passed` : String(status?.arize?.endpoint || "localhost:6006")}
-        tone={status?.arize?.enabled ? "ok" : "warn"}
+        detail={arizeDetail}
+        tone={arizeOk ? "ok" : "warn"}
       />
     </section>
   );

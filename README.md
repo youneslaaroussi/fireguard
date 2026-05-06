@@ -114,7 +114,7 @@ python3 -m pip install arize-phoenix
 phoenix serve
 ```
 
-The API exports spans to `PHOENIX_COLLECTOR_ENDPOINT`, defaulting to `http://localhost:6006/v1/traces`. Hosted Arize uses `PHOENIX_API_KEY`.
+The API exports spans to `PHOENIX_COLLECTOR_ENDPOINT`, defaulting to `http://localhost:6006/v1/traces`. The deployed demo currently uses a self-hosted Arize Phoenix service on Cloud Run because the provided Arize Cloud key returns `401` against Phoenix Cloud REST. Hosted Arize Cloud can be enabled by setting `PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/v1/traces`, `PHOENIX_API_KEY`, and `PHOENIX_AUTH_ENABLED=true` after a valid Phoenix Cloud key/space is available.
 
 ## Demo Flow
 
