@@ -6,7 +6,7 @@ from typing import Any
 import httpx
 
 from app.models.schemas import GeoPoint, RouteOption
-from app.services.geo import route_near_point
+from app.services.geo import haversine_km, min_distance_to_polyline_km, route_near_point
 
 GOOGLE_ROUTES_URL = "https://routes.googleapis.com/directions/v2:computeRoutes"
 
@@ -179,7 +179,7 @@ def _safety_flags(
 
     fire_buffer_hit = False
     for fire in context.get("fires", []):
-        if route_near_point(points, fire["location"], 3.0):
+        if _route_crosses_fire_buffer(points, fire["location"], 3.0, 2.0):
             fire_buffer_hit = True
             if fire.get("external_id"):
                 evidence_ids.append(fire["external_id"])
@@ -223,6 +223,39 @@ def _route_near_road_event(points: list[dict[str, float]], event: dict[str, Any]
     return any(route_near_point(points, point, threshold_km) for point in _geometry_points(event.get("geometry")))
 
 
+def _route_crosses_fire_buffer(
+    points: list[dict[str, float]],
+    fire_location: dict[str, float],
+    threshold_km: float,
+    departure_clearance_km: float,
+) -> bool:
+    if len(points) < 2:
+        return route_near_point(points, fire_location, threshold_km)
+
+    trimmed = _polyline_after_distance(points, departure_clearance_km)
+    if len(trimmed) < 2:
+        return False
+    return min_distance_to_polyline_km(fire_location, trimmed) <= threshold_km
+
+
+def _polyline_after_distance(points: list[dict[str, float]], distance_km: float) -> list[dict[str, float]]:
+    travelled = 0.0
+    for index, (start, end) in enumerate(zip(points, points[1:])):
+        segment_km = haversine_km(start, end)
+        if travelled + segment_km < distance_km:
+            travelled += segment_km
+            continue
+        if segment_km == 0:
+            return points[index + 1 :]
+        ratio = max(0.0, min(1.0, (distance_km - travelled) / segment_km))
+        interpolated = {
+            "lat": start["lat"] + (end["lat"] - start["lat"]) * ratio,
+            "lon": start["lon"] + (end["lon"] - start["lon"]) * ratio,
+        }
+        return [interpolated, *points[index + 1 :]]
+    return []
+
+
 def _geometry_points(geometry: Any) -> list[dict[str, float]]:
     points: list[dict[str, float]] = []
 
@@ -250,7 +283,12 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
 
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_A":
         points = [_point(52.6238, -121.835), _point(52.6235, -121.761), _point(52.617, -121.594)]
-        return _route(zone_id, shelter_id, 19, 18.2, False, ["Route enters the DriveBC closure impact buffer.", "Route crosses active fire-risk buffer.", "Shelter A has insufficient capacity for Zone A."], points, [closure_id] if closure_id else [])
+        fire_ids = [
+            fire["external_id"]
+            for fire in context.get("fires", [])
+            if _route_crosses_fire_buffer(points, fire["location"], 3.0, 2.0)
+        ]
+        return _route(zone_id, shelter_id, 19, 18.2, False, ["Route enters the DriveBC closure impact buffer.", "Route crosses active fire-risk buffer.", "Shelter A has insufficient capacity for Zone A."], points, [item for item in [closure_id, *fire_ids] if item])
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_B":
         return _route(zone_id, shelter_id, 67, 88.2, True, [], [_point(52.6238, -121.835), _point(52.36, -121.95), _point(52.1415, -122.1417)], [])
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_C":
@@ -262,7 +300,12 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
         flags = ["Self-evacuation route crosses fire-risk buffer.", "Low vehicle access and high vulnerable population require dispatch-assisted movement."]
         if closure_id:
             flags.insert(0, "Outbound route enters the DriveBC closure impact buffer.")
-        return _route(zone_id, shelter_id, 54, 50.1, False, flags, points, [closure_id] if closure_id else [])
+        fire_ids = [
+            fire["external_id"]
+            for fire in context.get("fires", [])
+            if _route_crosses_fire_buffer(points, fire["location"], 3.0, 2.0)
+        ]
+        return _route(zone_id, shelter_id, 54, 50.1, False, flags, points, [item for item in [closure_id, *fire_ids] if item])
 
     origin = zone["centroid"]
     dest = shelter["location"]

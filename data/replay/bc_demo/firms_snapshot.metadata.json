@@ -1,0 +1,11 @@
+{
+  "source": "NASA FIRMS Area API",
+  "source_product": "VIIRS_NOAA20_SP",
+  "query_bbox": "-122.2,52.0,-121.3,52.9",
+  "query_day_range": 5,
+  "query_start_date": "2024-07-10",
+  "source_url_template": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/[MAP_KEY]/VIIRS_NOAA20_SP/-122.2,52.0,-121.3,52.9/5/2024-07-10",
+  "captured_at": "2026-05-06T16:35:00Z",
+  "row_count": 45,
+  "notes": "Stored historical NASA FIRMS CSV snapshot used for replay mode. MAP_KEY is intentionally redacted from provenance."
+}

@@ -31,8 +31,19 @@ def test_route_closure_rejects_obvious_route() -> None:
     assert obvious.safe is False
     assert "closure" in " ".join(obvious.risk_flags).lower()
     assert "drivebc.ca/DBC-90684" in obvious.evidence_ids
+    assert any(evidence_id.startswith("FIRMS_N20_20240710") for evidence_id in obvious.evidence_ids)
     assert alternate is not None
     assert alternate.destination_id == "SHELTER_B"
+
+
+def test_firms_replay_uses_real_historical_snapshot() -> None:
+    store = seeded_store()
+    fires = store.list("fire_hotspots")
+
+    assert len(fires) == 45
+    assert fires[0]["source"] == "NASA_FIRMS_HISTORICAL_SNAPSHOT"
+    assert fires[0]["raw"]["snapshot_file"] == "data/replay/bc_demo/firms_snapshot.csv"
+    assert "/[MAP_KEY]/" in fires[0]["source_url"]
 
 
 def test_shelter_capacity_overflow_is_reflected_in_plan() -> None:

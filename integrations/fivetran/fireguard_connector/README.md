@@ -21,7 +21,7 @@ cp configuration.json.example configuration.json
 fivetran debug . --configuration configuration.json
 ```
 
-If `nasa_firms_map_key` is empty, the connector emits replay-shaped FIRMS rows so the connector can still be debugged before secrets are available.
+If `nasa_firms_map_key` is empty, fails, or returns zero rows for the configured bbox, the connector emits the stored NASA FIRMS historical snapshot from `data/replay/bc_demo/firms_snapshot.csv` and logs the fallback.
 
 ## Deploy
 

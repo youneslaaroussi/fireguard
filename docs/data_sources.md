@@ -2,7 +2,7 @@
 
 ## Live/Open Sources Through Fivetran
 
-- NASA FIRMS area CSV API for active hotspots.
+- NASA FIRMS area CSV API for active hotspots. Replay mode stores a real historical `VIIRS_NOAA20_SP` CSV snapshot in `data/replay/bc_demo/firms_snapshot.csv` with the MAP_KEY redacted from provenance.
 - BC Wildfire current fire perimeters from ArcGIS REST GeoJSON.
 - DriveBC/Open511 road events.
 - Open-Meteo wind forecasts.
@@ -19,4 +19,4 @@ The Fivetran Connector SDK project in `integrations/fivetran/fireguard_connector
 - municipal webhook endpoints;
 - emergency policy snippets.
 
-Synthetic action endpoints are clearly labeled in the UI and logs. Fire, road, and weather records used in the judged reasoning path must cite a source record or replay source snapshot.
+Synthetic action endpoints are clearly labeled in the UI and logs. Fire, road, and weather records used in the judged reasoning path must cite a source record or stored replay source snapshot.

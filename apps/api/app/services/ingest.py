@@ -25,14 +25,23 @@ def stable_id(*values: Any) -> str:
 async def ingest_firms(settings: Settings) -> dict[str, Any]:
     if not settings.nasa_firms_map_key:
         docs = demo_data.replay_fire_hotspots()
-        return {"mode": "replay", "docs": docs, "reason": "NASA_FIRMS_MAP_KEY is not configured."}
+        return {"mode": "historical_snapshot_replay", "docs": docs, "reason": "NASA_FIRMS_MAP_KEY is not configured."}
 
     bbox = settings.nasa_firms_bbox
     url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{settings.nasa_firms_map_key}/{settings.nasa_firms_source}/{bbox}/1"
+    redacted_url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/[MAP_KEY]/{settings.nasa_firms_source}/{bbox}/1"
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(url)
         response.raise_for_status()
-    rows = csv.DictReader(StringIO(response.text))
+    rows = list(csv.DictReader(StringIO(response.text)))
+    if not rows:
+        docs = demo_data.replay_fire_hotspots()
+        return {
+            "mode": "live_empty_historical_snapshot_fallback",
+            "docs": docs,
+            "source_url": redacted_url,
+            "reason": "NASA FIRMS returned zero current rows for the configured bbox.",
+        }
     docs = []
     ingested_at = now_iso()
     for row in rows:
@@ -53,7 +62,7 @@ async def ingest_firms(settings: Settings) -> dict[str, Any]:
             "ingested_at": ingested_at,
             "raw": row,
         })
-    return {"mode": "live", "docs": docs, "source_url": url}
+    return {"mode": "live", "docs": docs, "source_url": redacted_url}
 
 
 async def ingest_bc_perimeters() -> dict[str, Any]:

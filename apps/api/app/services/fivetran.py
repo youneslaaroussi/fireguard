@@ -167,7 +167,7 @@ def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
             streams["fire_hotspots"] = _replay_fallback_docs("fire_hotspots", reason)
             fallbacks["fire_hotspots"] = {
                 "reason": reason,
-                "replacement": "Labeled NASA FIRMS replay snapshot keeps the demo threat deterministic while live FIRMS is quiet.",
+                "replacement": "Stored NASA FIRMS historical snapshot keeps the demo threat deterministic while live FIRMS is quiet.",
                 "count": len(streams["fire_hotspots"]),
             }
             mode = "bigquery_with_replay_fallback"

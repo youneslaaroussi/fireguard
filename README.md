@@ -145,7 +145,7 @@ Synthetic demo data:
 - dispatch assets
 - municipal action endpoints
 
-Replay mode uses source-shaped records and transparent labels so the demo remains deterministic.
+Replay mode uses stored real source snapshots where live data is quiet. The FIRMS replay file is an official NASA FIRMS Area API CSV snapshot with the MAP_KEY redacted from provenance; municipal zones, shelters, dispatch assets, and action endpoints remain synthetic/simulated and labeled.
 
 ## Tests
 

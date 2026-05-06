@@ -1,8 +1,39 @@
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+from typing import Any
+
 from app.services.time import now_iso
 
 INCIDENT_ID = "demo-incident-bc-001"
+REPO_ROOT = Path(__file__).resolve().parents[4]
+FIRMS_SNAPSHOT_CSV = REPO_ROOT / "data" / "replay" / "bc_demo" / "firms_snapshot.csv"
+FIRMS_SNAPSHOT_URL = (
+    "https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
+    "[MAP_KEY]/VIIRS_NOAA20_SP/-122.2,52.0,-121.3,52.9/5/2024-07-10"
+)
+
+
+def _float(value: Any, default: float = 0.0) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _firms_external_id(row: dict[str, str]) -> str:
+    date_token = str(row.get("acq_date", "unknown")).replace("-", "")
+    time_token = str(row.get("acq_time", "0000")).zfill(4)
+    lat_token = str(row.get("latitude", "0")).replace("-", "M").replace(".", "_")
+    lon_token = str(row.get("longitude", "0")).replace("-", "M").replace(".", "_")
+    satellite = str(row.get("satellite") or "VIIRS")
+    return f"FIRMS_{satellite}_{date_token}_{time_token}_{lat_token}_{lon_token}"
+
+
+def _firms_acquired_at(row: dict[str, str]) -> str:
+    acq_time = str(row.get("acq_time", "0000")).zfill(4)
+    return f"{row.get('acq_date')}T{acq_time[:2]}:{acq_time[2:]}:00Z"
 
 
 def synthetic_zones() -> list[dict]:
@@ -114,36 +145,32 @@ def synthetic_shelters() -> list[dict]:
 
 def replay_fire_hotspots() -> list[dict]:
     ingested_at = now_iso()
-    return [
-        {
-            "source": "NASA_FIRMS_REPLAY",
-            "external_id": "FIRMS_REPLAY_20240723_001",
-            "location": {"lat": 52.626, "lon": -121.700},
-            "brightness": 334.2,
-            "confidence": "high",
-            "frp": 62.4,
-            "scan": 0.43,
-            "track": 0.39,
-            "acquired_at": "2024-07-23T21:14:00Z",
-            "updated_at": ingested_at,
-            "ingested_at": ingested_at,
-            "raw": {"replay": True, "source_shape": "NASA FIRMS area CSV"},
-        },
-        {
-            "source": "NASA_FIRMS_REPLAY",
-            "external_id": "FIRMS_REPLAY_20240723_002",
-            "location": {"lat": 52.635, "lon": -121.720},
-            "brightness": 329.7,
-            "confidence": "nominal",
-            "frp": 48.9,
-            "scan": 0.42,
-            "track": 0.38,
-            "acquired_at": "2024-07-23T21:14:00Z",
-            "updated_at": ingested_at,
-            "ingested_at": ingested_at,
-            "raw": {"replay": True, "source_shape": "NASA FIRMS area CSV"},
-        },
-    ]
+    docs = []
+    with FIRMS_SNAPSHOT_CSV.open(newline="") as file:
+        for row in csv.DictReader(file):
+            acquired_at = _firms_acquired_at(row)
+            docs.append({
+                "source": "NASA_FIRMS_HISTORICAL_SNAPSHOT",
+                "external_id": _firms_external_id(row),
+                "location": {"lat": _float(row.get("latitude")), "lon": _float(row.get("longitude"))},
+                "brightness": _float(row.get("bright_ti4") or row.get("brightness")),
+                "confidence": str(row.get("confidence", "unknown")),
+                "frp": _float(row.get("frp")),
+                "scan": _float(row.get("scan")),
+                "track": _float(row.get("track")),
+                "acquired_at": acquired_at,
+                "updated_at": acquired_at,
+                "ingested_at": ingested_at,
+                "source_url": FIRMS_SNAPSHOT_URL,
+                "raw": {
+                    **row,
+                    "historical_replay": True,
+                    "source_snapshot": True,
+                    "snapshot_file": "data/replay/bc_demo/firms_snapshot.csv",
+                    "captured_from": FIRMS_SNAPSHOT_URL,
+                },
+            })
+    return docs
 
 
 def replay_fire_perimeters() -> list[dict]:
