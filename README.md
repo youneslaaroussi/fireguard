@@ -40,7 +40,7 @@ Next.js incident command dashboard
 Approval queue -> Twilio allowlisted SMS + simulated shelter/road/dispatch APIs
         |
         v
-Arize Phoenix / OpenTelemetry trace and eval proof
+Arize Phoenix / OpenTelemetry spans + eval trace annotations
 ```
 
 ## Local Setup
@@ -131,7 +131,7 @@ phoenix serve
 
 The API exports spans to `PHOENIX_COLLECTOR_ENDPOINT`, defaulting to `http://localhost:6006/v1/traces`. The deployed demo currently uses a self-hosted Arize Phoenix service on Cloud Run because the provided Arize Cloud key returns `401` against Phoenix Cloud REST. Hosted Arize Cloud can be enabled by setting `PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/v1/traces`, `PHOENIX_API_KEY`, and `PHOENIX_AUTH_ENABLED=true` after a valid Phoenix Cloud key/space is available.
 
-The Cloud Run Phoenix service now uses Cloud SQL PostgreSQL through `PHOENIX_SQL_DATABASE_URL` stored in Secret Manager. The API reports the expected status through `PHOENIX_STORAGE_BACKEND=cloud_sql_postgresql` in deployed environments.
+The Cloud Run Phoenix service now uses Cloud SQL PostgreSQL through `PHOENIX_SQL_DATABASE_URL` stored in Secret Manager. The API reports the expected status through `PHOENIX_STORAGE_BACKEND=cloud_sql_postgresql` in deployed environments. Eval runs create a Phoenix span and then attach a native `fireguard_eval` trace annotation with the deterministic safety checks.
 
 ## Demo Flow
 
@@ -142,7 +142,7 @@ The Cloud Run Phoenix service now uses Cloud SQL PostgreSQL through `PHOENIX_SQL
 5. Confirm that the obvious route is rejected due to a road closure and fire-risk buffer.
 6. Approve the action bundle.
 7. Execute actions.
-8. Open the trace panel and inspect evidence, freshness, Phoenix span IDs, eval score, approval, and execution results.
+8. Open the trace panel and inspect evidence, freshness, Phoenix span IDs, eval score, Phoenix eval annotation, approval, and execution results.
 
 ## Data Sources
 

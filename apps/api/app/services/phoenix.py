@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 from typing import Any
@@ -186,3 +187,60 @@ def trace_tool_span(
         _last_error = str(exc)
         _disabled_after_error = True
     return None
+
+
+def annotate_trace_eval(settings: Settings, phoenix_trace_id: str | None, result: dict[str, Any]) -> dict[str, Any] | None:
+    if not phoenix_trace_id:
+        return None
+    trace_id = phoenix_trace_id.split(":", 1)[0]
+    endpoint = _collector_endpoint(settings)
+    auth_enabled = _auth_enabled(settings, endpoint)
+    base_url = _application_url(endpoint)
+    headers = {"Content-Type": "application/json"}
+    if auth_enabled and settings.phoenix_api_key:
+        headers["Authorization"] = f"Bearer {settings.phoenix_api_key}"
+    payload = {
+        "data": [
+            {
+                "trace_id": trace_id,
+                "name": "fireguard_eval",
+                "annotator_kind": "CODE",
+                "result": {
+                    "label": result.get("status"),
+                    "score": result.get("score"),
+                    "explanation": "Deterministic FireGuard eval checks for grounding, route safety, freshness, approval enforcement, trace completeness, and clarity.",
+                },
+                "metadata": {
+                    "incident_id": result.get("incident_id"),
+                    "eval_id": result.get("eval_id"),
+                    "checks": result.get("checks", {}),
+                },
+                "identifier": result.get("eval_id"),
+            }
+        ]
+    }
+    last_error: str | None = None
+    for attempt, delay_seconds in enumerate([0.0, 0.25, 0.5, 1.0, 2.0], start=1):
+        if delay_seconds:
+            time.sleep(delay_seconds)
+        try:
+            request = urllib.request.Request(
+                f"{base_url}/v1/trace_annotations?sync=true",
+                data=json.dumps(payload).encode("utf-8"),
+                headers=headers,
+                method="POST",
+            )
+            with urllib.request.urlopen(request, timeout=settings.phoenix_status_timeout_seconds) as response:
+                response_payload = json.loads(response.read().decode("utf-8"))
+            inserted = response_payload.get("data", [])
+            if inserted:
+                return {"annotation_id": inserted[0].get("id"), "trace_id": trace_id, "attempt": attempt}
+            return {"trace_id": trace_id, "attempt": attempt}
+        except urllib.error.HTTPError as exc:  # pragma: no cover - provider/network dependent
+            last_error = f"HTTP Error {exc.code}: {exc.reason}"
+            if exc.code != 404:
+                break
+        except Exception as exc:  # pragma: no cover - provider/network dependent
+            last_error = str(exc)
+            break
+    return {"trace_id": trace_id, "error": last_error or "annotation failed"}
