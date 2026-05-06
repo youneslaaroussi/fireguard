@@ -209,6 +209,29 @@ def test_operator_capacity_check_in_updates_shelter_and_assumptions() -> None:
     assert shelter_action.payload["capacity_operator_confirmed"] is True
 
 
+def test_capacity_updates_overlay_seeded_shelters() -> None:
+    store = seeded_store()
+    shelters = store.list("shelters")
+    updated = FireGuardStore._apply_capacity_updates(
+        shelters,
+        [{
+            "update_id": "CAPACITY_SHELTER_B_TEST",
+            "shelter_id": "SHELTER_B",
+            "capacity_total": 3500,
+            "capacity_available": 2999,
+            "updated_by": "ess-operator",
+            "updated_at": "2026-05-06T22:30:00Z",
+            "note": "test",
+        }],
+    )
+    shelter_b = {shelter["shelter_id"]: shelter for shelter in updated}["SHELTER_B"]
+
+    assert shelter_b["capacity_available"] == 2999
+    assert shelter_b["capacity_is_operator_assumption"] is False
+    assert shelter_b["capacity_operator_confirmed"] is True
+    assert shelter_b["capacity_update_id"] == "CAPACITY_SHELTER_B_TEST"
+
+
 def test_public_bc_emergency_context_is_source_backed() -> None:
     store = seeded_store()
     context = store.incident_context()

@@ -327,7 +327,7 @@ class FireGuardStore:
                 else item
                 for item in disclosures
             ]
-        shelters = self.list("shelters")
+        shelters = self._shelters_with_capacity_updates()
         zones = self.list("evacuation_zones")
         dispatch_assets = self.list("dispatch_assets")
         resident_contacts = self.list("resident_contacts")
@@ -356,6 +356,59 @@ class FireGuardStore:
             "demo_disclosures": disclosures,
         }
         return context
+
+    def _shelters_with_capacity_updates(self) -> list[dict[str, Any]]:
+        return self._apply_capacity_updates(self.list("shelters"), self._capacity_updates())
+
+    def _capacity_updates(self) -> list[dict[str, Any]]:
+        updates = {update["_id"]: update for update in self.list("capacity_updates") if update.get("_id")}
+        if self.es and not self.elastic_error:
+            try:
+                response = self.es.search(
+                    index="capacity_updates",
+                    size=200,
+                    query={"match_all": {}},
+                    sort=[{"updated_at": {"order": "desc"}}],
+                )
+                for hit in response["hits"]["hits"]:
+                    source = {**hit["_source"], "_id": hit["_id"]}
+                    updates[hit["_id"]] = source
+            except Exception as exc:  # pragma: no cover - external Elastic only
+                self.elastic_error = str(exc)
+        return list(updates.values())
+
+    @staticmethod
+    def _apply_capacity_updates(shelters: list[dict[str, Any]], updates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        latest_by_shelter: dict[str, dict[str, Any]] = {}
+        for update in sorted(updates, key=lambda item: item.get("updated_at", "")):
+            if update.get("shelter_id"):
+                latest_by_shelter[update["shelter_id"]] = update
+
+        updated_shelters = []
+        for shelter in shelters:
+            update = latest_by_shelter.get(shelter["shelter_id"])
+            if not update:
+                updated_shelters.append(shelter)
+                continue
+            source_label = (
+                f"Operator capacity check-in by {update.get('updated_by')} at {update.get('updated_at')}; "
+                "not an official public ESS capacity feed."
+            )
+            updated_shelters.append({
+                **shelter,
+                "capacity_total": update.get("capacity_total", shelter.get("capacity_total")),
+                "capacity_available": update.get("capacity_available", shelter.get("capacity_available")),
+                "capacity_is_operator_assumption": False,
+                "capacity_operator_confirmed": True,
+                "capacity_source_type": "operator_capacity_check_in",
+                "capacity_source_label": source_label,
+                "capacity_confirmed_at": update.get("updated_at"),
+                "capacity_confirmed_by": update.get("updated_by"),
+                "capacity_update_note": update.get("note"),
+                "capacity_update_id": update.get("update_id") or update.get("_id"),
+                "updated_at": update.get("updated_at") or shelter.get("updated_at"),
+            })
+        return updated_shelters
 
     def provider_status(self) -> dict[str, Any]:
         ingestion_runs = sorted(self.list("ingestion_runs"), key=lambda run: run.get("created_at", ""))
