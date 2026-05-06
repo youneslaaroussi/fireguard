@@ -1,0 +1,39 @@
+{
+  "captured_at": "2026-05-06T00:00:00Z",
+  "source_label": "Official BC public emergency guidance sources.",
+  "notes": "Policy snippets are paraphrased from public BC guidance. They are not official agency SOPs and do not authorize FireGuard to issue emergency instructions.",
+  "records": [
+    {
+      "policy_id": "POLICY_BC_EVACUATION_ORDER",
+      "title": "Evacuation order means leave immediately",
+      "source": "BC_PREPAREDBC_EVACUEE_GUIDANCE",
+      "source_url": "https://www2.gov.bc.ca/gov/content/safety/emergency-management/preparedbc/evacuation-recovery/evacuee-guidance",
+      "body": "For public guidance, a BC evacuation order indicates immediate risk and people in the affected area should leave as directed by local authorities and use designated support locations.",
+      "applies_to": ["resident_sms", "evacuation_order", "route_instruction"]
+    },
+    {
+      "policy_id": "POLICY_BC_EVACUATION_ALERT",
+      "title": "Evacuation alert means prepare to leave",
+      "source": "BC_WILDFIRE_EVACUATION_ALERTS_ORDERS",
+      "source_url": "https://blog.gov.bc.ca/bcwildfire/how-do-evacuation-orders-and-alerts-work/",
+      "body": "For public guidance, a BC evacuation alert indicates people should be ready to leave on short notice while continuing to follow local authority updates.",
+      "applies_to": ["staged_evacuation", "prepare_to_leave", "public_information"]
+    },
+    {
+      "policy_id": "POLICY_BC_EMERGENCY_ALERT_DIRECTIONS",
+      "title": "Emergency alerts may direct evacuation or shelter-in-place",
+      "source": "BC_EMERGENCY_ALERT_GUIDANCE",
+      "source_url": "https://www2.gov.bc.ca/gov/content/safety/public-safety/emergency-alerts/receive-emergency-alert",
+      "body": "For public guidance, emergency alert recipients should read the full alert, verify whether they are in the impacted area, follow the listed direction, and check official local sources when safe.",
+      "applies_to": ["shelter_in_place", "resident_sms", "fallback_communications"]
+    },
+    {
+      "policy_id": "POLICY_FIREGUARD_HUMAN_APPROVAL",
+      "title": "FireGuard approval gate for public or dispatch actions",
+      "source": "FIREGUARD_SAFETY_RULE",
+      "source_url": "docs/transparency_ledger.md",
+      "body": "FireGuard must not execute resident alerts, evacuation instructions, shelter-in-place instructions, road operations tasks, or dispatch movement without explicit human approval in the demo workflow.",
+      "applies_to": ["resident_sms", "road_ops_task", "dispatch_task", "shelter_notify"]
+    }
+  ]
+}

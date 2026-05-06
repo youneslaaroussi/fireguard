@@ -18,6 +18,7 @@ PUBLIC_BC_CONTEXT_SNAPSHOT = REPO_ROOT / "data" / "public" / "bc" / "public_emer
 HISTORICAL_EVACUATION_ZONES_SNAPSHOT = (
     REPO_ROOT / "data" / "public" / "bc" / "historical_fire_evacuation_zones_snapshot.json"
 )
+OFFICIAL_POLICY_SNIPPETS = REPO_ROOT / "data" / "public" / "bc" / "official_policy_snippets.json"
 SYNTHETIC_MUNICIPAL_LABEL = "Synthetic demo municipality; not official municipal data."
 PUBLIC_BC_CONTEXT_LABEL = "Official BC EmergencyMapBC public data snapshot."
 PUBLIC_BC_HISTORICAL_LABEL = "Official BC Historical Orders and Alerts source snapshot."
@@ -205,6 +206,11 @@ def _public_bc_snapshot() -> dict[str, Any]:
         return json.load(file)
 
 
+def _official_policy_snapshot() -> dict[str, Any]:
+    with OFFICIAL_POLICY_SNIPPETS.open() as file:
+        return json.load(file)
+
+
 def public_evacuation_orders_alerts() -> list[dict]:
     snapshot = _public_bc_snapshot()
     source = snapshot["evacuation_orders_alerts"]
@@ -375,23 +381,19 @@ def dispatch_assets() -> list[dict]:
 
 
 def policies() -> list[dict]:
+    snapshot = _official_policy_snapshot()
+    ingested_at = now_iso()
     return [
         {
-            "policy_id": "POLICY_APPROVAL_PUBLIC_ACTIONS",
-            "title": "Human approval for public-facing actions",
-            "data_origin": "synthetic_demo_policy",
-            "source_label": "Synthetic safety policy for hackathon demo; not official emergency doctrine.",
-            "body": "Resident alerts, evacuation orders, shelter-in-place instructions, road closure instructions, and dispatch movement require incident commander approval before execution.",
-            "synthetic": True,
-        },
-        {
-            "policy_id": "POLICY_SHELTER_IN_PLACE",
-            "title": "Shelter in place when evacuation routes are unsafe",
-            "data_origin": "synthetic_demo_policy",
-            "source_label": "Synthetic safety policy for hackathon demo; not official emergency doctrine.",
-            "body": "If all self-evacuation routes cross active fire risk or known full closures, recommend temporary shelter-in-place and dispatch-assisted evacuation rather than blind evacuation.",
-            "synthetic": True,
-        },
+            **record,
+            "data_origin": "official_bc_public_guidance_snapshot",
+            "source_label": snapshot["source_label"],
+            "captured_at": snapshot["captured_at"],
+            "ingested_at": ingested_at,
+            "policy_note": snapshot["notes"],
+            "synthetic": False,
+        }
+        for record in snapshot["records"]
     ]
 
 
@@ -416,6 +418,12 @@ def demo_disclosures() -> list[dict[str, Any]]:
             "scope": "evacuation_zones",
             "label": PUBLIC_BC_HISTORICAL_LABEL,
             "detail": "Core demo evacuation zones now come from official BC Historical Orders and Alerts fire order/alert polygons. Population and home counts use source fields; vulnerability and vehicle-access scores are derived demo estimates.",
+            "synthetic": False,
+        },
+        {
+            "scope": "emergency_guidance_policies",
+            "label": "Official BC public emergency guidance sources.",
+            "detail": "Policy retrieval documents are paraphrased from BC public evacuation, wildfire, and emergency-alert guidance plus one explicit FireGuard demo approval rule. They are not official agency SOPs.",
             "synthetic": False,
         },
         {

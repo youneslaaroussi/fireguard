@@ -116,6 +116,8 @@ def test_context_labels_source_backed_zones_and_synthetic_operations() -> None:
     assert all(zone["source_record_id"] for zone in context["zones"])
     assert all(zone["population_source_field"] == "MULTI_SOURCED_POPULATION" for zone in context["zones"])
     assert all(zone["vulnerable_count_estimated"] is True for zone in context["zones"])
+    assert all(policy["synthetic"] is False and policy["data_origin"] == "official_bc_public_guidance_snapshot" for policy in context["policies"])
+    assert any(item["scope"] == "emergency_guidance_policies" and item["synthetic"] is False for item in context["demo_disclosures"])
     assert all(shelter["synthetic"] and shelter["data_origin"] == "synthetic_demo_shelter" for shelter in context["shelters"])
 
 
