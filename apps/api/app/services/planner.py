@@ -14,6 +14,18 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     route_a = best_safe_route(routes, "ZONE_A")
     route_b = best_safe_route(routes, "ZONE_B")
     route_c = best_safe_route(routes, "ZONE_C")
+    zone_a_strategy = "evacuate_now" if route_a else "shelter_in_place_dispatch_assisted"
+    zone_a_destination = route_a.destination_id if route_a else None
+    zone_a_message = (
+        "[DEMO - FireGuard] Evacuate Quesnel River West now toward Williams Lake ESS Reception Centre. Avoid Little Lake Quesnel River Road near the DriveBC closure."
+        if route_a
+        else "[DEMO - FireGuard] Quesnel River West should shelter in place temporarily. No safe self-evacuation route is currently verified."
+    )
+    zone_a_rationale = (
+        ["Critical risk and a safe alternate route exists.", "The nearest shelter route is rejected because it intersects a closure and fire-risk buffer."]
+        if route_a
+        else ["Route checks did not find a safe self-evacuation path.", "Shelter-in-place and dispatch support are safer until road ops verifies an outbound corridor."]
+    )
     zone_b_strategy = "staged_evacuation" if route_b else "hold_for_route_confirmation"
     zone_b_destination = route_b.destination_id if route_b else None
     zone_b_message = (
@@ -30,11 +42,11 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     steps.append(PlanStep(
         step_id="STEP_ZONE_A_EVAC_NOW",
         zone_id="ZONE_A",
-        strategy="evacuate_now",
-        destination_id=route_a.destination_id if route_a else "SHELTER_B",
+        strategy=zone_a_strategy,
+        destination_id=zone_a_destination,
         start_after_minutes=0,
-        message="[DEMO - FireGuard] Evacuate Quesnel River West now toward Williams Lake ESS Reception Centre. Avoid Little Lake Quesnel River Road near the DriveBC closure.",
-        rationale=["Critical risk and a safe alternate route exists.", "The nearest shelter route is rejected because it intersects a closure and fire-risk buffer."],
+        message=zone_a_message,
+        rationale=zone_a_rationale,
         evidence_ids=risk_by_zone["ZONE_A"].evidence_ids + (route_a.evidence_ids if route_a else []),
     ))
     steps.append(PlanStep(

@@ -282,17 +282,17 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
     shelter_id = shelter["shelter_id"]
 
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_A":
-        points = [_point(52.6238, -121.835), _point(52.6235, -121.761), _point(52.617, -121.594)]
+        points = [_point(52.610, -121.875), _point(52.6235, -121.761), _point(52.617, -121.594)]
         fire_ids = [
             fire["external_id"]
             for fire in context.get("fires", [])
             if _route_crosses_fire_buffer(points, fire["location"], 3.0, 2.0)
         ]
-        return _route(zone_id, shelter_id, 19, 18.2, False, ["Route enters the DriveBC closure impact buffer.", "Route crosses active fire-risk buffer.", "Shelter A has insufficient capacity for Zone A."], points, [item for item in [closure_id, *fire_ids] if item])
+        return _route(zone_id, shelter_id, 25, 23.5, False, ["Route enters the DriveBC closure impact buffer.", "Route crosses active fire-risk buffer.", "Shelter A has insufficient capacity for Zone A."], points, [item for item in [closure_id, *fire_ids] if item])
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_B":
-        return _route(zone_id, shelter_id, 67, 88.2, True, [], [_point(52.6238, -121.835), _point(52.36, -121.95), _point(52.1415, -122.1417)], [])
+        return _route(zone_id, shelter_id, 64, 86.9, True, [], [_point(52.610, -121.875), _point(52.36, -121.95), _point(52.1415, -122.1417)], [])
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_C":
-        return _route(zone_id, shelter_id, 104, 137.2, False, ["Shelter C has insufficient capacity for Zone A."], [_point(52.6238, -121.835), _point(52.82, -122.15), _point(52.9784, -122.4931)], [])
+        return _route(zone_id, shelter_id, 106, 135.9, False, ["Shelter C has insufficient capacity for Zone A."], [_point(52.610, -121.875), _point(52.82, -122.15), _point(52.9784, -122.4931)], [])
     if zone_id == "ZONE_B" and shelter_id == "SHELTER_B":
         return _route(zone_id, shelter_id, 73, 96.0, True, ["Shared rural corridor with Zone A creates congestion risk if simultaneous."], [_point(52.622, -121.660), _point(52.36, -121.95), _point(52.1415, -122.1417)], [])
     if zone_id == "ZONE_C":
