@@ -53,3 +53,15 @@ export function syncFivetranToElastic() {
 export function runEval(incidentId: string) {
   return request<Record<string, unknown>>(`/evals/${incidentId}`, { method: "POST" });
 }
+
+export function confirmShelterCapacity(shelterId: string, capacityAvailable: number, capacityTotal: number) {
+  return request<Record<string, unknown>>(`/shelters/${shelterId}/capacity-check-in`, {
+    method: "POST",
+    body: JSON.stringify({
+      capacity_available: capacityAvailable,
+      capacity_total: capacityTotal,
+      updated_by: "demo-operator",
+      note: "Capacity confirmed from the FireGuard demo UI.",
+    }),
+  });
+}

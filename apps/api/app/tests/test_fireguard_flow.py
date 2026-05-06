@@ -3,6 +3,7 @@ from pathlib import Path
 
 from app.config import Settings
 from app.routers.actions import execute as execute_bundle
+from app.routers.shelters import CapacityCheckIn, capacity_check_in
 from app.services.actions import approve_actions, execute_action
 from app.services.agent import run_assessment
 from app.services.evals import evaluate_incident
@@ -179,6 +180,33 @@ def test_resident_contact_provenance_uses_operator_number_when_configured() -> N
     assert residents["RES_A_001"]["synthetic"] is False
     assert residents["RES_A_001"]["data_origin"] == "operator_provided_twilio_test_recipient"
     assert residents["RES_B_001"]["synthetic"] is True
+
+
+def test_operator_capacity_check_in_updates_shelter_and_assumptions() -> None:
+    store = seeded_store()
+    result = capacity_check_in(
+        "SHELTER_B",
+        CapacityCheckIn(capacity_available=3000, capacity_total=3500, updated_by="ess-demo-operator"),
+        store,
+    )
+    context = store.incident_context()
+    shelter = {item["shelter_id"]: item for item in context["shelters"]}["SHELTER_B"]
+
+    assert result["capacity_update"]["source_type"] == "operator_capacity_check_in"
+    assert shelter["capacity_available"] == 3000
+    assert shelter["capacity_is_operator_assumption"] is False
+    assert shelter["capacity_operator_confirmed"] is True
+    assert shelter["capacity_confirmed_by"] == "ess-demo-operator"
+    assert any(
+        item["assumption_id"] == "INPUT_SHELTER_B_CAPACITY_OPERATOR_CONFIRMED"
+        and item["status"] == "operator_confirmed_not_official_feed"
+        for item in context["operational_assumptions"]
+    )
+    assert store.list("capacity_updates")
+    assessment = run_assessment(store)
+    shelter_action = [action for action in assessment.actions if action.action_type == "shelter_notify"][0]
+    assert "INPUT_SHELTER_B_CAPACITY_OPERATOR_CONFIRMED" in shelter_action.assumption_ids
+    assert shelter_action.payload["capacity_operator_confirmed"] is True
 
 
 def test_public_bc_emergency_context_is_source_backed() -> None:

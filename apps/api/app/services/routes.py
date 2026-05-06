@@ -169,14 +169,20 @@ def _safety_flags(
 
     if zone.get("population", 0) > shelter.get("capacity_available", 0):
         shelter_label = shelter.get("name") or shelter["shelter_id"].replace("_", " ").title()
-        capacity_assumption_id = f"ASSUMPTION_{shelter['shelter_id']}_CAPACITY"
-        if shelter.get("capacity_is_operator_assumption"):
+        if shelter.get("capacity_operator_confirmed"):
+            flags.append(
+                "Operator-confirmed capacity report: "
+                f"{shelter_label} has {shelter.get('capacity_available', 0)} available places "
+                f"for {zone.get('population', 0)} people in {zone['zone_id']}."
+            )
+            assumption_ids.append(f"INPUT_{shelter['shelter_id']}_CAPACITY_OPERATOR_CONFIRMED")
+        elif shelter.get("capacity_is_operator_assumption"):
             flags.append(
                 "Operator-entered capacity assumption: "
                 f"{shelter_label} has {shelter.get('capacity_available', 0)} available places "
                 f"for {zone.get('population', 0)} people in {zone['zone_id']}."
             )
-            assumption_ids.append(capacity_assumption_id)
+            assumption_ids.append(f"ASSUMPTION_{shelter['shelter_id']}_CAPACITY")
         else:
             flags.append(f"{shelter_label} has insufficient sourced capacity for {zone['zone_id']}.")
         blocking = True

@@ -451,7 +451,22 @@ def operational_assumptions(
 ) -> list[dict[str, Any]]:
     assumptions: list[dict[str, Any]] = []
     for shelter in shelters:
-        if shelter.get("capacity_is_operator_assumption"):
+        if shelter.get("capacity_operator_confirmed"):
+            assumptions.append({
+                "assumption_id": f"INPUT_{shelter['shelter_id']}_CAPACITY_OPERATOR_CONFIRMED",
+                "component": "shelter_capacity",
+                "target": shelter["shelter_id"],
+                "label": f"{shelter['name']} capacity is operator-confirmed",
+                "detail": shelter.get("capacity_source_label", "Operator-confirmed capacity; not official public feed."),
+                "affects_decision": True,
+                "current_value": {
+                    "capacity_total": shelter.get("capacity_total"),
+                    "capacity_available": shelter.get("capacity_available"),
+                },
+                "fix_path": "Replace with an authorized ESS/municipal shelter-capacity feed when available.",
+                "status": "operator_confirmed_not_official_feed",
+            })
+        elif shelter.get("capacity_is_operator_assumption"):
             assumptions.append({
                 "assumption_id": f"ASSUMPTION_{shelter['shelter_id']}_CAPACITY",
                 "component": "shelter_capacity",

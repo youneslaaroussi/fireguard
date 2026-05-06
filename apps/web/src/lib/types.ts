@@ -25,7 +25,10 @@ export type Shelter = {
   capacity_total: number;
   capacity_available: number;
   capacity_is_operator_assumption?: boolean;
+  capacity_operator_confirmed?: boolean;
   capacity_source_label?: string;
+  capacity_confirmed_at?: string;
+  capacity_confirmed_by?: string;
   official_facility_status?: string;
   status: string;
   medical_support: boolean;

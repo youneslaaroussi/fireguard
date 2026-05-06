@@ -26,6 +26,12 @@ def _route_assumption_ids(route) -> list[str]:
     return list(getattr(route, "assumption_ids", []) or [])
 
 
+def _shelter_capacity_tracking_id(shelter_id: str, shelter: dict) -> str:
+    if shelter.get("capacity_operator_confirmed"):
+        return f"INPUT_{shelter_id}_CAPACITY_OPERATOR_CONFIRMED"
+    return f"ASSUMPTION_{shelter_id}_CAPACITY"
+
+
 def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], routes: list) -> EvacuationPlan:
     risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
     zones_by_id = _by_id(context.get("zones", []), "zone_id")
@@ -141,6 +147,7 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
     primary_shelter_id = max(arrivals_by_shelter, key=arrivals_by_shelter.get, default="SHELTER_B")
     primary_shelter_name = _shelter_name(shelters_by_id, primary_shelter_id)
     primary_shelter = shelters_by_id.get(primary_shelter_id, {})
+    primary_shelter_capacity_id = _shelter_capacity_tracking_id(primary_shelter_id, primary_shelter)
     expected_arrivals = arrivals_by_shelter.get(primary_shelter_id, 0)
     zone_c_name = _zone_name(zones_by_id, "ZONE_C")
     for step in plan.steps:
@@ -172,13 +179,16 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
                 "capacity_available": primary_shelter.get("capacity_available"),
                 "capacity_total": primary_shelter.get("capacity_total"),
                 "capacity_is_operator_assumption": primary_shelter.get("capacity_is_operator_assumption", False),
+                "capacity_operator_confirmed": primary_shelter.get("capacity_operator_confirmed", False),
                 "capacity_source_label": primary_shelter.get("capacity_source_label"),
+                "capacity_confirmed_at": primary_shelter.get("capacity_confirmed_at"),
+                "capacity_confirmed_by": primary_shelter.get("capacity_confirmed_by"),
             },
-            f"{primary_shelter_name} is selected using operator-entered capacity that must be confirmed by the ESS coordinator before real-world use.",
+            f"{primary_shelter_name} is selected using operator-provided capacity data that must be confirmed against an authoritative ESS feed before real-world use.",
             [primary_shelter_id],
             plan.confidence,
             settings=settings,
-            assumption_ids=[f"ASSUMPTION_{primary_shelter_id}_CAPACITY"],
+            assumption_ids=[primary_shelter_capacity_id],
         ),
         create_action(
             bundle_id,

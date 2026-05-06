@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import actions, agent, evals, incidents, ingest, integrations, sync, tools, traces
+from app.routers import actions, agent, evals, incidents, ingest, integrations, shelters, sync, tools, traces
 from app.services.store import INDEX_MAPPINGS, get_store
 
 settings = get_settings()
@@ -27,6 +27,7 @@ app.include_router(actions.router)
 app.include_router(agent.router)
 app.include_router(evals.router)
 app.include_router(integrations.router)
+app.include_router(shelters.router)
 app.include_router(sync.router)
 app.include_router(tools.router)
 app.include_router(traces.router)

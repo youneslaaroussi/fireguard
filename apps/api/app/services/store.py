@@ -29,6 +29,7 @@ INDEX_NAMES = [
     "evals",
     "ingestion_runs",
     "plans",
+    "capacity_updates",
 ]
 
 
@@ -73,6 +74,7 @@ INDEX_MAPPINGS: dict[str, dict[str, Any]] = {
     "traces": {"properties": {"trace_id": {"type": "keyword"}, "incident_id": {"type": "keyword"}, "created_at": {"type": "date"}, "phoenix_trace_ids": {"type": "keyword"}}},
     "evals": {"properties": {"eval_id": {"type": "keyword"}, "incident_id": {"type": "keyword"}, "score": {"type": "float"}, "created_at": {"type": "date"}}},
     "ingestion_runs": {"properties": {"run_id": {"type": "keyword"}, "provider": {"type": "keyword"}, "status": {"type": "keyword"}, "created_at": {"type": "date"}}},
+    "capacity_updates": {"properties": {"update_id": {"type": "keyword"}, "shelter_id": {"type": "keyword"}, "updated_at": {"type": "date"}, "updated_by": {"type": "keyword"}}},
     "public_evacuation_orders": {
         "properties": {
             "order_alert_id": {"type": "keyword"},

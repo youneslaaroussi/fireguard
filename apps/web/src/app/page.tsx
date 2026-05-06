@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { MapPanel } from "@/components/MapPanel";
 import { StatusBadge } from "@/components/StatusBadge";
-import { approveBundle, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, resetDemo, runAssessment, runEval, syncFivetranToElastic } from "@/lib/api";
+import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, resetDemo, runAssessment, runEval, syncFivetranToElastic } from "@/lib/api";
 import type { ActionItem, AssessmentResult, IncidentContext, IntegrationStatus } from "@/lib/types";
 
 function buttonClass(kind: "primary" | "secondary" | "danger" = "secondary") {
@@ -136,6 +136,19 @@ export default function Home() {
     }
   }
 
+  async function handleCapacityConfirm(shelterId: string, capacityAvailable: number, capacityTotal: number) {
+    setBusy(`capacity-${shelterId}`);
+    setError(null);
+    try {
+      await confirmShelterCapacity(shelterId, capacityAvailable, capacityTotal);
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-command text-slate-100">
       <header className="border-b border-line bg-command/95 px-5 py-4">
@@ -241,15 +254,30 @@ export default function Home() {
               </div>
               <div className="mt-2 grid gap-2">
                 {(context?.shelters || []).map((shelter) => (
-                  <div key={shelter.shelter_id} className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-slate-300">{shelter.name}</p>
-                      <p className="text-slate-500">{shortText(shelter.capacity_source_label || shelter.source_label || "capacity source unknown", 96)}</p>
+                  <div key={shelter.shelter_id} className="grid gap-2 border border-line bg-command/50 p-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-slate-300">{shelter.name}</p>
+                        <p className="text-slate-500">{shortText(shelter.capacity_source_label || shelter.source_label || "capacity source unknown", 96)}</p>
+                      </div>
+                      <StatusBadge
+                        label={`${shelter.capacity_available}/${shelter.capacity_total}`}
+                        tone={shelter.capacity_operator_confirmed ? "ok" : "warn"}
+                      />
                     </div>
-                    <StatusBadge
-                      label={`${shelter.capacity_available}/${shelter.capacity_total}`}
-                      tone={shelter.capacity_is_operator_assumption ? "warn" : "ok"}
-                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <StatusBadge
+                        label={shelter.capacity_operator_confirmed ? "operator-confirmed" : "needs check-in"}
+                        tone={shelter.capacity_operator_confirmed ? "ok" : "warn"}
+                      />
+                      <button
+                        className={buttonClass()}
+                        onClick={() => handleCapacityConfirm(shelter.shelter_id, shelter.capacity_available, shelter.capacity_total)}
+                        disabled={busy !== null}
+                      >
+                        Confirm Capacity
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
