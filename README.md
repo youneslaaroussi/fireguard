@@ -14,6 +14,8 @@ This is a Google Cloud Rapid Agent Hackathon project targeting the Elastic track
 
 FireGuard is a hackathon prototype. It does not issue official emergency alerts and must not be used for real emergency response. Public-facing actions are blocked until approval and, in demo mode, SMS delivery is restricted to allowlisted test contacts.
 
+For an explicit list of what is real, replayed, synthetic, or still unfinished, see [docs/transparency_ledger.md](docs/transparency_ledger.md).
+
 ## Architecture
 
 ```text
