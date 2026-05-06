@@ -105,6 +105,27 @@ def test_full_assessment_creates_auditable_action_bundle() -> None:
     assert any("closure" in alt["reason"].lower() for alt in assessment.plan.rejected_alternatives)
 
 
+def test_context_labels_synthetic_operational_data() -> None:
+    store = seeded_store()
+    context = store.incident_context()
+
+    assert any(item["scope"] == "zones_shelters_residents_dispatch" and item["synthetic"] for item in context["demo_disclosures"])
+    assert all(zone["synthetic"] and zone["data_origin"] == "synthetic_demo_municipality" for zone in context["zones"])
+    assert all(shelter["synthetic"] and shelter["data_origin"] == "synthetic_demo_shelter" for shelter in context["shelters"])
+
+
+def test_action_metadata_labels_simulated_endpoints() -> None:
+    store = seeded_store()
+    assessment = run_assessment(store)
+    by_type = {action.action_type: action for action in assessment.actions}
+
+    assert by_type["resident_sms"].is_simulated_endpoint is False
+    assert by_type["resident_sms"].external_system == "twilio_allowlisted_sms"
+    for action_type in ["shelter_notify", "road_ops_task", "dispatch_task"]:
+        assert by_type[action_type].is_simulated_endpoint is True
+        assert by_type[action_type].external_system == "simulated_municipal_webhook"
+
+
 def test_fivetran_sync_indexes_provider_lineage() -> None:
     store = seeded_store()
     result = sync_fivetran_to_elastic(store)

@@ -293,6 +293,7 @@ class FireGuardStore:
             "policies": self.list("policies"),
             "data_freshness": self.data_freshness(),
             "provider_status": self.provider_status(),
+            "demo_disclosures": demo_data.demo_disclosures(),
         }
         return context
 

@@ -185,6 +185,17 @@ export default function Home() {
               <Metric label="Shelters" value={context?.shelters.length ?? 0} />
             </div>
             <div className="mt-4 grid gap-2">
+              {(context?.demo_disclosures || []).map((item) => (
+                <div key={String(item.scope)} className="border border-line bg-command/70 px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold text-slate-200">{String(item.label)}</span>
+                    <StatusBadge label={item.synthetic ? "synthetic/simulated" : "source-backed"} tone={item.synthetic ? "warn" : "ok"} />
+                  </div>
+                  <p className="mt-1 text-slate-500">{String(item.detail)}</p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 grid gap-2">
               {context?.data_freshness.map((item) => (
                 <div key={String(item.source)} className="flex items-center justify-between border border-line bg-command/70 px-3 py-2 text-xs">
                   <span>{String(item.source)}</span>
@@ -296,8 +307,13 @@ export default function Home() {
                     <span className="font-semibold">{action.action_type}</span>
                     <StatusBadge label={action.status} tone={actionTone(action.status)} />
                   </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <StatusBadge label={action.is_simulated_endpoint ? "simulated endpoint" : "real/test channel"} tone={action.is_simulated_endpoint ? "warn" : "ok"} />
+                    <StatusBadge label={action.external_system} tone="info" />
+                  </div>
                   <p className="mt-2 text-slate-300">{action.message}</p>
                   <p className="mt-2 text-xs text-slate-500">{action.target}</p>
+                  {action.simulation_label ? <p className="mt-1 text-xs text-slate-500">{action.simulation_label}</p> : null}
                 </div>
               ))
             ) : (

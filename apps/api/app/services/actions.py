@@ -8,7 +8,28 @@ from app.models.schemas import ActionItem, Approval
 from app.services.time import now_iso
 
 
+def _action_metadata(action_type: str) -> dict[str, Any]:
+    if action_type == "resident_sms":
+        return {
+            "external_system": "twilio_allowlisted_sms",
+            "is_simulated_endpoint": False,
+            "simulation_label": "Real Twilio SMS when credentials and allowlist match; blocked for non-allowlisted recipients.",
+        }
+    if action_type in {"shelter_notify", "road_ops_task", "dispatch_task"}:
+        return {
+            "external_system": "simulated_municipal_webhook",
+            "is_simulated_endpoint": True,
+            "simulation_label": "Simulated municipal endpoint for hackathon safety; payload is logged but not sent to an official agency.",
+        }
+    return {
+        "external_system": "internal_fireguard_log",
+        "is_simulated_endpoint": False,
+        "simulation_label": None,
+    }
+
+
 def create_action(bundle_id: str, action_type: str, target: str, message: str, payload: dict[str, Any], reason: str, evidence_ids: list[str], confidence: float, requires_approval: bool = True) -> ActionItem:
+    metadata = _action_metadata(action_type)
     return ActionItem(
         action_id=f"ACTION_{uuid.uuid4().hex[:10].upper()}",
         bundle_id=bundle_id,
@@ -20,6 +41,9 @@ def create_action(bundle_id: str, action_type: str, target: str, message: str, p
         reason=reason,
         evidence_ids=evidence_ids,
         confidence=confidence,
+        external_system=metadata["external_system"],
+        is_simulated_endpoint=metadata["is_simulated_endpoint"],
+        simulation_label=metadata["simulation_label"],
         requires_human_approval=requires_approval,
         created_at=now_iso(),
     )

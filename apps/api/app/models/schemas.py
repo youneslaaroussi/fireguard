@@ -67,6 +67,9 @@ class ActionItem(BaseModel):
     reason: str
     evidence_ids: list[str]
     confidence: float
+    external_system: str
+    is_simulated_endpoint: bool
+    simulation_label: str | None = None
     requires_human_approval: bool = True
     created_at: str
     approved_at: str | None = None

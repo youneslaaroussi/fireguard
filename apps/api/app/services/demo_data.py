@@ -13,6 +13,7 @@ FIRMS_SNAPSHOT_URL = (
     "https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
     "[MAP_KEY]/VIIRS_NOAA20_SP/-122.2,52.0,-121.3,52.9/5/2024-07-10"
 )
+SYNTHETIC_MUNICIPAL_LABEL = "Synthetic demo municipality; not official municipal data."
 
 
 def _float(value: Any, default: float = 0.0) -> float:
@@ -41,6 +42,8 @@ def synthetic_zones() -> list[dict]:
         {
             "zone_id": "ZONE_A",
             "name": "Quesnel River West",
+            "data_origin": "synthetic_demo_municipality",
+            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [[
@@ -57,10 +60,13 @@ def synthetic_zones() -> list[dict]:
             "vulnerable_count": 38,
             "vehicle_access_score": 0.72,
             "priority_notes": "Rural residential area west of a real DriveBC road closure.",
+            "synthetic": True,
         },
         {
             "zone_id": "ZONE_B",
             "name": "Likely East Bench",
+            "data_origin": "synthetic_demo_municipality",
+            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [[
@@ -77,10 +83,13 @@ def synthetic_zones() -> list[dict]:
             "vulnerable_count": 71,
             "vehicle_access_score": 0.64,
             "priority_notes": "East-side area shares limited rural approaches with Zone A traffic.",
+            "synthetic": True,
         },
         {
             "zone_id": "ZONE_C",
             "name": "Little Lake Clinic District",
+            "data_origin": "synthetic_demo_municipality",
+            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "geometry": {
                 "type": "Polygon",
                 "coordinates": [[
@@ -97,6 +106,7 @@ def synthetic_zones() -> list[dict]:
             "vulnerable_count": 92,
             "vehicle_access_score": 0.28,
             "priority_notes": "Clinic, assisted-living wing, and low vehicle access near the closure.",
+            "synthetic": True,
         },
     ]
 
@@ -107,6 +117,8 @@ def synthetic_shelters() -> list[dict]:
         {
             "shelter_id": "SHELTER_A",
             "name": "Likely Community Hall",
+            "data_origin": "synthetic_demo_shelter",
+            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "location": {"lat": 52.617, "lon": -121.594},
             "capacity_total": 500,
             "capacity_available": 120,
@@ -115,10 +127,13 @@ def synthetic_shelters() -> list[dict]:
             "accessible": True,
             "status": "near_capacity",
             "updated_at": updated_at,
+            "synthetic": True,
         },
         {
             "shelter_id": "SHELTER_B",
             "name": "Williams Lake ESS Reception Centre",
+            "data_origin": "synthetic_demo_shelter",
+            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "location": {"lat": 52.1415, "lon": -122.1417},
             "capacity_total": 900,
             "capacity_available": 760,
@@ -127,10 +142,13 @@ def synthetic_shelters() -> list[dict]:
             "accessible": True,
             "status": "open",
             "updated_at": updated_at,
+            "synthetic": True,
         },
         {
             "shelter_id": "SHELTER_C",
             "name": "Quesnel Reception Centre",
+            "data_origin": "synthetic_demo_shelter",
+            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "location": {"lat": 52.9784, "lon": -122.4931},
             "capacity_total": 700,
             "capacity_available": 360,
@@ -139,6 +157,7 @@ def synthetic_shelters() -> list[dict]:
             "accessible": True,
             "status": "open",
             "updated_at": updated_at,
+            "synthetic": True,
         },
     ]
 
@@ -252,16 +271,22 @@ def dispatch_assets() -> list[dict]:
         {
             "asset_id": "DISPATCH_BUS_01",
             "asset_type": "accessible_bus",
+            "data_origin": "synthetic_demo_dispatch",
+            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "status": "available",
             "location": {"lat": 52.632, "lon": -121.790},
             "capacity": 36,
+            "synthetic": True,
         },
         {
             "asset_id": "DISPATCH_ENGINE_04",
             "asset_type": "fire_engine",
+            "data_origin": "synthetic_demo_dispatch",
+            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "status": "available",
             "location": {"lat": 52.620, "lon": -121.742},
             "capacity": 4,
+            "synthetic": True,
         },
     ]
 
@@ -271,12 +296,18 @@ def policies() -> list[dict]:
         {
             "policy_id": "POLICY_APPROVAL_PUBLIC_ACTIONS",
             "title": "Human approval for public-facing actions",
+            "data_origin": "synthetic_demo_policy",
+            "source_label": "Synthetic safety policy for hackathon demo; not official emergency doctrine.",
             "body": "Resident alerts, evacuation orders, shelter-in-place instructions, road closure instructions, and dispatch movement require incident commander approval before execution.",
+            "synthetic": True,
         },
         {
             "policy_id": "POLICY_SHELTER_IN_PLACE",
             "title": "Shelter in place when evacuation routes are unsafe",
+            "data_origin": "synthetic_demo_policy",
+            "source_label": "Synthetic safety policy for hackathon demo; not official emergency doctrine.",
             "body": "If all self-evacuation routes cross active fire risk or known full closures, recommend temporary shelter-in-place and dispatch-assisted evacuation rather than blind evacuation.",
+            "synthetic": True,
         },
     ]
 
@@ -284,7 +315,36 @@ def policies() -> list[dict]:
 def resident_contacts(zone_a_phone: str | None = None) -> list[dict]:
     zone_a_number = zone_a_phone or "+15555550123"
     return [
-        {"resident_id": "RES_A_001", "zone_id": "ZONE_A", "phone": zone_a_number, "allowlisted": True},
-        {"resident_id": "RES_B_001", "zone_id": "ZONE_B", "phone": "+15555550124", "allowlisted": True},
-        {"resident_id": "RES_C_001", "zone_id": "ZONE_C", "phone": "+15555550125", "allowlisted": False},
+        {"resident_id": "RES_A_001", "zone_id": "ZONE_A", "phone": zone_a_number, "allowlisted": True, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True},
+        {"resident_id": "RES_B_001", "zone_id": "ZONE_B", "phone": "+15555550124", "allowlisted": True, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True},
+        {"resident_id": "RES_C_001", "zone_id": "ZONE_C", "phone": "+15555550125", "allowlisted": False, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True},
+    ]
+
+
+def demo_disclosures() -> list[dict[str, Any]]:
+    return [
+        {
+            "scope": "wildfire_road_weather_sources",
+            "label": "Real/open or recorded source snapshots",
+            "detail": "Fire, road, perimeter, and weather evidence must cite NASA FIRMS, BC Wildfire/ArcGIS, DriveBC/Open511, or Open-Meteo records. Replay records are labeled as snapshots.",
+            "synthetic": False,
+        },
+        {
+            "scope": "zones_shelters_residents_dispatch",
+            "label": SYNTHETIC_MUNICIPAL_LABEL,
+            "detail": "Evacuation zones, shelter capacities, resident contacts, and dispatch assets are synthetic operational data built for a safe BC demo scenario.",
+            "synthetic": True,
+        },
+        {
+            "scope": "shelter_road_ops_dispatch_actions",
+            "label": "Simulated municipal action endpoints",
+            "detail": "Shelter notification, road-ops task, and dispatch task actions are logged as simulated webhooks. They are not sent to official emergency systems.",
+            "synthetic": True,
+        },
+        {
+            "scope": "resident_sms",
+            "label": "Real Twilio only for allowlisted test numbers",
+            "detail": "Resident SMS actions require human approval and can only send to numbers in TWILIO_ALLOWLIST.",
+            "synthetic": False,
+        },
     ]

@@ -333,5 +333,7 @@ def _action_for_llm(action: ActionItem) -> dict[str, Any]:
         "reason": action.reason,
         "evidence_ids": action.evidence_ids[:10],
         "confidence": action.confidence,
+        "external_system": action.external_system,
+        "is_simulated_endpoint": action.is_simulated_endpoint,
         "requires_human_approval": action.requires_human_approval,
     }

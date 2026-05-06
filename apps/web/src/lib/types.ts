@@ -3,6 +3,9 @@ export type GeoPoint = { lat: number; lon: number };
 export type Zone = {
   zone_id: string;
   name: string;
+  data_origin?: string;
+  source_label?: string;
+  synthetic?: boolean;
   geometry: GeoJSON.Polygon;
   centroid: GeoPoint;
   population: number;
@@ -15,6 +18,9 @@ export type Zone = {
 export type Shelter = {
   shelter_id: string;
   name: string;
+  data_origin?: string;
+  source_label?: string;
+  synthetic?: boolean;
   location: GeoPoint;
   capacity_total: number;
   capacity_available: number;
@@ -62,6 +68,7 @@ export type IncidentContext = {
   shelters: Shelter[];
   data_freshness: Array<Record<string, unknown>>;
   provider_status: Record<string, Record<string, unknown>>;
+  demo_disclosures: Array<Record<string, unknown>>;
 };
 
 export type ZoneRisk = {
@@ -122,6 +129,9 @@ export type ActionItem = {
   payload: Record<string, unknown>;
   reason: string;
   confidence: number;
+  external_system: string;
+  is_simulated_endpoint: boolean;
+  simulation_label?: string | null;
   requires_human_approval: boolean;
 };
 
