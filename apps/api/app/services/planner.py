@@ -17,12 +17,12 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     zone_b_strategy = "staged_evacuation" if route_b else "hold_for_route_confirmation"
     zone_b_destination = route_b.destination_id if route_b else None
     zone_b_message = (
-        "[DEMO - FireGuard] Prepare to evacuate River Flats in 15 minutes via the westbound alternate route to Lillooet Secondary. Wait for traffic-control release."
+        "[DEMO - FireGuard] Prepare to evacuate Likely East Bench in 15 minutes toward Williams Lake ESS Reception Centre. Wait for traffic-control release."
         if route_b
-        else "[DEMO - FireGuard] River Flats should hold position and prepare. Do not self-evacuate until road ops confirms a safe westbound release corridor."
+        else "[DEMO - FireGuard] Likely East Bench should hold position and prepare. Do not self-evacuate until road ops confirms a safe release corridor."
     )
     zone_b_rationale = (
-        ["High risk, but immediate simultaneous departure would overload the shared corridor.", "Shelter B can absorb Zone B after Zone A is staged."]
+        ["High risk, but immediate simultaneous departure would overload the shared rural corridor.", "Williams Lake ESS can absorb Zone B after Zone A is staged."]
         if route_b
         else ["Google Routes-backed route checks did not find a currently safe self-evacuation path.", "Holding avoids routing residents through a closure while road ops verifies release timing."]
     )
@@ -33,7 +33,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         strategy="evacuate_now",
         destination_id=route_a.destination_id if route_a else "SHELTER_B",
         start_after_minutes=0,
-        message="[DEMO - FireGuard] Evacuate Canyon Ridge now via the westbound alternate route to Lillooet Secondary Reception Centre. Avoid Highway 1 eastbound near Kwoiek Creek.",
+        message="[DEMO - FireGuard] Evacuate Quesnel River West now toward Williams Lake ESS Reception Centre. Avoid Little Lake Quesnel River Road near the DriveBC closure.",
         rationale=["Critical risk and a safe alternate route exists.", "The nearest shelter route is rejected because it intersects a closure and fire-risk buffer."],
         evidence_ids=risk_by_zone["ZONE_A"].evidence_ids + (route_a.evidence_ids if route_a else []),
     ))
@@ -53,7 +53,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         strategy="shelter_in_place_dispatch_assisted",
         destination_id=route_c.destination_id if route_c else None,
         start_after_minutes=0,
-        message="[DEMO - FireGuard] Pine Clinic District should shelter in place temporarily. Dispatch-assisted evacuation is being assigned for vulnerable residents.",
+        message="[DEMO - FireGuard] Little Lake Clinic District should shelter in place temporarily. Dispatch-assisted evacuation is being assigned for vulnerable residents.",
         rationale=["Self-evacuation routes cross the closure or fire-risk buffer.", "Vulnerable population and low vehicle access make unsupported evacuation unsafe."],
         evidence_ids=risk_by_zone["ZONE_C"].evidence_ids,
     ))
@@ -62,7 +62,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     return EvacuationPlan(
         plan_id=plan_id,
         incident_id=incident_id,
-        summary="Stage Canyon Ridge immediately to Shelter B, hold River Flats for 15 minutes to avoid corridor congestion, and shelter Pine Clinic District in place while dispatch-assisted evacuation is assigned.",
+        summary="Stage Quesnel River West immediately to Williams Lake ESS, hold Likely East Bench for 15 minutes to avoid corridor congestion, and shelter Little Lake Clinic District in place while dispatch-assisted evacuation is assigned.",
         recommended_strategy="staged_evacuation",
         confidence=0.84,
         zone_risks=zone_risks,
@@ -71,8 +71,8 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         rejected_alternatives=rejected_routes(routes),
         data_freshness=context.get("data_freshness", []),
         risks_if_wrong=[
-            "If wind shifts north, River Flats may need immediate evacuation instead of staged release.",
-            "If Shelter B capacity changes, evacuees may need splitting between Shelter B and Shelter C.",
+            "If wind shifts north, Likely East Bench may need immediate evacuation instead of staged release.",
+            "If Williams Lake ESS capacity changes, evacuees may need splitting between Williams Lake and Quesnel reception centres.",
             "If road closure data is stale, road ops must verify before releasing traffic.",
         ],
         fallback_plan="If alternate evacuation routes become unsafe, expand shelter-in-place, assign door-to-door checks, and request additional accessible transport for vulnerable residents.",
@@ -100,27 +100,27 @@ def create_bundle(plan: EvacuationPlan, context: dict) -> tuple[str, list, objec
             bundle_id,
             "shelter_notify",
             "SHELTER_B",
-            "Prepare for staged arrivals from Canyon Ridge and River Flats within 45 minutes.",
-            {"shelter_id": "SHELTER_B", "expected_arrivals": 1030, "eta_minutes": 45, "needs": ["accessible_cots", "pet_area"], "source_plan_id": plan.plan_id},
-            "Shelter B is the selected safe reception centre with enough available capacity.",
+            "Prepare for staged arrivals from Quesnel River West and Likely East Bench within 75 minutes.",
+            {"shelter_id": "SHELTER_B", "expected_arrivals": 1030, "eta_minutes": 75, "needs": ["accessible_cots", "pet_area"], "source_plan_id": plan.plan_id},
+            "Williams Lake ESS is the selected safe reception centre with enough available capacity.",
             ["SHELTER_B"],
             plan.confidence,
         ),
         create_action(
             bundle_id,
             "road_ops_task",
-            "Highway 1 eastbound ramp",
-            "Create traffic-control task to block the unsafe eastbound route and release staged westbound flow.",
-            {"task_type": "close_or_control_road", "road_segment": "Highway 1 eastbound near Kwoiek Creek", "priority": "high", "source_plan_id": plan.plan_id},
-            "The obvious route intersects a closure and fire-risk buffer.",
-            ["DBC_REPLAY_CLOSURE_001"],
+            "Little Lake Quesnel River Road",
+            "Create traffic-control task to keep residents away from the DriveBC closure and release staged outbound flow.",
+            {"task_type": "close_or_control_road", "road_segment": "Little Lake Quesnel River Road near Likely Road Turnoff", "priority": "high", "source_plan_id": plan.plan_id},
+            "The nearest route approaches a real DriveBC road closure and fire-risk buffer.",
+            ["drivebc.ca/DBC-90684"],
             plan.confidence,
         ),
         create_action(
             bundle_id,
             "dispatch_task",
             "ZONE_C",
-            "Assign accessible bus and responder support to Pine Clinic District.",
+            "Assign accessible bus and responder support to Little Lake Clinic District.",
             {"task_type": "assist_evacuation", "zone_id": "ZONE_C", "asset_type": "accessible_bus", "priority": "critical", "source_plan_id": plan.plan_id},
             "Zone C has high vulnerable count and unsafe self-evacuation routes.",
             ["ZONE_C", "DISPATCH_BUS_01"],

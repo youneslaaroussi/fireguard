@@ -154,7 +154,7 @@ def _firms_rows(configuration: dict[str, Any]) -> Iterable[dict[str, Any]]:
         return
 
     source = configuration.get("nasa_firms_source", "VIIRS_SNPP_NRT")
-    bbox = configuration.get("nasa_firms_bbox", "-123.2,49.8,-121.0,51.0")
+    bbox = configuration.get("nasa_firms_bbox", "-122.2,52.0,-121.3,52.9")
     url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{map_key}/{source}/{bbox}/1"
     ingested_at = now_iso()
     try:
@@ -233,8 +233,8 @@ def _road_event_rows() -> Iterable[dict[str, Any]]:
             "event_type": event.get("event_type") or "road_event",
             "severity": event.get("severity") or "unknown",
             "road_name": road.get("name") or "unknown",
-            "latitude": float(lat) if lat else 50.241,
-            "longitude": float(lon) if lon else -121.548,
+            "latitude": float(lat) if lat else 52.623474,
+            "longitude": float(lon) if lon else -121.761311,
             "geometry_json": json.dumps(geography) if geography else None,
             "starts_at": event.get("created") or event.get("start_date"),
             "ends_at": event.get("end_date"),
@@ -245,8 +245,8 @@ def _road_event_rows() -> Iterable[dict[str, Any]]:
 
 
 def _weather_rows(configuration: dict[str, Any]) -> Iterable[dict[str, Any]]:
-    lat = float(configuration.get("weather_latitude", 50.247))
-    lon = float(configuration.get("weather_longitude", -121.568))
+    lat = float(configuration.get("weather_latitude", 52.622))
+    lon = float(configuration.get("weather_longitude", -121.660))
     params = {
         "latitude": lat,
         "longitude": lon,
@@ -292,8 +292,8 @@ def _weather_rows(configuration: dict[str, Any]) -> Iterable[dict[str, Any]]:
 def _replay_fire_hotspots() -> Iterable[dict[str, Any]]:
     ingested_at = now_iso()
     rows = [
-        (50.226, -121.505, 334.2, "high", 62.4),
-        (50.238, -121.523, 329.7, "nominal", 48.9),
+        (52.626, -121.700, 334.2, "high", 62.4),
+        (52.635, -121.720, 329.7, "nominal", 48.9),
     ]
     for lat, lon, brightness, confidence, frp in rows:
         yield {
@@ -318,16 +318,16 @@ def _replay_fire_perimeters() -> Iterable[dict[str, Any]]:
     yield {
         "fire_number": "BC_PERIMETER_REPLAY_001",
         "source": "BC_WILDFIRE_REPLAY",
-        "fire_name": "Replay wildfire perimeter",
+        "fire_name": "Quesnel River Replay Perimeter",
         "status": "out_of_control",
         "geometry_json": json.dumps({
             "type": "Polygon",
             "coordinates": [[
-                [-121.56, 50.20],
-                [-121.45, 50.20],
-                [-121.45, 50.30],
-                [-121.56, 50.30],
-                [-121.56, 50.20],
+                [-121.742, 52.610],
+                [-121.676, 52.612],
+                [-121.660, 52.646],
+                [-121.728, 52.656],
+                [-121.742, 52.610],
             ]],
         }),
         "area_hectares": 740.0,
@@ -340,24 +340,27 @@ def _replay_fire_perimeters() -> Iterable[dict[str, Any]]:
 def _replay_road_events() -> Iterable[dict[str, Any]]:
     ingested_at = now_iso()
     yield {
-        "external_id": "DBC_REPLAY_CLOSURE_001",
-        "source": "DRIVEBC_OPEN511_REPLAY",
-        "title": "Highway 1 full closure near evacuation corridor",
-        "description": "Replay road event: Highway 1 closed in both directions near the primary evacuation corridor.",
-        "event_type": "closure",
-        "severity": "major",
-        "road_name": "Highway 1",
-        "latitude": 50.244,
-        "longitude": -121.536,
+        "external_id": "drivebc.ca/DBC-90684",
+        "source": "DRIVEBC_OPEN511_SNAPSHOT",
+        "title": "Little Lake Quesnel River Road closed near Williams Lake",
+        "description": "Little Lake Quesnel River Road. Washout at West of Likely Road Turnoff near Williams Lake. Road closed. Geotechnical investigation. Assessment in progress. Road closed 10 km West of Likely Road Turnoff. No detour. Next update time Mon Jun 1 at 12:00 PM PDT. Last updated Thu Apr 30 at 3:28 PM PDT. (DBC-90684)",
+        "event_type": "INCIDENT",
+        "severity": "MAJOR",
+        "road_name": "Little Lake Quesnel River Road",
+        "latitude": 52.623474,
+        "longitude": -121.761311,
         "geometry_json": json.dumps({
-            "type": "LineString",
-            "coordinates": [[-121.58, 50.22], [-121.53, 50.24], [-121.48, 50.26]],
+            "type": "Point",
+            "coordinates": [-121.761311, 52.623474],
         }),
-        "starts_at": ingested_at,
+        "starts_at": "2026-04-30T15:28:34-07:00",
         "ends_at": None,
-        "updated_at": ingested_at,
+        "updated_at": "2026-04-30T15:28:34-07:00",
         "ingested_at": ingested_at,
-        "raw_json": json.dumps({"replay": True}),
+        "raw_json": json.dumps({
+            "source_snapshot": True,
+            "captured_from": "https://api.open511.gov.bc.ca/events/drivebc.ca/DBC-90684",
+        }),
     }
 
 

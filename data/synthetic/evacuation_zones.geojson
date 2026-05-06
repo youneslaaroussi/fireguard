@@ -6,7 +6,7 @@
       "id": "ZONE_A",
       "properties": {
         "zone_id": "ZONE_A",
-        "name": "Canyon Ridge",
+        "name": "Quesnel River West",
         "population": 420,
         "households": 168,
         "vulnerable_count": 38,
@@ -14,7 +14,7 @@
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[-121.612, 50.236], [-121.586, 50.236], [-121.586, 50.258], [-121.612, 50.258], [-121.612, 50.236]]]
+        "coordinates": [[[-121.852, 52.614], [-121.818, 52.614], [-121.818, 52.634], [-121.852, 52.634], [-121.852, 52.614]]]
       }
     },
     {
@@ -22,7 +22,7 @@
       "id": "ZONE_B",
       "properties": {
         "zone_id": "ZONE_B",
-        "name": "River Flats",
+        "name": "Likely East Bench",
         "population": 610,
         "households": 244,
         "vulnerable_count": 71,
@@ -30,7 +30,7 @@
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[-121.585, 50.235], [-121.552, 50.235], [-121.552, 50.258], [-121.585, 50.258], [-121.585, 50.235]]]
+        "coordinates": [[[-121.678, 52.612], [-121.642, 52.612], [-121.642, 52.632], [-121.678, 52.632], [-121.678, 52.612]]]
       }
     },
     {
@@ -38,7 +38,7 @@
       "id": "ZONE_C",
       "properties": {
         "zone_id": "ZONE_C",
-        "name": "Pine Clinic District",
+        "name": "Little Lake Clinic District",
         "population": 260,
         "households": 96,
         "vulnerable_count": 92,
@@ -46,7 +46,7 @@
       },
       "geometry": {
         "type": "Polygon",
-        "coordinates": [[[-121.578, 50.21], [-121.54, 50.21], [-121.54, 50.233], [-121.578, 50.233], [-121.578, 50.21]]]
+        "coordinates": [[[-121.818, 52.626], [-121.782, 52.626], [-121.782, 52.646], [-121.818, 52.646], [-121.818, 52.626]]]
       }
     }
   ]

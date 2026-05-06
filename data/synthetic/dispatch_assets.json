@@ -3,14 +3,14 @@
     "asset_id": "DISPATCH_BUS_01",
     "asset_type": "accessible_bus",
     "status": "available",
-    "location": { "lat": 50.232, "lon": -121.571 },
+    "location": { "lat": 52.632, "lon": -121.790 },
     "capacity": 36
   },
   {
     "asset_id": "DISPATCH_ENGINE_04",
     "asset_type": "fire_engine",
     "status": "available",
-    "location": { "lat": 50.246, "lon": -121.585 },
+    "location": { "lat": 52.620, "lon": -121.742 },
     "capacity": 4
   }
 ]

@@ -170,19 +170,22 @@ def _safety_flags(
     for event in context.get("road_events", []):
         if not _is_closure_event(event):
             continue
-        if _route_near_road_event(points, event, 0.5):
+        if _route_near_road_event(points, event, 2.0):
             road_name = event.get("road_name") or event.get("title") or "road event"
-            flags.append(f"Route intersects or approaches active closure: {road_name}.")
+            flags.append(f"Route enters the active closure impact buffer: {road_name}.")
             if event.get("external_id"):
                 evidence_ids.append(event["external_id"])
             blocking = True
 
+    fire_buffer_hit = False
     for fire in context.get("fires", []):
         if route_near_point(points, fire["location"], 3.0):
-            flags.append("Route crosses active fire-risk buffer.")
+            fire_buffer_hit = True
             if fire.get("external_id"):
                 evidence_ids.append(fire["external_id"])
             blocking = True
+    if fire_buffer_hit:
+        flags.append("Route crosses active fire-risk buffer.")
 
     if zone["zone_id"] == "ZONE_B" and shelter["shelter_id"] == "SHELTER_B":
         flags.append("Shared first segment with Zone A creates congestion risk if simultaneous.")
@@ -199,7 +202,19 @@ def _is_closure_event(event: dict[str, Any]) -> bool:
         str(event.get(field, ""))
         for field in ["event_type", "severity", "title", "description"]
     ).lower()
-    return "closure" in blob or "closed" in blob
+    closure_phrases = [
+        "road closed",
+        "full closure",
+        "closed in both directions",
+        "no detour",
+        "detour unavailable",
+    ]
+    if any(phrase in blob for phrase in closure_phrases):
+        return True
+    return "closure" in blob and not any(
+        phrase in blob
+        for phrase in ["lane closure", "right lane", "left lane", "centre lane", "shoulder closed"]
+    )
 
 
 def _route_near_road_event(points: list[dict[str, float]], event: dict[str, Any], threshold_km: float) -> bool:
@@ -234,17 +249,19 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
     shelter_id = shelter["shelter_id"]
 
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_A":
-        points = [_point(50.247, -121.599), _point(50.247, -121.571), _point(50.241, -121.548), _point(50.811, -121.325)]
-        return _route(zone_id, shelter_id, 18, 38.4, False, ["Route intersects Highway 1 full closure.", "Route crosses active fire-risk buffer.", "Shelter A has insufficient capacity for Zone A."], points, [closure_id] if closure_id else [])
+        points = [_point(52.6238, -121.835), _point(52.6235, -121.761), _point(52.617, -121.594)]
+        return _route(zone_id, shelter_id, 19, 18.2, False, ["Route enters the DriveBC closure impact buffer.", "Route crosses active fire-risk buffer.", "Shelter A has insufficient capacity for Zone A."], points, [closure_id] if closure_id else [])
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_B":
-        return _route(zone_id, shelter_id, 38, 42.8, True, [], [_point(50.247, -121.599), _point(50.302, -121.702), _point(50.687, -121.932)], [])
+        return _route(zone_id, shelter_id, 67, 88.2, True, [], [_point(52.6238, -121.835), _point(52.36, -121.95), _point(52.1415, -122.1417)], [])
+    if zone_id == "ZONE_A" and shelter_id == "SHELTER_C":
+        return _route(zone_id, shelter_id, 104, 137.2, False, ["Shelter C has insufficient capacity for Zone A."], [_point(52.6238, -121.835), _point(52.82, -122.15), _point(52.9784, -122.4931)], [])
     if zone_id == "ZONE_B" and shelter_id == "SHELTER_B":
-        return _route(zone_id, shelter_id, 42, 45.6, True, ["Shared first segment with Zone A creates congestion risk if simultaneous."], [_point(50.247, -121.568), _point(50.306, -121.704), _point(50.687, -121.932)], [])
+        return _route(zone_id, shelter_id, 73, 96.0, True, ["Shared rural corridor with Zone A creates congestion risk if simultaneous."], [_point(52.622, -121.660), _point(52.36, -121.95), _point(52.1415, -122.1417)], [])
     if zone_id == "ZONE_C":
-        points = [_point(50.222, -121.559), _point(50.236, -121.532), _point(50.241, -121.548)]
+        points = [_point(52.635, -121.800), _point(52.6235, -121.761), _point(52.617, -121.594)]
         flags = ["Self-evacuation route crosses fire-risk buffer.", "Low vehicle access and high vulnerable population require dispatch-assisted movement."]
         if closure_id:
-            flags.insert(0, "Outbound route intersects Highway 1 closure.")
+            flags.insert(0, "Outbound route enters the DriveBC closure impact buffer.")
         return _route(zone_id, shelter_id, 54, 50.1, False, flags, points, [closure_id] if closure_id else [])
 
     origin = zone["centroid"]

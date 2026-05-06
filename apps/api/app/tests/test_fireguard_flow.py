@@ -30,6 +30,7 @@ def test_route_closure_rejects_obvious_route() -> None:
 
     assert obvious.safe is False
     assert "closure" in " ".join(obvious.risk_flags).lower()
+    assert "drivebc.ca/DBC-90684" in obvious.evidence_ids
     assert alternate is not None
     assert alternate.destination_id == "SHELTER_B"
 

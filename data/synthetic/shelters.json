@@ -1,8 +1,8 @@
 [
   {
     "shelter_id": "SHELTER_A",
-    "name": "Cache Creek Arena",
-    "location": { "lat": 50.811, "lon": -121.325 },
+    "name": "Likely Community Hall",
+    "location": { "lat": 52.617, "lon": -121.594 },
     "capacity_total": 500,
     "capacity_available": 120,
     "pet_friendly": true,
@@ -12,8 +12,8 @@
   },
   {
     "shelter_id": "SHELTER_B",
-    "name": "Lillooet Secondary Reception Centre",
-    "location": { "lat": 50.687, "lon": -121.932 },
+    "name": "Williams Lake ESS Reception Centre",
+    "location": { "lat": 52.1415, "lon": -122.1417 },
     "capacity_total": 900,
     "capacity_available": 760,
     "pet_friendly": true,
@@ -23,8 +23,8 @@
   },
   {
     "shelter_id": "SHELTER_C",
-    "name": "Merritt Civic Centre",
-    "location": { "lat": 50.112, "lon": -120.789 },
+    "name": "Quesnel Reception Centre",
+    "location": { "lat": 52.9784, "lon": -122.4931 },
     "capacity_total": 700,
     "capacity_available": 360,
     "pet_friendly": false,

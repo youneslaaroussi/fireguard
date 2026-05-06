@@ -131,8 +131,8 @@ export function MapPanel({ context, assessment }: Props) {
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      center: [-121.62, 50.35],
-      zoom: 8.2,
+      center: [-121.82, 52.45],
+      zoom: 8.1,
       attributionControl: false,
       style: {
         version: 8,
