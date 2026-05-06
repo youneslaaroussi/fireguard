@@ -1,0 +1,13 @@
+.git
+.gitignore
+.DS_Store
+.env
+secrets/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/node_modules/
+**/.next/
+**/*.pyc
+integrations/fivetran/fireguard_connector/configuration.json
+integrations/fivetran/fireguard_connector/files/

@@ -4,6 +4,12 @@ FireGuard is an AI evacuation coordinator that turns live wildfire, road, weathe
 
 This is a Google Cloud Rapid Agent Hackathon project targeting the Elastic track, with Fivetran ingestion and Arize Phoenix observability as visible supporting integrations. The core demo is not a fire map: it is a tool-using agent loop that retrieves operational context from Elastic, evaluates wildfire evacuation constraints, proposes a staged action bundle, waits for human approval, executes test actions, and records Phoenix-compatible traces.
 
+## Hosted Demo
+
+- Web app: https://fireguard-web-dovhkdlznq-uc.a.run.app
+- API docs: https://fireguard-api-dovhkdlznq-uc.a.run.app/docs
+- Public repository: https://github.com/youneslaaroussi/fireguard
+
 ## Safety Notice
 
 FireGuard is a hackathon prototype. It does not issue official emergency alerts and must not be used for real emergency response. Public-facing actions are blocked until approval and, in demo mode, SMS delivery is restricted to allowlisted test contacts.
@@ -148,3 +154,17 @@ pytest
 ```
 
 The test suite covers route rejection, shelter overflow, unsafe evacuation, stale data, SMS allowlist enforcement, Fivetran sync/status, and eval scoring.
+
+## Cloud Run Deployment
+
+The deployed API uses Cloud Run, Secret Manager, and a Serverless VPC connector to reach the Elasticsearch VM on its private address. The web image is built with `NEXT_PUBLIC_API_BASE_URL` pointing at the deployed API.
+
+```bash
+gcloud builds submit . \
+  --config infra/cloudrun/cloudbuild-api.yaml \
+  --substitutions _IMAGE=us-central1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/fireguard/fireguard-api:latest
+
+gcloud builds submit . \
+  --config infra/cloudrun/cloudbuild-web.yaml \
+  --substitutions _IMAGE=us-central1-docker.pkg.dev/$GOOGLE_CLOUD_PROJECT/fireguard/fireguard-web:latest,_API_URL=https://YOUR_API_URL
+```
