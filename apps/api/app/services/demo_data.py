@@ -379,28 +379,7 @@ def replay_weather() -> list[dict]:
 
 
 def dispatch_assets() -> list[dict]:
-    return [
-        {
-            "asset_id": "DISPATCH_BUS_01",
-            "asset_type": "accessible_bus",
-            "data_origin": "synthetic_demo_dispatch",
-            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
-            "status": "available",
-            "location": {"lat": 52.632, "lon": -121.790},
-            "capacity": 36,
-            "synthetic": True,
-        },
-        {
-            "asset_id": "DISPATCH_ENGINE_04",
-            "asset_type": "fire_engine",
-            "data_origin": "synthetic_demo_dispatch",
-            "source_label": SYNTHETIC_MUNICIPAL_LABEL,
-            "status": "available",
-            "location": {"lat": 52.620, "lon": -121.742},
-            "capacity": 4,
-            "synthetic": True,
-        },
-    ]
+    return []
 
 
 def policies() -> list[dict]:
@@ -590,7 +569,7 @@ def demo_disclosures() -> list[dict[str, Any]]:
         {
             "scope": "shelters_residents_dispatch",
             "label": SYNTHETIC_MUNICIPAL_LABEL,
-            "detail": "Shelter B/C facility identities and locations come from the official BC ESS layer, but all shelter capacity numbers are operator-entered demo assumptions. Shelter A and dispatch assets remain synthetic. Zone A resident contact is operator-provided when DEMO_RESIDENT_ZONE_A_PHONE is configured; other resident contacts are placeholders.",
+            "detail": "Shelter B/C facility identities and locations come from the official BC ESS layer, but all shelter capacity numbers are operator-entered demo assumptions. Shelter A remains operator-entered. Dispatch vehicle availability is not claimed; FireGuard creates a task request for a dispatcher to assign real resources. Zone resident contacts are placeholders until an operator-provided Twilio test contact is configured or checked in.",
             "synthetic": True,
         },
         {

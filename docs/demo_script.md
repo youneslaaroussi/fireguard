@@ -24,7 +24,7 @@ Show:
 
 - Zone A evacuates now to Shelter B.
 - Zone B waits 15 minutes to prevent a bottleneck.
-- Zone C shelters in place and receives dispatch-assisted evacuation.
+- Zone C shelters in place while a dispatch task is created for a human dispatcher to assign accessible transport if available.
 
 This is why FireGuard is an agent, not a dashboard. It sequences actions across residents, shelters, roads, and dispatch.
 

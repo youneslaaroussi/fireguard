@@ -107,17 +107,21 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         strategy="shelter_in_place_dispatch_assisted",
         destination_id=route_c.destination_id if route_c else None,
         start_after_minutes=0,
-        message=f"[DEMO - FireGuard] {zone_c_name} should shelter in place temporarily. Dispatch-assisted evacuation is being assigned for vulnerable residents.",
-        rationale=["Self-evacuation routes cross the closure or fire-risk buffer.", "Vulnerable population and low vehicle access make unsupported evacuation unsafe."],
+        message=f"[DEMO - FireGuard] {zone_c_name} should shelter in place temporarily. A dispatch task is being created for vulnerable residents.",
+        rationale=[
+            "Self-evacuation routes cross the closure or fire-risk buffer.",
+            "Vulnerable population and low vehicle access make unsupported evacuation unsafe.",
+            "FireGuard requests dispatcher assignment but does not claim any specific vehicle is available.",
+        ],
         evidence_ids=risk_by_zone["ZONE_C"].evidence_ids,
-        assumption_ids=["ASSUMPTION_ZONE_C_VULNERABILITY", "ASSUMPTION_ZONE_C_VEHICLE_ACCESS", "ASSUMPTION_DISPATCH_BUS_01_DISPATCH_ASSET"],
+        assumption_ids=["ASSUMPTION_ZONE_C_VULNERABILITY", "ASSUMPTION_ZONE_C_VEHICLE_ACCESS"],
     ))
 
     plan_id = f"PLAN_{uuid.uuid4().hex[:8].upper()}"
     return EvacuationPlan(
         plan_id=plan_id,
         incident_id=incident_id,
-        summary=f"Stage {zone_a_name} immediately to {zone_a_destination_name}, hold {zone_b_name} for 15 minutes to avoid corridor congestion, and shelter {zone_c_name} in place while dispatch-assisted evacuation is assigned.",
+        summary=f"Stage {zone_a_name} immediately to {zone_a_destination_name}, hold {zone_b_name} for 15 minutes to avoid corridor congestion, and shelter {zone_c_name} in place while a dispatch assignment task is created.",
         recommended_strategy="staged_evacuation",
         confidence=0.84,
         zone_risks=zone_risks,
@@ -133,6 +137,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         risks_if_wrong=[
             f"If wind shifts north, {zone_b_name} may need immediate evacuation instead of staged release.",
             "Shelter capacity numbers are operator-entered demo assumptions; confirm with the ESS coordinator before treating them as authoritative.",
+            "Dispatch resource availability is not asserted by FireGuard; the dispatch task requires operator assignment.",
             "If road closure data is stale, road ops must verify before releasing traffic.",
         ],
         fallback_plan="If alternate evacuation routes become unsafe, expand shelter-in-place, assign door-to-door checks, and request additional accessible transport for vulnerable residents.",
@@ -213,13 +218,21 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
             bundle_id,
             "dispatch_task",
             "ZONE_C",
-            f"Assign accessible bus and responder support to {zone_c_name}.",
-            {"task_type": "assist_evacuation", "zone_id": "ZONE_C", "asset_type": "accessible_bus", "priority": "critical", "source_plan_id": plan.plan_id},
-            "Zone C has high vulnerable count and unsafe self-evacuation routes.",
-            ["ZONE_C", "DISPATCH_BUS_01"],
+            f"Create dispatch task requesting accessible transport and responder support to {zone_c_name}.",
+            {
+                "task_type": "assist_evacuation",
+                "zone_id": "ZONE_C",
+                "requested_capabilities": ["accessible_transport", "responder_support"],
+                "vehicle_availability_claimed": False,
+                "assignment_owner": "dispatch_coordinator",
+                "priority": "critical",
+                "source_plan_id": plan.plan_id,
+            },
+            "Zone C has high vulnerable count and unsafe self-evacuation routes; a human dispatcher must assign actual resources.",
+            ["ZONE_C"],
             plan.confidence,
             settings=settings,
-            assumption_ids=["ASSUMPTION_DISPATCH_BUS_01_DISPATCH_ASSET", "ASSUMPTION_ZONE_C_VULNERABILITY", "ASSUMPTION_ZONE_C_VEHICLE_ACCESS"],
+            assumption_ids=["ASSUMPTION_ZONE_C_VULNERABILITY", "ASSUMPTION_ZONE_C_VEHICLE_ACCESS"],
         ),
     ])
     approval = create_approval(bundle_id)

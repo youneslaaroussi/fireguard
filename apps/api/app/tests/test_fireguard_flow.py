@@ -81,7 +81,8 @@ def test_unsafe_zone_uses_shelter_in_place_dispatch() -> None:
     zone_c_step = [step for step in assessment.plan.steps if step.zone_id == "ZONE_C"][0]
 
     assert zone_c_step.strategy == "shelter_in_place_dispatch_assisted"
-    assert "Dispatch-assisted evacuation" in zone_c_step.message
+    assert "dispatch task" in zone_c_step.message.lower()
+    assert "ASSUMPTION_DISPATCH_BUS_01_DISPATCH_ASSET" not in zone_c_step.assumption_ids
 
 
 def test_stale_data_reduces_confidence() -> None:
@@ -166,6 +167,8 @@ def test_context_labels_source_backed_zones_and_synthetic_operations() -> None:
         and item["blocks_execution"] is True
         for item in context["operational_assumptions"]
     )
+    assert context["dispatch_assets"] == []
+    assert not any(item["component"] == "dispatch_asset" for item in context["operational_assumptions"])
 
 
 def test_action_metadata_labels_simulated_endpoints() -> None:
@@ -181,6 +184,12 @@ def test_action_metadata_labels_simulated_endpoints() -> None:
     shelter_action = by_type["shelter_notify"]
     assert shelter_action.payload["capacity_is_operator_assumption"] is True
     assert "ASSUMPTION_SHELTER_B_CAPACITY" in shelter_action.assumption_ids
+    dispatch_action = by_type["dispatch_task"]
+    assert dispatch_action.payload["vehicle_availability_claimed"] is False
+    assert dispatch_action.payload["requested_capabilities"] == ["accessible_transport", "responder_support"]
+    assert "asset_type" not in dispatch_action.payload
+    assert "DISPATCH_BUS_01" not in dispatch_action.evidence_ids
+    assert "ASSUMPTION_DISPATCH_BUS_01_DISPATCH_ASSET" not in dispatch_action.assumption_ids
 
 
 def test_resident_contact_provenance_uses_operator_number_when_configured() -> None:

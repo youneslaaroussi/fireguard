@@ -17,7 +17,7 @@ The Fivetran Connector SDK project in `integrations/fivetran/fireguard_connector
 
 - shelter capacities and Shelter A identity/location;
 - resident-contact placeholders, except configured or operator-checked-in opt-in Twilio test recipients;
-- dispatch assets;
+- dispatch asset availability is not claimed; FireGuard creates an operator task request for dispatch assignment;
 - municipal webhook endpoints;
 - vulnerability counts and vehicle-access scores derived for the demo from source-backed zones.
 
@@ -27,3 +27,5 @@ Every non-authoritative operational input is also emitted as an `operational_ass
 Shelter capacity can be updated by a named operator through `POST /shelters/{shelter_id}/capacity-check-in` or the UI `Confirm Capacity` action. That creates an auditable `capacity_updates` record and changes downstream tracking to an operator-confirmed input. It remains distinct from an official ESS capacity feed.
 
 Resident test contacts can be updated by a named operator through `POST /resident-contacts/test-check-in` or the UI `Add Test Contact` action. The phone must already be present in `TWILIO_ALLOWLIST`; API responses expose masked numbers only. SMS execution also requires non-synthetic contact provenance, so seeded placeholders cannot send messages just because a number appears in the Twilio allowlist.
+
+Dispatch actions do not use seeded demo vehicles anymore. `dispatch_task` payloads request capabilities such as accessible transport and responder support, set `vehicle_availability_claimed=false`, and require a human dispatcher to assign real resources. GitHub Issues can store the real task record, but FireGuard must not claim actual vehicle availability until an authorized dispatch/AVL feed is integrated.
