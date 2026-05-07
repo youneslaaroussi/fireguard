@@ -8,6 +8,7 @@ from app.config import Settings
 from app.services import demo_data
 from app.services.actions import github_issue_tasks_enabled
 from app.services.geo import haversine_km
+from app.services.privacy import mask_phone
 from app.services.time import freshness_minutes, iso_string, now_iso
 
 
@@ -30,6 +31,7 @@ INDEX_NAMES = [
     "ingestion_runs",
     "plans",
     "capacity_updates",
+    "contact_updates",
 ]
 
 
@@ -75,6 +77,7 @@ INDEX_MAPPINGS: dict[str, dict[str, Any]] = {
     "evals": {"properties": {"eval_id": {"type": "keyword"}, "incident_id": {"type": "keyword"}, "score": {"type": "float"}, "created_at": {"type": "date"}}},
     "ingestion_runs": {"properties": {"run_id": {"type": "keyword"}, "provider": {"type": "keyword"}, "status": {"type": "keyword"}, "created_at": {"type": "date"}}},
     "capacity_updates": {"properties": {"update_id": {"type": "keyword"}, "shelter_id": {"type": "keyword"}, "updated_at": {"type": "date"}, "updated_by": {"type": "keyword"}}},
+    "contact_updates": {"properties": {"update_id": {"type": "keyword"}, "zone_id": {"type": "keyword"}, "updated_at": {"type": "date"}, "updated_by": {"type": "keyword"}, "allowlisted": {"type": "boolean"}}},
     "public_evacuation_orders": {
         "properties": {
             "order_alert_id": {"type": "keyword"},
@@ -330,7 +333,7 @@ class FireGuardStore:
         shelters = self._shelters_with_capacity_updates()
         zones = self.list("evacuation_zones")
         dispatch_assets = self.list("dispatch_assets")
-        resident_contacts = self.list("resident_contacts")
+        resident_contacts = self.resident_contacts_with_updates()
         context = {
             "incident_id": incident_id,
             "mode": "replay" if self.settings.demo_mode else "live",
@@ -342,6 +345,7 @@ class FireGuardStore:
             "zones": zones,
             "shelters": shelters,
             "dispatch_assets": dispatch_assets,
+            "resident_contact_status": self._resident_contact_status(resident_contacts),
             "public_evacuation_orders": self.list("public_evacuation_orders"),
             "public_ess_facilities": self.list("public_ess_facilities"),
             "policies": self.list("policies"),
@@ -357,6 +361,27 @@ class FireGuardStore:
         }
         return context
 
+    def resident_contacts_with_updates(self) -> list[dict[str, Any]]:
+        return self._apply_contact_updates(self.list("resident_contacts"), self._contact_updates())
+
+    @staticmethod
+    def _resident_contact_status(residents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        return [
+            {
+                "resident_id": resident.get("resident_id"),
+                "zone_id": resident.get("zone_id"),
+                "allowlisted": resident.get("allowlisted", False),
+                "synthetic": resident.get("synthetic", True),
+                "data_origin": resident.get("data_origin"),
+                "source_label": resident.get("source_label"),
+                "contact_source_type": resident.get("contact_source_type"),
+                "contact_confirmed_at": resident.get("contact_confirmed_at"),
+                "contact_confirmed_by": resident.get("contact_confirmed_by"),
+                "masked_phone": resident.get("masked_phone") or mask_phone(resident.get("phone")),
+            }
+            for resident in residents
+        ]
+
     def _shelters_with_capacity_updates(self) -> list[dict[str, Any]]:
         return self._apply_capacity_updates(self.list("shelters"), self._capacity_updates())
 
@@ -366,6 +391,23 @@ class FireGuardStore:
             try:
                 response = self.es.search(
                     index="capacity_updates",
+                    size=200,
+                    query={"match_all": {}},
+                    sort=[{"updated_at": {"order": "desc"}}],
+                )
+                for hit in response["hits"]["hits"]:
+                    source = {**hit["_source"], "_id": hit["_id"]}
+                    updates[hit["_id"]] = source
+            except Exception as exc:  # pragma: no cover - external Elastic only
+                self.elastic_error = str(exc)
+        return list(updates.values())
+
+    def _contact_updates(self) -> list[dict[str, Any]]:
+        updates = {update["_id"]: update for update in self.list("contact_updates") if update.get("_id")}
+        if self.es and not self.elastic_error:
+            try:
+                response = self.es.search(
+                    index="contact_updates",
                     size=200,
                     query={"match_all": {}},
                     sort=[{"updated_at": {"order": "desc"}}],
@@ -409,6 +451,57 @@ class FireGuardStore:
                 "updated_at": update.get("updated_at") or shelter.get("updated_at"),
             })
         return updated_shelters
+
+    @staticmethod
+    def _apply_contact_updates(residents: list[dict[str, Any]], updates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        latest_by_zone: dict[str, dict[str, Any]] = {}
+        for update in sorted(updates, key=lambda item: item.get("updated_at", "")):
+            if update.get("zone_id"):
+                latest_by_zone[update["zone_id"]] = update
+
+        updated_residents = []
+        handled_zones: set[str] = set()
+        for resident in residents:
+            update = latest_by_zone.get(resident["zone_id"])
+            if not update:
+                updated_residents.append(resident)
+                continue
+            handled_zones.add(resident["zone_id"])
+            updated_residents.append({
+                **resident,
+                "resident_id": update.get("resident_id") or resident["resident_id"],
+                "phone": update["phone"],
+                "allowlisted": bool(update.get("allowlisted")),
+                "data_origin": "operator_provided_twilio_test_recipient",
+                "source_label": "Operator-provided allowlisted Twilio test recipient; not a public resident registry.",
+                "synthetic": False,
+                "consent_source_label": update.get("consent_label") or "Operator-provided test-contact check-in.",
+                "contact_source_type": "operator_test_contact_check_in",
+                "contact_update_id": update.get("update_id") or update.get("_id"),
+                "contact_confirmed_at": update.get("updated_at"),
+                "contact_confirmed_by": update.get("updated_by"),
+                "masked_phone": update.get("masked_phone"),
+            })
+
+        for zone_id, update in latest_by_zone.items():
+            if zone_id in handled_zones:
+                continue
+            updated_residents.append({
+                "resident_id": update.get("resident_id") or f"RES_{zone_id}_OPERATOR",
+                "zone_id": zone_id,
+                "phone": update["phone"],
+                "allowlisted": bool(update.get("allowlisted")),
+                "data_origin": "operator_provided_twilio_test_recipient",
+                "source_label": "Operator-provided allowlisted Twilio test recipient; not a public resident registry.",
+                "synthetic": False,
+                "consent_source_label": update.get("consent_label") or "Operator-provided test-contact check-in.",
+                "contact_source_type": "operator_test_contact_check_in",
+                "contact_update_id": update.get("update_id") or update.get("_id"),
+                "contact_confirmed_at": update.get("updated_at"),
+                "contact_confirmed_by": update.get("updated_by"),
+                "masked_phone": update.get("masked_phone"),
+            })
+        return updated_residents
 
     def provider_status(self) -> dict[str, Any]:
         ingestion_runs = sorted(self.list("ingestion_runs"), key=lambda run: run.get("created_at", ""))

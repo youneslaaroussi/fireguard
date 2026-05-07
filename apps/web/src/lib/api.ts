@@ -65,3 +65,16 @@ export function confirmShelterCapacity(shelterId: string, capacityAvailable: num
     }),
   });
 }
+
+export function registerResidentTestContact(zoneId: string, phone: string) {
+  return request<Record<string, unknown>>("/resident-contacts/test-check-in", {
+    method: "POST",
+    body: JSON.stringify({
+      zone_id: zoneId,
+      phone,
+      updated_by: "demo-operator",
+      consent_label: "Operator confirmed this is an opt-in, Twilio-verified test recipient from the FireGuard demo UI.",
+      note: "Resident test contact registered from the FireGuard demo UI.",
+    }),
+  });
+}

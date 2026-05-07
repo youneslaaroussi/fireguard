@@ -124,15 +124,30 @@ def execute_action(action: dict[str, Any], settings: Settings, residents: list[d
         return action
 
     if action["action_type"] == "resident_sms":
-        numbers = [resident["phone"] for resident in residents if resident["zone_id"] == action["target"]]
+        zone_residents = [resident for resident in residents if resident["zone_id"] == action["target"]]
+        numbers = [resident["phone"] for resident in zone_residents]
         allowed = settings.twilio_allowlist_numbers
-        blocked = [number for number in numbers if number not in allowed]
-        deliverable = [number for number in numbers if number in allowed]
+        deliverable = [
+            resident["phone"]
+            for resident in zone_residents
+            if resident["phone"] in allowed and resident.get("allowlisted") is True and resident.get("synthetic") is False
+        ]
+        blocked = [number for number in numbers if number not in deliverable]
         action["payload"]["recipients"] = deliverable
         action["payload"]["blocked_recipients"] = blocked
+        action["payload"]["recipient_count"] = len(deliverable)
+        action["payload"]["masked_recipients"] = [_mask_phone(number) for number in deliverable]
+        action["payload"]["blocked_recipient_reasons"] = [
+            {
+                "masked_phone": _mask_phone(resident["phone"]),
+                "reason": _blocked_recipient_reason(resident, allowed),
+            }
+            for resident in zone_residents
+            if resident["phone"] not in deliverable
+        ]
         if blocked and not deliverable:
             action["status"] = "failed"
-            action["payload"]["execution_error"] = "No recipients matched TWILIO_ALLOWLIST."
+            action["payload"]["execution_error"] = "No recipients matched TWILIO_ALLOWLIST with operator-confirmed contact provenance."
             return action
         if settings.twilio_account_sid and settings.twilio_auth_token and settings.twilio_from_number:
             try:
@@ -188,6 +203,22 @@ def execute_action(action: dict[str, Any], settings: Settings, residents: list[d
     action["status"] = "executed"
     action["executed_at"] = now_iso()
     return action
+
+
+def _blocked_recipient_reason(resident: dict[str, Any], allowed: set[str]) -> str:
+    if resident["phone"] not in allowed:
+        return "not_in_twilio_allowlist"
+    if resident.get("synthetic") is True:
+        return "synthetic_placeholder_contact"
+    if resident.get("allowlisted") is not True:
+        return "contact_record_not_marked_allowlisted"
+    return "not_deliverable"
+
+
+def _mask_phone(phone: str) -> str:
+    if len(phone) <= 5:
+        return "***"
+    return f"{phone[:2]}***{phone[-4:]}"
 
 
 def _create_github_issue(action: dict[str, Any], settings: Settings) -> dict[str, Any]:

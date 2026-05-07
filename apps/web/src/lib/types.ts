@@ -96,6 +96,7 @@ export type IncidentContext = {
   weather: Record<string, unknown>;
   zones: Zone[];
   shelters: Shelter[];
+  resident_contact_status?: Array<Record<string, unknown>>;
   public_evacuation_orders?: PublicEvacuationOrder[];
   public_ess_facilities?: PublicEssFacility[];
   operational_assumptions?: Array<Record<string, unknown>>;

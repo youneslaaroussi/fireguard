@@ -16,7 +16,7 @@ The Fivetran Connector SDK project in `integrations/fivetran/fireguard_connector
 ## Synthetic Or Derived Sources
 
 - shelter capacities and Shelter A identity/location;
-- resident-contact placeholders, except configured opt-in Twilio test recipients;
+- resident-contact placeholders, except configured or operator-checked-in opt-in Twilio test recipients;
 - dispatch assets;
 - municipal webhook endpoints;
 - vulnerability counts and vehicle-access scores derived for the demo from source-backed zones.
@@ -25,3 +25,5 @@ Synthetic action endpoints are clearly labeled in the UI and logs. Fire, road, a
 Every non-authoritative operational input is also emitted as an `operational_assumptions` record with a fix path, then attached to affected route, plan, action, trace, and Phoenix span records through `assumption_ids`.
 
 Shelter capacity can be updated by a named operator through `POST /shelters/{shelter_id}/capacity-check-in` or the UI `Confirm Capacity` action. That creates an auditable `capacity_updates` record and changes downstream tracking to an operator-confirmed input. It remains distinct from an official ESS capacity feed.
+
+Resident test contacts can be updated by a named operator through `POST /resident-contacts/test-check-in` or the UI `Add Test Contact` action. The phone must already be present in `TWILIO_ALLOWLIST`; API responses expose masked numbers only. SMS execution also requires non-synthetic contact provenance, so seeded placeholders cannot send messages just because a number appears in the Twilio allowlist.

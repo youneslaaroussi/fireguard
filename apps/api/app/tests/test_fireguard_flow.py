@@ -1,8 +1,12 @@
 import json
 from pathlib import Path
 
+import pytest
+from fastapi import HTTPException
+
 from app.config import Settings
 from app.routers.actions import execute as execute_bundle
+from app.routers.residents import ResidentTestContactCheckIn, resident_test_contact_check_in
 from app.routers.shelters import CapacityCheckIn, capacity_check_in
 from app.services.actions import approve_actions, execute_action
 from app.services.agent import run_assessment
@@ -21,6 +25,9 @@ def seeded_store() -> FireGuardStore:
         gemini_assessment_enabled=False,
         fivetran_bigquery_project=None,
         google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
     )
     store = FireGuardStore(settings)
     store.seed_demo()
@@ -104,6 +111,20 @@ def test_sms_allowlist_blocks_unapproved_numbers() -> None:
     assert executed["payload"]["blocked_recipients"] == ["+15555550125"]
 
 
+def test_sms_execution_requires_operator_contact_provenance() -> None:
+    store = seeded_store()
+    assessment = run_assessment(store)
+    actions = [action.model_dump() for action in assessment.actions]
+    approval = assessment.approval.model_dump()
+    approved_actions, _ = approve_actions(actions, approval)
+    zone_b_sms = [action for action in approved_actions if action["action_type"] == "resident_sms" and action["target"] == "ZONE_B"][0]
+
+    executed = execute_action(zone_b_sms, store.settings, store.resident_contacts_with_updates())
+
+    assert executed["status"] == "failed"
+    assert executed["payload"]["blocked_recipient_reasons"][0]["reason"] == "synthetic_placeholder_contact"
+
+
 def test_full_assessment_creates_auditable_action_bundle() -> None:
     store = seeded_store()
     assessment = run_assessment(store)
@@ -171,6 +192,9 @@ def test_resident_contact_provenance_uses_operator_number_when_configured() -> N
         gemini_assessment_enabled=False,
         fivetran_bigquery_project=None,
         google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
     )
     store = FireGuardStore(settings)
     store.seed_demo()
@@ -180,6 +204,99 @@ def test_resident_contact_provenance_uses_operator_number_when_configured() -> N
     assert residents["RES_A_001"]["synthetic"] is False
     assert residents["RES_A_001"]["data_origin"] == "operator_provided_twilio_test_recipient"
     assert residents["RES_B_001"]["synthetic"] is True
+
+
+def test_operator_resident_contact_check_in_updates_context_and_sms_execution() -> None:
+    settings = Settings(
+        demo_mode=True,
+        twilio_allowlist="+15066396110",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+
+    result = resident_test_contact_check_in(
+        ResidentTestContactCheckIn(
+            zone_id="ZONE_B",
+            phone="+15066396110",
+            updated_by="pio-demo-operator",
+        ),
+        settings,
+        store,
+    )
+    context = store.incident_context()
+    residents = {resident["zone_id"]: resident for resident in store.resident_contacts_with_updates()}
+
+    assert "phone" not in result["contact_update"]
+    assert result["contact_update"]["masked_phone"] == "+1***6110"
+    assert residents["ZONE_B"]["synthetic"] is False
+    assert residents["ZONE_B"]["allowlisted"] is True
+    assert any(
+        item["assumption_id"] == "INPUT_ZONE_B_CONTACT_OPERATOR_CONFIRMED"
+        and item["status"] == "operator_confirmed_test_contact"
+        for item in context["operational_assumptions"]
+    )
+
+    assessment = run_assessment(store)
+    actions = [action.model_dump() for action in assessment.actions]
+    approval = assessment.approval.model_dump()
+    approved_actions, _ = approve_actions(actions, approval)
+    zone_b_sms = [action for action in approved_actions if action["action_type"] == "resident_sms" and action["target"] == "ZONE_B"][0]
+    executed = execute_action(zone_b_sms, settings, store.resident_contacts_with_updates())
+
+    assert "INPUT_ZONE_B_CONTACT_OPERATOR_CONFIRMED" in zone_b_sms["assumption_ids"]
+    assert executed["status"] == "executed"
+    assert executed["payload"]["delivery_mode"] == "simulated_sms_no_twilio_credentials"
+    assert executed["payload"]["recipients"] == ["+15066396110"]
+    assert executed["payload"]["masked_recipients"] == ["+1***6110"]
+
+
+def test_operator_resident_contact_check_in_rejects_non_allowlisted_phone() -> None:
+    store = seeded_store()
+
+    with pytest.raises(HTTPException) as excinfo:
+        resident_test_contact_check_in(
+            ResidentTestContactCheckIn(
+                zone_id="ZONE_B",
+                phone="+15066396110",
+                updated_by="pio-demo-operator",
+            ),
+            store.settings,
+            store,
+        )
+
+    assert excinfo.value.status_code == 400
+    assert "TWILIO_ALLOWLIST" in str(excinfo.value.detail)
+
+
+def test_contact_updates_overlay_seeded_resident_contacts() -> None:
+    store = seeded_store()
+    updated = FireGuardStore._apply_contact_updates(
+        store.list("resident_contacts"),
+        [{
+            "update_id": "CONTACT_ZONE_C_TEST",
+            "resident_id": "RES_ZONE_C_OPERATOR",
+            "zone_id": "ZONE_C",
+            "phone": "+15066396110",
+            "masked_phone": "+1***6110",
+            "allowlisted": True,
+            "updated_by": "pio-operator",
+            "updated_at": "2026-05-06T22:45:00Z",
+            "consent_label": "test consent",
+        }],
+    )
+    zone_c = {resident["zone_id"]: resident for resident in updated}["ZONE_C"]
+
+    assert zone_c["resident_id"] == "RES_ZONE_C_OPERATOR"
+    assert zone_c["synthetic"] is False
+    assert zone_c["data_origin"] == "operator_provided_twilio_test_recipient"
+    assert zone_c["contact_update_id"] == "CONTACT_ZONE_C_TEST"
 
 
 def test_operator_capacity_check_in_updates_shelter_and_assumptions() -> None:

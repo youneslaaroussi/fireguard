@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { MapPanel } from "@/components/MapPanel";
 import { StatusBadge } from "@/components/StatusBadge";
-import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, resetDemo, runAssessment, runEval, syncFivetranToElastic } from "@/lib/api";
+import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, registerResidentTestContact, resetDemo, runAssessment, runEval, syncFivetranToElastic } from "@/lib/api";
 import type { ActionItem, AssessmentResult, IncidentContext, IntegrationStatus } from "@/lib/types";
 
 function buttonClass(kind: "primary" | "secondary" | "danger" = "secondary") {
@@ -36,6 +36,7 @@ export default function Home() {
   const [traceEvents, setTraceEvents] = useState<Array<Record<string, unknown>>>([]);
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [evalResult, setEvalResult] = useState<Record<string, unknown> | null>(null);
+  const [contactInputs, setContactInputs] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,6 +53,9 @@ export default function Home() {
   const rejectedRoute = useMemo(() => {
     return assessment?.plan.rejected_alternatives.find((item) => String(item.reason || "").toLowerCase().includes("closure"));
   }, [assessment]);
+  const assumptionsToShow = useMemo(() => {
+    return [...(context?.operational_assumptions || [])].sort((a, b) => Number(Boolean(b.blocks_execution)) - Number(Boolean(a.blocks_execution)));
+  }, [context]);
 
   async function handleReset() {
     setBusy("reset");
@@ -149,6 +153,22 @@ export default function Home() {
     }
   }
 
+  async function handleContactCheckIn(zoneId: string) {
+    const phone = contactInputs[zoneId]?.trim();
+    if (!phone) return;
+    setBusy(`contact-${zoneId}`);
+    setError(null);
+    try {
+      await registerResidentTestContact(zoneId, phone);
+      setContactInputs((current) => ({ ...current, [zoneId]: "" }));
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   return (
     <main className="min-h-screen bg-command text-slate-100">
       <header className="border-b border-line bg-command/95 px-5 py-4">
@@ -233,16 +253,34 @@ export default function Home() {
             <div className="mt-4 border border-amber/40 bg-amber/10 p-3 text-xs">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-semibold text-amber-100">Operational Assumptions To Clear</span>
-                <StatusBadge label={`${context?.operational_assumptions?.length ?? 0} open`} tone={(context?.operational_assumptions?.length ?? 0) ? "warn" : "ok"} />
+                <StatusBadge label={`${context?.operational_assumptions?.length ?? 0} tracked`} tone={(context?.operational_assumptions?.length ?? 0) ? "warn" : "ok"} />
               </div>
               <div className="mt-2 grid gap-2">
-                {(context?.operational_assumptions || []).slice(0, 4).map((item) => (
+                {assumptionsToShow.slice(0, 6).map((item) => (
                   <div key={String(item.assumption_id)} className="border border-line bg-command/70 px-2 py-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate font-semibold text-slate-200">{String(item.label)}</span>
                       <StatusBadge label={String(item.status || "open")} tone="warn" />
                     </div>
                     <p className="mt-1 text-slate-500">{shortText(String(item.fix_path || item.detail || ""), 120)}</p>
+                    {item.component === "resident_contact" && item.blocks_execution ? (
+                      <div className="mt-2 flex min-w-0 gap-2">
+                        <input
+                          className="h-8 min-w-0 flex-1 border border-line bg-panel px-2 text-xs text-slate-100 outline-none placeholder:text-slate-600 focus:border-shelter"
+                          value={contactInputs[String(item.target)] || ""}
+                          onChange={(event) => setContactInputs((current) => ({ ...current, [String(item.target)]: event.target.value }))}
+                          placeholder="+15065550123"
+                          disabled={busy !== null}
+                        />
+                        <button
+                          className={`${buttonClass()} h-8 px-2 text-xs`}
+                          onClick={() => handleContactCheckIn(String(item.target))}
+                          disabled={busy !== null || !contactInputs[String(item.target)]?.trim()}
+                        >
+                          <Send size={14} /> Add
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 ))}
               </div>

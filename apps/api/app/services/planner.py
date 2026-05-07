@@ -32,6 +32,14 @@ def _shelter_capacity_tracking_id(shelter_id: str, shelter: dict) -> str:
     return f"ASSUMPTION_{shelter_id}_CAPACITY"
 
 
+def _resident_contact_tracking_ids(context: dict, zone_id: str) -> list[str]:
+    return [
+        str(assumption["assumption_id"])
+        for assumption in context.get("operational_assumptions", [])
+        if assumption.get("component") == "resident_contact" and assumption.get("target") == zone_id
+    ]
+
+
 def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], routes: list) -> EvacuationPlan:
     risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
     zones_by_id = _by_id(context.get("zones", []), "zone_id")
@@ -161,7 +169,7 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
             evidence_ids=step.evidence_ids,
             confidence=plan.confidence,
             settings=settings,
-            assumption_ids=step.assumption_ids,
+            assumption_ids=step.assumption_ids + _resident_contact_tracking_ids(context, step.zone_id),
         ))
 
     actions.extend([

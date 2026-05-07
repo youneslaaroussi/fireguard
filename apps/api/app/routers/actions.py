@@ -49,7 +49,7 @@ def execute(
     if not actions:
         raise HTTPException(status_code=404, detail="Action bundle not found")
     selected_types = {item.strip() for item in action_types.split(",") if item.strip()} if action_types else set()
-    residents = store.list("resident_contacts")
+    residents = store.resident_contacts_with_updates()
     executed = []
     failed = []
     skipped = []

@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from app.services.privacy import mask_phone
 from app.services.time import now_iso
 
 INCIDENT_ID = "demo-incident-bc-001"
@@ -427,6 +428,8 @@ def resident_contacts(zone_a_phone: str | None = None) -> list[dict]:
             "source_label": "Operator-provided allowlisted Twilio test recipient; not a public resident registry.",
             "synthetic": False,
             "consent_source_label": "Demo operator-provided test number.",
+            "contact_source_type": "env_operator_test_contact",
+            "masked_phone": mask_phone(zone_a_phone),
         }
         if zone_a_phone
         else {
@@ -434,12 +437,14 @@ def resident_contacts(zone_a_phone: str | None = None) -> list[dict]:
             "source_label": SYNTHETIC_MUNICIPAL_LABEL,
             "synthetic": True,
             "consent_source_label": "Synthetic placeholder.",
+            "contact_source_type": "synthetic_placeholder",
+            "masked_phone": mask_phone(zone_a_number),
         }
     )
     return [
         {"resident_id": "RES_A_001", "zone_id": "ZONE_A", "phone": zone_a_number, "allowlisted": True, **zone_a_source},
-        {"resident_id": "RES_B_001", "zone_id": "ZONE_B", "phone": "+15555550124", "allowlisted": False, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True, "consent_source_label": "Synthetic placeholder."},
-        {"resident_id": "RES_C_001", "zone_id": "ZONE_C", "phone": "+15555550125", "allowlisted": False, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True, "consent_source_label": "Synthetic placeholder."},
+        {"resident_id": "RES_B_001", "zone_id": "ZONE_B", "phone": "+15555550124", "allowlisted": False, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True, "consent_source_label": "Synthetic placeholder.", "contact_source_type": "synthetic_placeholder", "masked_phone": mask_phone("+15555550124")},
+        {"resident_id": "RES_C_001", "zone_id": "ZONE_C", "phone": "+15555550125", "allowlisted": False, "data_origin": "synthetic_demo_resident", "source_label": SYNTHETIC_MUNICIPAL_LABEL, "synthetic": True, "consent_source_label": "Synthetic placeholder.", "contact_source_type": "synthetic_placeholder", "masked_phone": mask_phone("+15555550125")},
     ]
 
 
@@ -533,7 +538,20 @@ def operational_assumptions(
             })
 
     for resident in residents:
-        if resident.get("synthetic"):
+        if not resident.get("synthetic") and resident.get("data_origin") == "operator_provided_twilio_test_recipient":
+            assumptions.append({
+                "assumption_id": f"INPUT_{resident['zone_id']}_CONTACT_OPERATOR_CONFIRMED",
+                "component": "resident_contact",
+                "target": resident["zone_id"],
+                "label": f"{resident['zone_id']} has an operator-provided test contact",
+                "detail": resident.get("source_label", "Operator-provided allowlisted Twilio test recipient."),
+                "affects_decision": False,
+                "blocks_execution": False,
+                "current_value": {"masked_phone": resident.get("masked_phone")},
+                "fix_path": "Replace with an authorized resident opt-in list or official emergency notification contact system for production.",
+                "status": "operator_confirmed_test_contact",
+            })
+        elif resident.get("synthetic"):
             assumptions.append({
                 "assumption_id": f"ASSUMPTION_{resident['resident_id']}_CONTACT",
                 "component": "resident_contact",
