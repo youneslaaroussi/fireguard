@@ -24,6 +24,9 @@ def seeded_store() -> FireGuardStore:
         twilio_allowlist="+15555550123,+15555550124",
         phoenix_tracing_enabled=False,
         gemini_assessment_enabled=False,
+        fivetran_api_key=None,
+        fivetran_api_secret=None,
+        fivetran_connection_id=None,
         fivetran_bigquery_project=None,
         google_application_credentials=None,
         twilio_account_sid=None,
@@ -526,10 +529,82 @@ def test_fivetran_status_exposes_latest_run() -> None:
     status = fivetran_status(store)
 
     assert status["provider"] == "fivetran"
+    assert status["managed_api"]["status"] == "skipped"
     assert status["latest_run"]["status"] == "synced"
     assert status["fallback_active"] is True
     assert status["warnings"]
     assert "fire_hotspots" in status["streams"]
+
+
+def test_fivetran_status_uses_managed_api_without_exposing_credentials(monkeypatch) -> None:
+    settings = Settings(
+        demo_mode=True,
+        fivetran_api_key="test-key",
+        fivetran_api_secret="test-secret",
+        fivetran_connection_id="end_unfunded",
+        fivetran_bigquery_project="verdant-upgrade-493301-q1",
+        fivetran_bigquery_dataset="fireguard_ingestion",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
+    )
+    store = FireGuardStore(settings)
+
+    def fake_get(_: Settings, endpoint: str) -> dict:
+        if endpoint == "connections/end_unfunded":
+            return {
+                "data": {
+                    "id": "end_unfunded",
+                    "service": "connector_sdk",
+                    "schema": "fireguard_ingestion",
+                    "group_id": "observatory_impartially",
+                    "paused": False,
+                    "status": {
+                        "setup_state": "connected",
+                        "schema_status": "ready",
+                        "sync_state": "scheduled",
+                        "update_state": "on_schedule",
+                        "is_historical_sync": False,
+                        "tasks": [],
+                        "warnings": [],
+                    },
+                    "created_at": "2026-05-06T11:57:16.922234Z",
+                    "succeeded_at": "2026-05-07T06:08:57.915000Z",
+                    "sync_frequency": 360,
+                }
+            }
+        if endpoint == "destinations/observatory_impartially":
+            return {
+                "data": {
+                    "id": "observatory_impartially",
+                    "service": "big_query",
+                    "region": "GCP_US_EAST4",
+                    "setup_status": "connected",
+                    "config": {
+                        "project_id": "verdant-upgrade-493301-q1",
+                        "secret_key": "should-not-leak",
+                        "location": "US",
+                        "data_set_location": "US",
+                    },
+                }
+            }
+        if endpoint == "groups/observatory_impartially":
+            return {"data": {"id": "observatory_impartially", "name": "fireguard_bigquery"}}
+        raise AssertionError(endpoint)
+
+    monkeypatch.setattr("app.services.fivetran._fivetran_get", fake_get)
+    status = fivetran_status(store)
+
+    assert status["managed_api"]["status"] == "ok"
+    assert status["managed_api"]["connection"]["service"] == "connector_sdk"
+    assert status["managed_api"]["connection"]["setup_state"] == "connected"
+    assert status["managed_api"]["connection"]["succeeded_at"] == "2026-05-07T06:08:57.915000Z"
+    assert status["managed_api"]["destination"]["service"] == "big_query"
+    assert "test-secret" not in json.dumps(status)
+    assert "should-not-leak" not in json.dumps(status)
 
 
 def test_google_adk_openapi_spec_declares_required_tools() -> None:

@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import httpx
+
 from app.config import Settings
 from app.services import demo_data
 from app.services.store import FireGuardStore
 from app.services.time import now_iso
 
+FIVETRAN_API_BASE_URL = "https://api.fivetran.com/v1"
 STREAMS = {
     "fire_hotspots": "external_id",
     "fire_perimeters": "fire_number",
@@ -80,6 +83,98 @@ def _fallbacks_from_streams(streams: dict[str, list[dict[str, Any]]], source_err
                 "all_reasons": reasons[:5],
             }
     return fallbacks
+
+
+def _fivetran_get(settings: Settings, endpoint: str) -> dict[str, Any]:
+    if not settings.fivetran_api_key or not settings.fivetran_api_secret:
+        raise RuntimeError("Fivetran API credentials are not configured.")
+    url = f"{FIVETRAN_API_BASE_URL}/{endpoint.lstrip('/')}"
+    with httpx.Client(timeout=8, auth=(settings.fivetran_api_key, settings.fivetran_api_secret)) as client:
+        response = client.get(url)
+        response.raise_for_status()
+        return response.json()
+
+
+def _managed_connection_summary(connection: dict[str, Any]) -> dict[str, Any]:
+    status = connection.get("status") if isinstance(connection.get("status"), dict) else {}
+    return {
+        "id": connection.get("id"),
+        "service": connection.get("service"),
+        "schema": connection.get("schema"),
+        "group_id": connection.get("group_id"),
+        "paused": connection.get("paused"),
+        "setup_state": status.get("setup_state"),
+        "schema_status": status.get("schema_status"),
+        "sync_state": status.get("sync_state"),
+        "update_state": status.get("update_state"),
+        "is_historical_sync": status.get("is_historical_sync"),
+        "task_count": len(status.get("tasks") or []),
+        "warning_count": len(status.get("warnings") or []),
+        "created_at": connection.get("created_at"),
+        "succeeded_at": connection.get("succeeded_at"),
+        "failed_at": connection.get("failed_at"),
+        "sync_frequency": connection.get("sync_frequency"),
+    }
+
+
+def _managed_destination_summary(destination: dict[str, Any]) -> dict[str, Any]:
+    config = destination.get("config") if isinstance(destination.get("config"), dict) else {}
+    return {
+        "id": destination.get("id"),
+        "group_id": destination.get("group_id"),
+        "service": destination.get("service"),
+        "region": destination.get("region"),
+        "setup_status": destination.get("setup_status"),
+        "project_id": config.get("project_id"),
+        "location": config.get("location"),
+        "data_set_location": config.get("data_set_location"),
+    }
+
+
+def managed_fivetran_status(settings: Settings) -> dict[str, Any]:
+    if not settings.fivetran_api_key or not settings.fivetran_api_secret:
+        return {"configured": False, "status": "skipped", "reason": "Fivetran API credentials are not configured."}
+
+    try:
+        if settings.fivetran_connection_id:
+            connection_payload = _fivetran_get(settings, f"connections/{settings.fivetran_connection_id}")
+            connection = connection_payload.get("data") or {}
+        else:
+            list_payload = _fivetran_get(settings, "connections")
+            items = list_payload.get("data", {}).get("items", [])
+            connection = next((item for item in items if item.get("schema") == settings.fivetran_bigquery_dataset), items[0] if items else {})
+    except Exception as exc:
+        return {
+            "configured": True,
+            "status": "failed",
+            "reason": f"Fivetran API status check failed: {str(exc)[:300]}",
+        }
+
+    connection_summary = _managed_connection_summary(connection)
+    destination_summary = None
+    group_summary = None
+    group_id = connection_summary.get("group_id")
+    if group_id:
+        try:
+            destination_payload = _fivetran_get(settings, f"destinations/{group_id}")
+            destination_summary = _managed_destination_summary(destination_payload.get("data") or {})
+        except Exception as exc:
+            destination_summary = {"status": "failed", "reason": f"Destination status check failed: {str(exc)[:300]}"}
+        try:
+            group_payload = _fivetran_get(settings, f"groups/{group_id}")
+            group = group_payload.get("data") or {}
+            group_summary = {"id": group.get("id"), "name": group.get("name"), "created_at": group.get("created_at")}
+        except Exception as exc:
+            group_summary = {"status": "failed", "reason": f"Group status check failed: {str(exc)[:300]}"}
+
+    connected = connection_summary.get("setup_state") == "connected" and connection_summary.get("sync_state") in {"scheduled", "syncing", "rescheduled"}
+    return {
+        "configured": True,
+        "status": "ok" if connected else "needs_attention",
+        "connection": connection_summary,
+        "destination": destination_summary,
+        "group": group_summary,
+    }
 
 
 def _row_to_doc(stream: str, row: dict[str, Any]) -> dict[str, Any]:
@@ -233,9 +328,11 @@ def fivetran_status(store: FireGuardStore) -> dict[str, Any]:
     latest_run = sorted(store.list("ingestion_runs"), key=lambda run: run.get("created_at", ""))[-1:] or [None]
     run = latest_run[0]
     warnings = run.get("warnings", []) if isinstance(run, dict) else []
+    managed_status = managed_fivetran_status(store.settings)
     return {
         "provider": "fivetran",
         "configured": bool(store.settings.fivetran_api_key and store.settings.fivetran_api_secret),
+        "managed_api": managed_status,
         "connection_name": store.settings.fivetran_connection_name,
         "connection_id": store.settings.fivetran_connection_id,
         "destination": store.settings.fivetran_destination_name,
