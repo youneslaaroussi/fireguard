@@ -35,6 +35,8 @@ class Settings(BaseSettings):
     google_genai_use_vertexai: bool = True
     gemini_assessment_enabled: bool = True
     google_maps_api_key: str | None = None
+    google_sheets_capacity_spreadsheet_id: str | None = None
+    google_sheets_capacity_range: str = "shelter_capacity!A:F"
 
     twilio_account_sid: str | None = None
     twilio_auth_token: str | None = None

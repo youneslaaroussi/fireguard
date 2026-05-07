@@ -5,6 +5,7 @@ from app.routers.dependencies import store_dependency
 from app.services.fivetran import fivetran_status
 from app.services.gemini import gemini_status
 from app.services.phoenix import phoenix_status
+from app.services.shelter_capacity import google_sheets_capacity_status
 from app.services.store import FireGuardStore
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -18,6 +19,7 @@ def integration_status(settings: Settings = Depends(get_settings), store: FireGu
         "gemini": gemini_status(settings),
         "arize": phoenix_status(settings),
         "action_tasks": store.provider_status()["action_tasks"],
+        "shelter_capacity": google_sheets_capacity_status(store),
     }
 
 

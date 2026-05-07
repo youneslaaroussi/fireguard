@@ -76,7 +76,17 @@ INDEX_MAPPINGS: dict[str, dict[str, Any]] = {
     "traces": {"properties": {"trace_id": {"type": "keyword"}, "incident_id": {"type": "keyword"}, "created_at": {"type": "date"}, "phoenix_trace_ids": {"type": "keyword"}}},
     "evals": {"properties": {"eval_id": {"type": "keyword"}, "incident_id": {"type": "keyword"}, "score": {"type": "float"}, "created_at": {"type": "date"}}},
     "ingestion_runs": {"properties": {"run_id": {"type": "keyword"}, "provider": {"type": "keyword"}, "status": {"type": "keyword"}, "created_at": {"type": "date"}}},
-    "capacity_updates": {"properties": {"update_id": {"type": "keyword"}, "shelter_id": {"type": "keyword"}, "updated_at": {"type": "date"}, "updated_by": {"type": "keyword"}}},
+    "capacity_updates": {
+        "properties": {
+            "update_id": {"type": "keyword"},
+            "shelter_id": {"type": "keyword"},
+            "updated_at": {"type": "date"},
+            "updated_by": {"type": "keyword"},
+            "source_type": {"type": "keyword"},
+            "capacity_total": {"type": "integer"},
+            "capacity_available": {"type": "integer"},
+        }
+    },
     "contact_updates": {
         "properties": {
             "update_id": {"type": "keyword"},
@@ -448,17 +458,26 @@ class FireGuardStore:
             if not update:
                 updated_shelters.append(shelter)
                 continue
-            source_label = (
-                f"Operator capacity check-in by {update.get('updated_by')} at {update.get('updated_at')}; "
-                "not an official public ESS capacity feed."
-            )
+            source_type = update.get("source_type") or "operator_capacity_check_in"
+            if source_type == "google_sheets_capacity_feed":
+                source_label = (
+                    update.get("source_label")
+                    or f"Google Sheets capacity feed row by {update.get('updated_by')} at {update.get('updated_at')}; "
+                    "not an official public ESS capacity feed unless separately authorized."
+                )
+            else:
+                source_label = (
+                    update.get("source_label")
+                    or f"Operator capacity check-in by {update.get('updated_by')} at {update.get('updated_at')}; "
+                    "not an official public ESS capacity feed."
+                )
             updated_shelters.append({
                 **shelter,
                 "capacity_total": update.get("capacity_total", shelter.get("capacity_total")),
                 "capacity_available": update.get("capacity_available", shelter.get("capacity_available")),
                 "capacity_is_operator_assumption": False,
                 "capacity_operator_confirmed": True,
-                "capacity_source_type": "operator_capacity_check_in",
+                "capacity_source_type": source_type,
                 "capacity_source_label": source_label,
                 "capacity_confirmed_at": update.get("updated_at"),
                 "capacity_confirmed_by": update.get("updated_by"),

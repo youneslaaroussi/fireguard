@@ -19,6 +19,11 @@ from app.services.fivetran import fivetran_status, sync_fivetran_to_elastic
 from app.services.ingest import _normalize_public_ess_facility, _normalize_public_evacuation_order
 from app.services.risk import compute_all_zone_risks
 from app.services.routes import best_safe_route, compute_routes
+from app.services.shelter_capacity import (
+    google_sheets_capacity_status,
+    parse_capacity_sheet_values,
+    sync_google_sheets_shelter_capacity,
+)
 from app.services.store import FireGuardStore
 
 
@@ -480,6 +485,65 @@ def test_capacity_updates_overlay_seeded_shelters() -> None:
     assert shelter_b["capacity_is_operator_assumption"] is False
     assert shelter_b["capacity_operator_confirmed"] is True
     assert shelter_b["capacity_update_id"] == "CAPACITY_SHELTER_B_TEST"
+
+
+def test_google_sheets_capacity_feed_updates_shelter_and_assumptions(monkeypatch) -> None:
+    settings = Settings(
+        demo_mode=True,
+        google_sheets_capacity_spreadsheet_id="sheet-123",
+        google_sheets_capacity_range="shelter_capacity!A:F",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+
+    def fake_read(_settings: Settings) -> list[list[str]]:
+        return [
+            ["shelter_id", "capacity_total", "capacity_available", "updated_by", "note", "updated_at"],
+            ["SHELTER_B", "3500", "3100", "railyard-operator", "sheet test", "2026-05-07T14:00:00Z"],
+        ]
+
+    monkeypatch.setattr("app.services.shelter_capacity._read_sheets_values", fake_read)
+    result = sync_google_sheets_shelter_capacity(store)
+    context = store.incident_context()
+    shelter = {item["shelter_id"]: item for item in context["shelters"]}["SHELTER_B"]
+
+    assert result["status"] == "synced"
+    assert result["updated_shelter_ids"] == ["SHELTER_B"]
+    assert shelter["capacity_available"] == 3100
+    assert shelter["capacity_source_type"] == "google_sheets_capacity_feed"
+    assert shelter["capacity_operator_confirmed"] is True
+    assert any(
+        item["assumption_id"] == "INPUT_SHELTER_B_CAPACITY_OPERATOR_CONFIRMED"
+        and item["status"] == "operator_confirmed_not_official_feed"
+        for item in context["operational_assumptions"]
+    )
+    status = google_sheets_capacity_status(store)
+    assert status["configured"] is True
+    assert status["latest_update_count"] == 1
+
+
+def test_google_sheets_capacity_parser_rejects_bad_rows() -> None:
+    store = seeded_store()
+    parsed = parse_capacity_sheet_values(
+        [
+            ["shelter_id", "capacity_total", "capacity_available"],
+            ["SHELTER_B", "100", "101"],
+            ["NOPE", "100", "10"],
+        ],
+        store,
+    )
+
+    assert parsed["updates"] == []
+    assert len(parsed["errors"]) == 2
+    assert "cannot exceed" in parsed["errors"][0]["reason"]
+    assert parsed["errors"][1]["reason"] == "Shelter not found."
 
 
 def test_public_bc_emergency_context_is_source_backed() -> None:
