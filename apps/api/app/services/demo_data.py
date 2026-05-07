@@ -153,9 +153,9 @@ def evacuation_zones() -> list[dict]:
 
 def synthetic_shelters() -> list[dict]:
     return [
-        _source_backed_shelter("SHELTER_A", "BC_ESS_10", 500, 120, "demo_near_capacity_assumption", True, False, True),
-        _source_backed_shelter("SHELTER_B", "BC_ESS_86", 3500, 3200, "demo_open_assumption", True, True, True),
-        _source_backed_shelter("SHELTER_C", "BC_ESS_85", 1200, 900, "demo_open_assumption", False, True, True),
+        _source_backed_shelter("SHELTER_A", "BC_ESS_10", 500, 120, True, False, True),
+        _source_backed_shelter("SHELTER_B", "BC_ESS_153", 3500, 3200, True, True, True),
+        _source_backed_shelter("SHELTER_C", "BC_ESS_85", 1200, 900, False, True, True),
     ]
 
 
@@ -219,7 +219,6 @@ def _source_backed_shelter(
     facility_id: str,
     capacity_total: int,
     capacity_available: int,
-    status: str,
     pet_friendly: bool,
     medical_support: bool,
     accessible: bool,
@@ -249,8 +248,8 @@ def _source_backed_shelter(
         "pet_friendly": pet_friendly,
         "medical_support": medical_support,
         "accessible": accessible,
-        "status": status,
-        "status_source_label": "Demo operational status assumption for FireGuard replay; official ESS status is preserved separately.",
+        "status": facility["status"],
+        "status_source_label": "Official BC ESS facility status from the public source snapshot.",
         "updated_at": now_iso(),
         "synthetic": False,
     }
@@ -551,13 +550,13 @@ def demo_disclosures() -> list[dict[str, Any]]:
         {
             "scope": "shelters_residents_dispatch",
             "label": SYNTHETIC_MUNICIPAL_LABEL,
-            "detail": "Shelter A/B/C facility identities and locations come from the official BC ESS layer, but all shelter capacity numbers are operator-entered demo assumptions. Dispatch vehicle availability is not claimed; FireGuard creates a task request for a dispatcher to assign real resources. Zone resident contacts are placeholders until an operator-provided Twilio test contact is configured or checked in.",
+            "detail": "Shelter A/B/C facility identities and locations come from the official BC ESS layer. Official CLOSED facility status blocks routing to closed facilities; all shelter capacity numbers are operator-entered demo assumptions. Dispatch vehicle availability is not claimed; FireGuard creates a task request for a dispatcher to assign real resources. Zone resident contacts are placeholders until an operator-provided Twilio test contact is configured or checked in.",
             "synthetic": True,
         },
         {
             "scope": "public_bc_emergency_context",
             "label": PUBLIC_BC_CONTEXT_LABEL,
-            "detail": "Current BC Evacuation Orders/Alerts and ESS facility candidates are stored from official public ArcGIS layers. They provide source-backed context, but FireGuard does not infer shelter capacity from ESS facility status.",
+            "detail": "Current BC Evacuation Orders/Alerts and ESS facility candidates are stored from official public ArcGIS layers. They provide source-backed context; FireGuard uses official facility open/closed status for availability and does not infer capacity from ESS facility status.",
             "synthetic": False,
         },
         {

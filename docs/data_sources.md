@@ -9,7 +9,7 @@
 - Google Routes API for route duration and polylines.
 - BC Historical Orders and Alerts fire evacuation polygons. The core demo zones are stored in `data/public/bc/historical_fire_evacuation_zones_snapshot.json` with official population/home source fields and simplified geometries.
 - BC public evacuation, wildfire, and emergency-alert guidance. Policy snippets are stored in `data/public/bc/official_policy_snippets.json` as paraphrased source-backed retrieval records.
-- BC Emergency Social Services Facilities for reception-centre identity, location, type, and public status. The public layer does not expose shelter capacity.
+- BC Emergency Social Services Facilities for reception-centre identity, location, type, and public open/closed status. FireGuard blocks closed facilities for evacuee intake. The public layer does not expose shelter capacity.
 
 The Fivetran Connector SDK project in `integrations/fivetran/fireguard_connector` emits normalized tables for environmental and road data. FireGuard then syncs those tables into Elastic for geospatial retrieval.
 

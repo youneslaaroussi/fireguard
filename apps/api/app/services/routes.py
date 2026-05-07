@@ -166,9 +166,18 @@ def _safety_flags(
     evidence_ids: list[str] = []
     assumption_ids: list[str] = []
     blocking = False
+    shelter_label = shelter.get("name") or shelter["shelter_id"].replace("_", " ").title()
 
-    if zone.get("population", 0) > shelter.get("capacity_available", 0):
-        shelter_label = shelter.get("name") or shelter["shelter_id"].replace("_", " ").title()
+    official_status = _blocking_shelter_status(shelter)
+    if official_status:
+        flags.append(
+            "Official BC ESS facility status is "
+            f"{official_status}: {shelter_label} is not available for evacuee intake."
+        )
+        if shelter.get("source_record_id"):
+            evidence_ids.append(shelter["source_record_id"])
+        blocking = True
+    elif zone.get("population", 0) > shelter.get("capacity_available", 0):
         if shelter.get("capacity_operator_confirmed"):
             flags.append(
                 "Operator-confirmed capacity report: "
@@ -215,6 +224,16 @@ def _safety_flags(
         blocking = True
 
     return flags, sorted(set(evidence_ids)), sorted(set(assumption_ids)), blocking
+
+
+def _blocking_shelter_status(shelter: dict[str, Any]) -> str | None:
+    status = str(shelter.get("official_facility_status") or "").strip()
+    if not status:
+        return None
+    normalized = status.lower()
+    if normalized in {"closed", "inactive", "unavailable"} or "closed" in normalized:
+        return status
+    return None
 
 
 def _is_closure_event(event: dict[str, Any]) -> bool:
@@ -311,12 +330,25 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
             for fire in context.get("fires", [])
             if _route_crosses_fire_buffer(points, fire["location"], FIRE_ROUTE_BUFFER_KM, 2.0)
         ]
+        official_status = _blocking_shelter_status(shelter)
         flags = [
             "Route enters the DriveBC closure impact buffer.",
-            "Operator-entered capacity assumption: Shelter A has insufficient capacity for Zone A.",
         ]
+        evidence_ids = [closure_id] if closure_id else []
+        assumption_ids: list[str] = []
         if fire_ids:
             flags.insert(1, "Route crosses active fire-risk buffer.")
+            evidence_ids.extend(fire_ids)
+        if official_status:
+            flags.append(
+                "Official BC ESS facility status is "
+                f"{official_status}: {shelter.get('name', 'Shelter A')} is not available for evacuee intake."
+            )
+            if shelter.get("source_record_id"):
+                evidence_ids.append(shelter["source_record_id"])
+        else:
+            flags.append("Operator-entered capacity assumption: Shelter A has insufficient capacity for Zone A.")
+            assumption_ids.append("ASSUMPTION_SHELTER_A_CAPACITY")
         return _route(
             zone_id,
             shelter_id,
@@ -325,8 +357,8 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
             False,
             flags,
             points,
-            [item for item in [closure_id, *fire_ids] if item],
-            ["ASSUMPTION_SHELTER_A_CAPACITY"],
+            [item for item in evidence_ids if item],
+            assumption_ids,
         )
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_B":
         points = [origin, dest]

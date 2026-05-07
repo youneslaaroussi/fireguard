@@ -42,6 +42,9 @@ def test_route_closure_rejects_obvious_route() -> None:
 
     assert obvious.safe is False
     assert "closure" in " ".join(obvious.risk_flags).lower()
+    assert "official bc ess facility status is closed" in " ".join(obvious.risk_flags).lower()
+    assert "ASSUMPTION_SHELTER_A_CAPACITY" not in obvious.assumption_ids
+    assert "BC_ESS_10" in obvious.evidence_ids
     assert "drivebc.ca/DBC-90684" in obvious.evidence_ids
     assert any(evidence_id.startswith("FIRMS_N20_20240710") for evidence_id in obvious.evidence_ids)
     assert alternate is not None
@@ -63,9 +66,14 @@ def test_shelter_capacity_overflow_is_reflected_in_plan() -> None:
     assessment = run_assessment(store)
 
     rejected = " ".join(item["reason"] for item in assessment.plan.rejected_alternatives)
-    assert "Operator-entered capacity assumption" in rejected
+    assert "Official BC ESS facility status is CLOSED" in rejected
     assert any(
-        "ASSUMPTION_SHELTER_A_CAPACITY" in item.get("assumption_ids", [])
+        "BC_ESS_10" in item.get("evidence_ids", [])
+        for item in assessment.plan.rejected_alternatives
+    )
+    assert not any(
+        item["destination_id"] == "SHELTER_A"
+        and "ASSUMPTION_SHELTER_A_CAPACITY" in item.get("assumption_ids", [])
         for item in assessment.plan.rejected_alternatives
     )
     assert any(
@@ -153,10 +161,14 @@ def test_context_labels_source_backed_zones_and_synthetic_operations() -> None:
     assert shelters["SHELTER_A"]["synthetic"] is False
     assert shelters["SHELTER_A"]["source_record_id"] == "BC_ESS_10"
     assert shelters["SHELTER_A"]["data_origin"] == "bc_ess_facility_with_operator_capacity_assumption"
+    assert shelters["SHELTER_A"]["status"] == "CLOSED"
     assert shelters["SHELTER_B"]["synthetic"] is False
-    assert shelters["SHELTER_B"]["source_record_id"] == "BC_ESS_86"
+    assert shelters["SHELTER_B"]["source_record_id"] == "BC_ESS_153"
+    assert shelters["SHELTER_B"]["status"] == "OPEN"
+    assert shelters["SHELTER_B"]["official_facility_status"] == "OPEN"
     assert shelters["SHELTER_C"]["synthetic"] is False
     assert shelters["SHELTER_C"]["source_record_id"] == "BC_ESS_85"
+    assert shelters["SHELTER_C"]["status"] == "CLOSED"
     assert all(shelter["capacity_is_operator_assumption"] is True for shelter in context["shelters"])
     assert any(
         item["assumption_id"] == "ASSUMPTION_SHELTER_A_CAPACITY"

@@ -62,7 +62,10 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         else f"[DEMO - FireGuard] {zone_a_name} should shelter in place temporarily. No safe self-evacuation route is currently verified."
     )
     zone_a_rationale = (
-        ["Critical risk and a safe alternate route exists.", "The nearest shelter route is rejected because it intersects a closure and fire-risk buffer."]
+        [
+            "Critical risk and a safe alternate route exists.",
+            "The nearest reception-centre option is rejected because the official BC ESS source snapshot marks it closed.",
+        ]
         if route_a
         else ["Route checks did not find a safe self-evacuation path.", "Shelter-in-place and dispatch support are safer until road ops verifies an outbound corridor."]
     )
@@ -74,7 +77,10 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         else f"[DEMO - FireGuard] {zone_b_name} should hold position and prepare. Do not self-evacuate until road ops confirms a safe release corridor."
     )
     zone_b_rationale = (
-        ["High risk, but immediate simultaneous departure would overload the shared rural corridor.", f"{zone_b_destination_name} can absorb Zone B after Zone A is staged."]
+        [
+            "High risk, but immediate simultaneous departure would overload the shared rural corridor.",
+            f"Operator-entered shelter capacity for {zone_b_destination_name} leaves room for Zone B after Zone A is staged.",
+        ]
         if route_b
         else ["Google Routes-backed route checks did not find a currently safe self-evacuation path.", "Holding avoids routing residents through a closure while road ops verifies release timing."]
     )

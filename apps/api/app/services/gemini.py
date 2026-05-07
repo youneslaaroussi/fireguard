@@ -118,6 +118,8 @@ def run_gemini_tool_assessment(
                     "capacity_available": shelter["capacity_available"],
                     "capacity_is_operator_assumption": shelter.get("capacity_is_operator_assumption"),
                     "capacity_source_label": shelter.get("capacity_source_label"),
+                    "official_facility_status": shelter.get("official_facility_status"),
+                    "source_record_id": shelter.get("source_record_id"),
                     "status": shelter["status"],
                 }
                 for shelter in context["shelters"]

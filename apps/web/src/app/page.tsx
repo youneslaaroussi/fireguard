@@ -295,7 +295,13 @@ export default function Home() {
                   <div key={shelter.shelter_id} className="grid gap-2 border border-line bg-command/50 p-2">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="text-slate-300">{shelter.name}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-slate-300">{shelter.name}</p>
+                          <StatusBadge
+                            label={`ESS ${shelter.official_facility_status || shelter.status}`}
+                            tone={(shelter.official_facility_status || shelter.status) === "OPEN" ? "ok" : "danger"}
+                          />
+                        </div>
                         <p className="text-slate-500">{shortText(shelter.capacity_source_label || shelter.source_label || "capacity source unknown", 96)}</p>
                       </div>
                       <StatusBadge
