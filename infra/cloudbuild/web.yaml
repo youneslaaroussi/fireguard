@@ -6,6 +6,10 @@ steps:
       - apps/web/Dockerfile
       - -t
       - ${_IMAGE}
+      - --build-arg
+      - NEXT_PUBLIC_API_BASE_URL=${_NEXT_PUBLIC_API_BASE_URL}
       - .
 images:
   - ${_IMAGE}
+substitutions:
+  _NEXT_PUBLIC_API_BASE_URL: https://fireguard-api-dovhkdlznq-uc.a.run.app
