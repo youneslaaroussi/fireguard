@@ -62,3 +62,15 @@ curl -X POST https://fireguard-api-dovhkdlznq-uc.a.run.app/sync/google-sheets-zo
 ```
 
 Accepted rows update downstream risk scoring and operational-assumption tracking from `derived_estimate` to `operator_confirmed_not_official_registry`.
+
+## Hosted Verification
+
+On `2026-05-07`, the hosted API read the shared `FireGuard` Sheet, tab `zone_operations`, and synced all three suggested rows.
+
+The hosted sync returned `status=synced`, `updated_count=3`, `skipped_count=0`, and `updated_zone_ids=["ZONE_A","ZONE_B","ZONE_C"]`. The next hosted assessment carried the Sheet-fed values into risk scoring:
+
+- `ZONE_A`: `vulnerable_count=180`, `vehicle_access_score=0.62`
+- `ZONE_B`: `vulnerable_count=120`, `vehicle_access_score=0.68`
+- `ZONE_C`: `vulnerable_count=275`, `vehicle_access_score=0.35`
+
+The context no longer marks those values as derived estimates.
