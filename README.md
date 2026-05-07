@@ -151,7 +151,7 @@ The Cloud Run Phoenix service now uses Cloud SQL PostgreSQL through `PHOENIX_SQL
 2. Click `Reset Demo`.
 3. Click `Sync Fivetran To Elastic`.
 4. Click `Run Agent Assessment`.
-5. Confirm that the obvious route is rejected due to a road closure and fire-risk buffer.
+5. Confirm that the nearest reception-centre option is rejected because official BC ESS status marks it closed, while other unsafe alternatives show road-closure and fire-risk blockers.
 6. Approve the action bundle.
 7. Execute actions.
 8. Open the trace panel and inspect evidence, freshness, Phoenix span IDs, eval score, Phoenix eval annotation, approval, and execution results.
@@ -170,8 +170,8 @@ Live/open sources ingested through Fivetran:
 
 Additional public BC emergency context:
 
-- EmergencyMapBC Evacuation Orders and Alerts snapshot
-- BC Emergency Social Services Facilities snapshot
+- EmergencyMapBC Evacuation Orders and Alerts live ArcGIS query, with stored snapshot fallback
+- BC Emergency Social Services Facilities live ArcGIS query, with stored snapshot fallback
 
 Synthetic or operator-entered demo data:
 

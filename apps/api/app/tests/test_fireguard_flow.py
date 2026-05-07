@@ -12,6 +12,7 @@ from app.services.actions import approve_actions, execute_action
 from app.services.agent import run_assessment
 from app.services.evals import evaluate_incident
 from app.services.fivetran import fivetran_status, sync_fivetran_to_elastic
+from app.services.ingest import _normalize_public_ess_facility, _normalize_public_evacuation_order
 from app.services.risk import compute_all_zone_risks
 from app.services.routes import best_safe_route, compute_routes
 from app.services.store import FireGuardStore
@@ -385,6 +386,63 @@ def test_public_bc_emergency_context_is_source_backed() -> None:
         item["scope"] == "public_bc_emergency_context" and item["synthetic"] is False
         for item in context["demo_disclosures"]
     )
+
+
+def test_public_bc_live_normalizers_preserve_source_status_and_dates() -> None:
+    captured_at = "2026-05-07T04:50:00Z"
+    order = _normalize_public_evacuation_order(
+        {
+            "id": 7,
+            "geometry": {"type": "Polygon", "coordinates": [[[-122.0, 52.0], [-121.0, 52.0], [-121.0, 53.0], [-122.0, 52.0]]]},
+            "properties": {
+                "EMRG_OAA_SYSID": 7,
+                "EVENT_NAME": "Live source test",
+                "EVENT_TYPE": "Wildfire",
+                "ORDER_ALERT_NAME": "Live Area",
+                "ORDER_ALERT_STATUS": "Order",
+                "ISSUING_AGENCY": "Test Agency",
+                "MULTI_SOURCED_POPULATION": 42,
+                "MULTI_SOURCED_HOMES": 12,
+                "EVENT_START_DATE": 1620907200000,
+                "DATE_MODIFIED": 1697016000000,
+            },
+        },
+        captured_at=captured_at,
+        source_url="https://example.invalid/orders/query",
+        source_query="where=1=1",
+    )
+    facility = _normalize_public_ess_facility(
+        {
+            "id": 153,
+            "geometry": {"type": "Point", "coordinates": [-120.788059, 50.108033]},
+            "properties": {
+                "ESS_FACILITY_ID": 153,
+                "FACILITY_NAME": "Railyard Mall",
+                "FACILITY_TYPE_CODE": "RC",
+                "ADDRESS": "source address",
+                "COMMUNITY": "City of Merritt",
+                "MUNICIPALITY": "City of Merritt",
+                "STATUS": "OPEN",
+                "STATUS_DATE": 1643587200000,
+            },
+        },
+        captured_at=captured_at,
+        source_url="https://example.invalid/ess/query",
+        source_query="where=STATUS='OPEN'",
+    )
+
+    assert order is not None
+    assert order["order_alert_id"] == "BC_OAA_7"
+    assert order["status"] == "Order"
+    assert order["population"] == 42
+    assert order["updated_at"] == "2023-10-11T09:20:00Z"
+    assert order["data_origin"] == "bc_emergencymapbc_public_live"
+    assert facility is not None
+    assert facility["facility_id"] == "BC_ESS_153"
+    assert facility["status"] == "OPEN"
+    assert facility["location"] == {"lat": 50.108033, "lon": -120.788059}
+    assert facility["updated_at"] == "2022-01-31T00:00:00Z"
+    assert facility["data_origin"] == "bc_emergencymapbc_public_live"
 
 
 def test_github_issue_backend_creates_real_demo_tasks(monkeypatch) -> None:
