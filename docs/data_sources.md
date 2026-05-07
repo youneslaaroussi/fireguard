@@ -15,7 +15,7 @@ The Fivetran Connector SDK project in `integrations/fivetran/fireguard_connector
 
 ## Synthetic Or Derived Sources
 
-- shelter capacities and Shelter A identity/location;
+- shelter capacities;
 - resident-contact placeholders, except configured or operator-checked-in opt-in Twilio test recipients;
 - dispatch asset availability is not claimed; FireGuard creates an operator task request for dispatch assignment;
 - municipal webhook endpoints;

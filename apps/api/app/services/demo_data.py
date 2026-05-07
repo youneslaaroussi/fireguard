@@ -152,26 +152,8 @@ def evacuation_zones() -> list[dict]:
 
 
 def synthetic_shelters() -> list[dict]:
-    updated_at = now_iso()
     return [
-        {
-            "shelter_id": "SHELTER_A",
-            "name": "Likely Community Hall",
-            "data_origin": "operator_entered_demo_shelter",
-            "source_label": "Operator-entered demo shelter; not an official ESS facility record.",
-            "location": {"lat": 52.617, "lon": -121.594},
-            "capacity_total": 500,
-            "capacity_available": 120,
-            "capacity_is_operator_assumption": True,
-            "capacity_source_label": "Operator-entered demo capacity; not official municipal capacity data.",
-            "pet_friendly": True,
-            "medical_support": False,
-            "accessible": True,
-            "status": "near_capacity",
-            "status_source_label": "Demo operational status assumption.",
-            "updated_at": updated_at,
-            "synthetic": True,
-        },
+        _source_backed_shelter("SHELTER_A", "BC_ESS_10", 500, 120, "demo_near_capacity_assumption", True, False, True),
         _source_backed_shelter("SHELTER_B", "BC_ESS_86", 3500, 3200, "demo_open_assumption", True, True, True),
         _source_backed_shelter("SHELTER_C", "BC_ESS_85", 1200, 900, "demo_open_assumption", False, True, True),
     ]
@@ -569,7 +551,7 @@ def demo_disclosures() -> list[dict[str, Any]]:
         {
             "scope": "shelters_residents_dispatch",
             "label": SYNTHETIC_MUNICIPAL_LABEL,
-            "detail": "Shelter B/C facility identities and locations come from the official BC ESS layer, but all shelter capacity numbers are operator-entered demo assumptions. Shelter A remains operator-entered. Dispatch vehicle availability is not claimed; FireGuard creates a task request for a dispatcher to assign real resources. Zone resident contacts are placeholders until an operator-provided Twilio test contact is configured or checked in.",
+            "detail": "Shelter A/B/C facility identities and locations come from the official BC ESS layer, but all shelter capacity numbers are operator-entered demo assumptions. Dispatch vehicle availability is not claimed; FireGuard creates a task request for a dispatcher to assign real resources. Zone resident contacts are placeholders until an operator-provided Twilio test contact is configured or checked in.",
             "synthetic": True,
         },
         {
