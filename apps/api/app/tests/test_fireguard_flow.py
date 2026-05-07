@@ -6,7 +6,11 @@ from fastapi import HTTPException
 
 from app.config import Settings
 from app.routers.actions import execute as execute_bundle
-from app.routers.residents import ResidentTestContactCheckIn, resident_test_contact_check_in
+from app.routers.residents import (
+    ResidentTestContactCheckIn,
+    process_twilio_inbound_sms,
+    resident_test_contact_check_in,
+)
 from app.routers.shelters import CapacityCheckIn, capacity_check_in
 from app.services.actions import approve_actions, execute_action
 from app.services.agent import run_assessment
@@ -299,6 +303,109 @@ def test_operator_resident_contact_check_in_rejects_non_allowlisted_phone() -> N
 
     assert excinfo.value.status_code == 400
     assert "TWILIO_ALLOWLIST" in str(excinfo.value.detail)
+
+
+def test_twilio_inbound_opt_in_updates_context_and_sms_execution() -> None:
+    settings = Settings(
+        demo_mode=True,
+        twilio_allowlist="+15066396110",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+
+    result = process_twilio_inbound_sms(
+        {"From": "+15066396110", "Body": "JOIN ZONE_B", "MessageSid": "SM_INBOUND_TEST"},
+        settings,
+        store,
+    )
+    context = store.incident_context()
+    residents = {resident["zone_id"]: resident for resident in store.resident_contacts_with_updates()}
+
+    assert result["status"] == "opted_in"
+    assert result["allowlisted"] is True
+    assert "phone" not in result["contact_update"]
+    assert result["contact_update"]["source_type"] == "twilio_inbound_opt_in"
+    assert residents["ZONE_B"]["synthetic"] is False
+    assert residents["ZONE_B"]["data_origin"] == "twilio_inbound_resident_opt_in"
+    assert residents["ZONE_B"]["contact_source_type"] == "twilio_inbound_opt_in"
+    assert any(
+        item["assumption_id"] == "INPUT_ZONE_B_CONTACT_TWILIO_OPT_IN"
+        and item["status"] == "twilio_opted_in_allowlisted"
+        for item in context["operational_assumptions"]
+    )
+
+    assessment = run_assessment(store)
+    actions = [action.model_dump() for action in assessment.actions]
+    approved_actions, _ = approve_actions(actions, assessment.approval.model_dump())
+    zone_b_sms = [
+        action
+        for action in approved_actions
+        if action["action_type"] == "resident_sms" and action["target"] == "ZONE_B"
+    ][0]
+    executed = execute_action(zone_b_sms, settings, store.resident_contacts_with_updates())
+
+    assert "INPUT_ZONE_B_CONTACT_TWILIO_OPT_IN" in zone_b_sms["assumption_ids"]
+    assert executed["status"] == "executed"
+    assert executed["payload"]["delivery_mode"] == "simulated_sms_no_twilio_credentials"
+    assert executed["payload"]["recipients"] == ["+15066396110"]
+
+
+def test_twilio_inbound_opt_out_blocks_sms_execution() -> None:
+    settings = Settings(
+        demo_mode=True,
+        twilio_allowlist="+15066396110",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+
+    process_twilio_inbound_sms(
+        {"From": "+15066396110", "Body": "JOIN ZONE_B", "MessageSid": "SM_JOIN_TEST"},
+        settings,
+        store,
+    )
+    result = process_twilio_inbound_sms(
+        {"From": "+15066396110", "Body": "STOP ZONE_B", "MessageSid": "SM_STOP_TEST"},
+        settings,
+        store,
+    )
+    context = store.incident_context()
+    residents = {resident["zone_id"]: resident for resident in store.resident_contacts_with_updates()}
+
+    assert result["status"] == "opted_out"
+    assert residents["ZONE_B"]["contact_source_type"] == "twilio_inbound_opt_out"
+    assert residents["ZONE_B"]["allowlisted"] is False
+    assert any(
+        item["assumption_id"] == "INPUT_ZONE_B_CONTACT_TWILIO_OPT_OUT"
+        and item["blocks_execution"] is True
+        for item in context["operational_assumptions"]
+    )
+
+    assessment = run_assessment(store)
+    actions = [action.model_dump() for action in assessment.actions]
+    approved_actions, _ = approve_actions(actions, assessment.approval.model_dump())
+    zone_b_sms = [
+        action
+        for action in approved_actions
+        if action["action_type"] == "resident_sms" and action["target"] == "ZONE_B"
+    ][0]
+    executed = execute_action(zone_b_sms, settings, store.resident_contacts_with_updates())
+
+    assert executed["status"] == "failed"
+    assert executed["payload"]["blocked_recipient_reasons"][0]["reason"] == "contact_record_not_marked_allowlisted"
 
 
 def test_contact_updates_overlay_seeded_resident_contacts() -> None:

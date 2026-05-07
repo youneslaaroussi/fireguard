@@ -41,6 +41,8 @@ class Settings(BaseSettings):
     twilio_from_number: str | None = None
     twilio_allowlist: str = Field(default="+15555550123,+15555550124")
     demo_resident_zone_a_phone: str | None = None
+    twilio_validate_webhook_signature: bool = True
+    twilio_inbound_webhook_public_url: str | None = None
 
     phoenix_tracing_enabled: bool = True
     phoenix_collector_endpoint: str = "http://localhost:6006/v1/traces"

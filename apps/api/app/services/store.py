@@ -77,7 +77,20 @@ INDEX_MAPPINGS: dict[str, dict[str, Any]] = {
     "evals": {"properties": {"eval_id": {"type": "keyword"}, "incident_id": {"type": "keyword"}, "score": {"type": "float"}, "created_at": {"type": "date"}}},
     "ingestion_runs": {"properties": {"run_id": {"type": "keyword"}, "provider": {"type": "keyword"}, "status": {"type": "keyword"}, "created_at": {"type": "date"}}},
     "capacity_updates": {"properties": {"update_id": {"type": "keyword"}, "shelter_id": {"type": "keyword"}, "updated_at": {"type": "date"}, "updated_by": {"type": "keyword"}}},
-    "contact_updates": {"properties": {"update_id": {"type": "keyword"}, "zone_id": {"type": "keyword"}, "updated_at": {"type": "date"}, "updated_by": {"type": "keyword"}, "allowlisted": {"type": "boolean"}}},
+    "contact_updates": {
+        "properties": {
+            "update_id": {"type": "keyword"},
+            "zone_id": {"type": "keyword"},
+            "updated_at": {"type": "date"},
+            "updated_by": {"type": "keyword"},
+            "allowlisted": {"type": "boolean"},
+            "source_type": {"type": "keyword"},
+            "data_origin": {"type": "keyword"},
+            "twilio_message_sid": {"type": "keyword"},
+            "opted_in": {"type": "boolean"},
+            "opted_out": {"type": "boolean"},
+        }
+    },
     "public_evacuation_orders": {
         "properties": {
             "order_alert_id": {"type": "keyword"},
@@ -377,6 +390,9 @@ class FireGuardStore:
                 "contact_source_type": resident.get("contact_source_type"),
                 "contact_confirmed_at": resident.get("contact_confirmed_at"),
                 "contact_confirmed_by": resident.get("contact_confirmed_by"),
+                "twilio_message_sid": resident.get("twilio_message_sid"),
+                "opted_in": resident.get("opted_in"),
+                "opted_out": resident.get("opted_out"),
                 "masked_phone": resident.get("masked_phone") or mask_phone(resident.get("phone")),
             }
             for resident in residents
@@ -467,41 +483,59 @@ class FireGuardStore:
                 updated_residents.append(resident)
                 continue
             handled_zones.add(resident["zone_id"])
-            updated_residents.append({
-                **resident,
-                "resident_id": update.get("resident_id") or resident["resident_id"],
-                "phone": update["phone"],
-                "allowlisted": bool(update.get("allowlisted")),
-                "data_origin": "operator_provided_twilio_test_recipient",
-                "source_label": "Operator-provided allowlisted Twilio test recipient; not a public resident registry.",
-                "synthetic": False,
-                "consent_source_label": update.get("consent_label") or "Operator-provided test-contact check-in.",
-                "contact_source_type": "operator_test_contact_check_in",
-                "contact_update_id": update.get("update_id") or update.get("_id"),
-                "contact_confirmed_at": update.get("updated_at"),
-                "contact_confirmed_by": update.get("updated_by"),
-                "masked_phone": update.get("masked_phone"),
-            })
+            updated_residents.append(FireGuardStore._resident_contact_from_update(update, resident))
 
         for zone_id, update in latest_by_zone.items():
             if zone_id in handled_zones:
                 continue
-            updated_residents.append({
-                "resident_id": update.get("resident_id") or f"RES_{zone_id}_OPERATOR",
-                "zone_id": zone_id,
-                "phone": update["phone"],
-                "allowlisted": bool(update.get("allowlisted")),
-                "data_origin": "operator_provided_twilio_test_recipient",
-                "source_label": "Operator-provided allowlisted Twilio test recipient; not a public resident registry.",
-                "synthetic": False,
-                "consent_source_label": update.get("consent_label") or "Operator-provided test-contact check-in.",
-                "contact_source_type": "operator_test_contact_check_in",
-                "contact_update_id": update.get("update_id") or update.get("_id"),
-                "contact_confirmed_at": update.get("updated_at"),
-                "contact_confirmed_by": update.get("updated_by"),
-                "masked_phone": update.get("masked_phone"),
-            })
+            updated_residents.append(FireGuardStore._resident_contact_from_update(update, None))
         return updated_residents
+
+    @staticmethod
+    def _resident_contact_from_update(update: dict[str, Any], resident: dict[str, Any] | None) -> dict[str, Any]:
+        source_type = update.get("source_type") or "operator_test_contact_check_in"
+        data_origin = update.get("data_origin") or "operator_provided_twilio_test_recipient"
+        if source_type == "twilio_inbound_opt_in":
+            source_label = (
+                update.get("source_label")
+                or "Resident/test recipient opted in by inbound Twilio SMS; not an official resident registry."
+            )
+            default_consent = "Inbound Twilio SMS opt-in."
+        elif source_type == "twilio_inbound_opt_out":
+            source_label = (
+                update.get("source_label")
+                or "Resident/test recipient opted out by inbound Twilio SMS; not an official resident registry."
+            )
+            default_consent = "Inbound Twilio SMS opt-out."
+        else:
+            source_label = (
+                update.get("source_label")
+                or "Operator-provided allowlisted Twilio test recipient; not a public resident registry."
+            )
+            default_consent = "Operator-provided test-contact check-in."
+
+        zone_id = update["zone_id"]
+        base = resident or {"zone_id": zone_id}
+        return {
+            **base,
+            "resident_id": update.get("resident_id") or base.get("resident_id") or f"RES_{zone_id}_OPERATOR",
+            "zone_id": zone_id,
+            "phone": update["phone"],
+            "allowlisted": bool(update.get("allowlisted")),
+            "data_origin": data_origin,
+            "source_label": source_label,
+            "synthetic": False,
+            "consent_source_label": update.get("consent_label") or default_consent,
+            "contact_source_type": source_type,
+            "contact_update_id": update.get("update_id") or update.get("_id"),
+            "contact_confirmed_at": update.get("updated_at"),
+            "contact_confirmed_by": update.get("updated_by"),
+            "masked_phone": update.get("masked_phone"),
+            "twilio_message_sid": update.get("twilio_message_sid"),
+            "opted_in": bool(update.get("opted_in")),
+            "opted_out": bool(update.get("opted_out")),
+            "official_resident_registry": bool(update.get("official_resident_registry", False)),
+        }
 
     def provider_status(self) -> dict[str, Any]:
         ingestion_runs = sorted(self.list("ingestion_runs"), key=lambda run: run.get("created_at", ""))

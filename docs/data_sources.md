@@ -18,7 +18,7 @@ Supplemental BC public emergency context can also be refreshed directly with `PO
 ## Synthetic Or Derived Sources
 
 - shelter capacities;
-- resident-contact placeholders, except configured or operator-checked-in opt-in Twilio test recipients;
+- resident-contact placeholders, except configured, operator-checked-in, or Twilio inbound opt-in test recipients;
 - dispatch asset availability is not claimed; FireGuard creates an operator task request for dispatch assignment;
 - municipal webhook endpoints;
 - vulnerability counts and vehicle-access scores derived for the demo from source-backed zones.
@@ -28,6 +28,6 @@ Every non-authoritative operational input is also emitted as an `operational_ass
 
 Shelter capacity can be updated by a named operator through `POST /shelters/{shelter_id}/capacity-check-in` or the UI `Confirm Capacity` action. That creates an auditable `capacity_updates` record and changes downstream tracking to an operator-confirmed input. It remains distinct from an official ESS capacity feed.
 
-Resident test contacts can be updated by a named operator through `POST /resident-contacts/test-check-in` or the UI `Add Test Contact` action. The phone must already be present in `TWILIO_ALLOWLIST`; API responses expose masked numbers only. SMS execution also requires non-synthetic contact provenance, so seeded placeholders cannot send messages just because a number appears in the Twilio allowlist.
+Resident test contacts can be updated by a named operator through `POST /resident-contacts/test-check-in` or the UI `Add Test Contact` action. They can also be created through the Twilio inbound SMS webhook `POST /resident-contacts/twilio/inbound`: a test recipient texts `JOIN ZONE_A`, `JOIN ZONE_B`, or `JOIN ZONE_C` to the configured Twilio number, and FireGuard stores that inbound consent timestamp and Twilio message SID as `twilio_inbound_opt_in`. API responses expose masked numbers only. SMS execution still requires both non-synthetic contact provenance and a number present in `TWILIO_ALLOWLIST`; this keeps the hackathon demo from messaging arbitrary numbers while proving a real opt-in path.
 
 Dispatch actions do not use seeded demo vehicles anymore. `dispatch_task` payloads request capabilities such as accessible transport and responder support, set `vehicle_availability_claimed=false`, and require a human dispatcher to assign real resources. GitHub Issues can store the real task record, but FireGuard must not claim actual vehicle availability until an authorized dispatch/AVL feed is integrated.

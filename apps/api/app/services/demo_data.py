@@ -498,7 +498,43 @@ def operational_assumptions(
             })
 
     for resident in residents:
-        if not resident.get("synthetic") and resident.get("data_origin") == "operator_provided_twilio_test_recipient":
+        if not resident.get("synthetic") and resident.get("contact_source_type") == "twilio_inbound_opt_in":
+            allowlisted = bool(resident.get("allowlisted"))
+            assumptions.append({
+                "assumption_id": f"INPUT_{resident['zone_id']}_CONTACT_TWILIO_OPT_IN",
+                "component": "resident_contact",
+                "target": resident["zone_id"],
+                "label": f"{resident['zone_id']} has a Twilio inbound opt-in contact",
+                "detail": resident.get("source_label", "Resident/test recipient opted in by inbound Twilio SMS."),
+                "affects_decision": False,
+                "blocks_execution": not allowlisted,
+                "current_value": {
+                    "masked_phone": resident.get("masked_phone"),
+                    "twilio_message_sid": resident.get("twilio_message_sid"),
+                },
+                "fix_path": (
+                    "For production, replace this demo opt-in with an authorized resident notification system "
+                    "or official opt-in registry export."
+                ),
+                "status": "twilio_opted_in_allowlisted" if allowlisted else "twilio_opted_in_not_allowlisted",
+            })
+        elif not resident.get("synthetic") and resident.get("contact_source_type") == "twilio_inbound_opt_out":
+            assumptions.append({
+                "assumption_id": f"INPUT_{resident['zone_id']}_CONTACT_TWILIO_OPT_OUT",
+                "component": "resident_contact",
+                "target": resident["zone_id"],
+                "label": f"{resident['zone_id']} contact opted out through Twilio",
+                "detail": resident.get("source_label", "Resident/test recipient opted out by inbound Twilio SMS."),
+                "affects_decision": False,
+                "blocks_execution": True,
+                "current_value": {
+                    "masked_phone": resident.get("masked_phone"),
+                    "twilio_message_sid": resident.get("twilio_message_sid"),
+                },
+                "fix_path": "Respect opt-out and require a new opt-in before sending resident SMS.",
+                "status": "twilio_opted_out",
+            })
+        elif not resident.get("synthetic") and resident.get("data_origin") == "operator_provided_twilio_test_recipient":
             assumptions.append({
                 "assumption_id": f"INPUT_{resident['zone_id']}_CONTACT_OPERATOR_CONFIRMED",
                 "component": "resident_contact",
