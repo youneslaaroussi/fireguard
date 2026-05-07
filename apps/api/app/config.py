@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     phoenix_collector_endpoint: str = "http://localhost:6006/v1/traces"
     phoenix_project_name: str = "fireguard"
     phoenix_api_key: str | None = None
+    phoenix_cloud_space_name: str | None = None
     phoenix_auth_enabled: bool = False
     phoenix_status_timeout_seconds: float = 10.0
     phoenix_storage_backend: str = "local_or_external"

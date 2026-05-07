@@ -629,6 +629,22 @@ def test_google_adk_openapi_spec_declares_required_tools() -> None:
     }.issubset(operation_ids)
 
 
+def test_phoenix_cloud_space_name_builds_space_specific_endpoint() -> None:
+    from app.services.phoenix import _application_url, _collector_endpoint
+
+    settings = Settings(
+        phoenix_collector_endpoint="https://app.phoenix.arize.com",
+        phoenix_cloud_space_name="deep-shot",
+        phoenix_api_key="test-key",
+        phoenix_tracing_enabled=True,
+    )
+
+    endpoint = _collector_endpoint(settings)
+
+    assert endpoint == "https://app.phoenix.arize.com/s/deep-shot/v1/traces"
+    assert _application_url(endpoint) == "https://app.phoenix.arize.com/s/deep-shot"
+
+
 def test_eval_records_safety_and_grounding() -> None:
     store = seeded_store()
     assessment = run_assessment(store)

@@ -23,6 +23,7 @@ def phoenix_package_installed() -> bool:
 def phoenix_status(settings: Settings) -> dict[str, Any]:
     endpoint = _collector_endpoint(settings)
     auth_enabled = _auth_enabled(settings, endpoint)
+    connection_check = _connection_check(settings, endpoint, auth_enabled)
     return {
         "enabled": settings.phoenix_tracing_enabled,
         "package_installed": phoenix_package_installed(),
@@ -31,9 +32,11 @@ def phoenix_status(settings: Settings) -> dict[str, Any]:
         "project": settings.phoenix_project_name,
         "deployment": _deployment_kind(endpoint),
         "storage_backend": settings.phoenix_storage_backend,
+        "cloud_space_configured": bool(settings.phoenix_cloud_space_name),
         "auth_enabled": auth_enabled,
         "api_key_configured": bool(settings.phoenix_api_key),
-        "connection_check": _connection_check(settings, endpoint, auth_enabled),
+        "connection_check": connection_check,
+        "configuration_hint": _configuration_hint(settings, endpoint, connection_check),
         "last_error": _last_error,
         "disabled_after_error": _disabled_after_error,
     }
@@ -117,6 +120,9 @@ def _connection_check(settings: Settings, endpoint: str, auth_enabled: bool) -> 
 
 def _collector_endpoint(settings: Settings) -> str:
     endpoint = settings.phoenix_collector_endpoint.rstrip("/")
+    if settings.phoenix_cloud_space_name and endpoint in {"https://app.phoenix.arize.com", "https://app.phoenix.arize.com/v1/traces"}:
+        space = settings.phoenix_cloud_space_name.strip().strip("/")
+        return f"https://app.phoenix.arize.com/s/{space}/v1/traces"
     if endpoint == "https://app.phoenix.arize.com":
         return f"{endpoint}/v1/traces"
     if endpoint.startswith("https://app.phoenix.arize.com") and not endpoint.endswith("/v1/traces"):
@@ -152,6 +158,16 @@ def _is_phoenix_cloud_endpoint(endpoint: str) -> bool:
 
 def _is_local_endpoint(endpoint: str) -> bool:
     return "localhost" in endpoint or "127.0.0.1" in endpoint
+
+
+def _configuration_hint(settings: Settings, endpoint: str, connection_check: dict[str, Any]) -> str | None:
+    if not _is_phoenix_cloud_endpoint(endpoint):
+        return None
+    if not settings.phoenix_api_key:
+        return "Set PHOENIX_API_KEY before using Phoenix Cloud."
+    if connection_check.get("http_status") == 401:
+        return "Phoenix Cloud returned 401. Provide a valid Phoenix Cloud API key and, if your account uses spaces, set PHOENIX_CLOUD_SPACE_NAME or a space-specific PHOENIX_COLLECTOR_ENDPOINT."
+    return None
 
 
 def trace_tool_span(

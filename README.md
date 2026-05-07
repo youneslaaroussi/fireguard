@@ -79,7 +79,7 @@ See `.env.example`. The keys needed for a full submission are:
 - `NASA_FIRMS_MAP_KEY`
 - `GOOGLE_CLOUD_PROJECT`
 - `GOOGLE_MAPS_API_KEY`
-- `PHOENIX_COLLECTOR_ENDPOINT`, `PHOENIX_PROJECT_NAME`, optional `PHOENIX_API_KEY`
+- `PHOENIX_COLLECTOR_ENDPOINT`, `PHOENIX_PROJECT_NAME`, optional `PHOENIX_API_KEY`, optional `PHOENIX_CLOUD_SPACE_NAME`
 - `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM_NUMBER`, `TWILIO_ALLOWLIST`
 
 ## Google ADK Agent
@@ -141,7 +141,7 @@ python3 -m pip install arize-phoenix
 phoenix serve
 ```
 
-The API exports spans to `PHOENIX_COLLECTOR_ENDPOINT`, defaulting to `http://localhost:6006/v1/traces`. The deployed demo currently uses a self-hosted Arize Phoenix service on Cloud Run because the provided Arize Cloud key returns `401` against Phoenix Cloud REST. Hosted Arize Cloud can be enabled by setting `PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com/v1/traces`, `PHOENIX_API_KEY`, and `PHOENIX_AUTH_ENABLED=true` after a valid Phoenix Cloud key/space is available.
+The API exports spans to `PHOENIX_COLLECTOR_ENDPOINT`, defaulting to `http://localhost:6006/v1/traces`. The deployed demo currently uses a self-hosted Arize Phoenix service on Cloud Run because the provided Arize Cloud key returns `401` against Phoenix Cloud REST. Hosted Arize Cloud can be enabled by setting `PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com`, `PHOENIX_CLOUD_SPACE_NAME=<space-name>`, `PHOENIX_API_KEY`, and `PHOENIX_AUTH_ENABLED=true` after a valid Phoenix Cloud key/space is available. You can also set `PHOENIX_COLLECTOR_ENDPOINT` directly to `https://app.phoenix.arize.com/s/<space-name>/v1/traces`.
 
 The Cloud Run Phoenix service now uses Cloud SQL PostgreSQL through `PHOENIX_SQL_DATABASE_URL` stored in Secret Manager. The API reports the expected status through `PHOENIX_STORAGE_BACKEND=cloud_sql_postgresql` in deployed environments. Eval runs create a Phoenix span and then attach a native `fireguard_eval` trace annotation with the deterministic safety checks.
 
