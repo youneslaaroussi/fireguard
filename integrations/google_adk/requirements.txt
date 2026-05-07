@@ -1,2 +1,3 @@
 google-adk>=1.11.0
 python-dotenv>=1.0.0
+google-cloud-aiplatform[agent_engines]>=1.93.0

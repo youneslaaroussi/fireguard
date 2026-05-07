@@ -11,6 +11,10 @@ from google.adk.tools.openapi_tool.openapi_spec_parser.openapi_toolset import Op
 AGENT_DIR = Path(__file__).resolve().parent
 load_dotenv(AGENT_DIR / ".env")
 
+model_location = os.environ.get("FIREGUARD_AGENT_MODEL_LOCATION")
+if model_location:
+    os.environ["GOOGLE_CLOUD_LOCATION"] = model_location
+
 SYSTEM_INSTRUCTION = """You are FireGuard, an emergency evacuation coordination agent.
 Synthesize wildfire, road, weather, shelter, and evacuation-zone data into safe,
 staged action plans. Never claim certainty beyond the data. Always consider
@@ -19,7 +23,8 @@ public-facing or dispatch actions without explicit human approval. Include
 evidence, confidence, assumptions, data freshness, rejected alternatives, and
 fallback actions.
 
-Required workflow:
+For lightweight verification requests, call only the tool the user asks for and return a
+concise response. For full incident assessments, use this workflow:
 1. Call get_incident_context.
 2. Call search_operational_memory for closure, fire, shelter, and approval evidence.
 3. Call compute_zone_risk.
