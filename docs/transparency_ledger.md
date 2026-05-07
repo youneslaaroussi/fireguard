@@ -14,7 +14,7 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 
 | Component | Current status | Evidence |
 |---|---|---|
-| Hosted web app | Real | Cloud Run web service at `https://fireguard-web-dovhkdlznq-uc.a.run.app`; latest verified revision after ESS-status UI deploy is `fireguard-web-00013-7wb`. |
+| Hosted web app | Real | Cloud Run web service at `https://fireguard-web-dovhkdlznq-uc.a.run.app`; latest verified revision after PostCSS audit fix deploy is `fireguard-web-00014-t69`. |
 | Hosted API | Real | Cloud Run API service at `https://fireguard-api-dovhkdlznq-uc.a.run.app`; latest verified revision after ESS-status routing deploy is `fireguard-api-00035-7j8`. |
 | Elastic | Real | API reports `store_backend=elastic-mirrored`; Elasticsearch runs on GCE and is reached through a private VPC connector in Cloud Run. |
 | Fivetran | Real, with visible fallback behavior | Fivetran Connector SDK sync exists; BigQuery tables are read by `/sync/fivetran-to-elastic`. Hosted sync on `2026-05-06` read BigQuery rows for `fire_perimeters` (44), `road_events` (50), and `weather_observations` (1), then emitted a visible `fire_hotspots` fallback warning because the live FIRMS stream was empty for the configured BC bbox. |
@@ -45,13 +45,12 @@ FireGuard is not yet a fully real emergency orchestration system. The demo-criti
 | T-009 | The app runs with `DEMO_MODE=true` in Cloud Run. | Hosted app is intentionally a demo, not a live authority workflow. | Accepted, must stay visible | Keep UI safety labels and prevent unapproved/non-allowlisted public messaging. |
 | T-011 | The provided Arize Cloud API key does not authenticate against Phoenix Cloud REST, so Arize Cloud export is not proven. | We can prove self-hosted Phoenix export on Cloud Run, but not Arize Cloud hosted receipt with the current key. | Blocked on valid Arize Cloud key/space | Hosted self-hosted Phoenix is fixed: `/integrations/arize/status` returns `deployment=self_hosted`, `connection_check.status=ok`, and project `fireguard`. API Phoenix REST checks now use `PHOENIX_STATUS_TIMEOUT_SECONDS=10` instead of a brittle 2 second timeout. To switch to Arize Cloud, provide the exact Phoenix Cloud space URL and a key that returns 200 for `/v1/projects`. |
 | T-012 | Self-hosted Phoenix previously used container-local SQLite storage. | Trace export was real, but traces could disappear after Cloud Run replacement/restart. | Fixed and hosted-verified | Created Cloud SQL PostgreSQL instance `fireguard-phoenix-pg`, database/user `phoenix`, Secret Manager secret `phoenix-sql-database-url`, Cloud Run Cloud SQL attachment, and Phoenix revision `fireguard-phoenix-00004-6xp`. Logs show PostgreSQL storage and completed migrations; hosted assessment/eval exported fresh spans after cutover. |
-| T-013 | Web image build reported two moderate npm audit findings from Next's nested `postcss@8.4.31`. | The advisory was real and affected the deployed web dependency tree before the fix. | Fixed locally; hosted redeploy pending | Added an npm `overrides.postcss=^8.5.10` rule and raised the direct PostCSS dev dependency so `next@16.2.4` resolves to `postcss@8.5.14`. Local `npm --prefix apps/web audit --json` now reports zero vulnerabilities, `npm --prefix apps/web ls postcss next` shows Next using `postcss@8.5.14`, and web lint/build pass. Redeploy the web container after this lockfile change. |
+| T-013 | Web image build reported two moderate npm audit findings from Next's nested `postcss@8.4.31`. | The advisory was real and affected the deployed web dependency tree before the fix. | Fixed and hosted-verified | Added an npm `overrides.postcss=^8.5.10` rule and raised the direct PostCSS dev dependency so `next@16.2.4` resolves to `postcss@8.5.14`. Local `npm --prefix apps/web audit --json` now reports zero vulnerabilities, `npm --prefix apps/web ls postcss next` shows Next using `postcss@8.5.14`, and web lint/build pass. Cloud Build for the replacement web image reported `found 0 vulnerabilities`, and Cloud Run revision `fireguard-web-00014-t69` serves HTTP 200. |
 
 ## Fix Order
 
 1. T-011: Switch from self-hosted Phoenix to Arize Cloud only after receiving a valid Phoenix Cloud key/space.
-2. T-013: Redeploy the web container with the audited lockfile, then update this row with the hosted revision.
-3. T-004: Replace remaining structured assumptions with real sources in this order: official ESS/municipal shelter capacity feed if available, authorized resident opt-in list or notification-system export for production, authorized dispatch/AVL feed only if the demo should claim actual vehicle availability.
+2. T-004: Replace remaining structured assumptions with real sources in this order: official ESS/municipal shelter capacity feed if available, authorized resident opt-in list or notification-system export for production, authorized dispatch/AVL feed only if the demo should claim actual vehicle availability.
 
 ## Rule For Future Changes
 
