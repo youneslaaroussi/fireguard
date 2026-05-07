@@ -6,6 +6,7 @@ from app.services.fivetran import fivetran_status
 from app.services.gemini import gemini_status
 from app.services.phoenix import phoenix_status
 from app.services.shelter_capacity import google_sheets_capacity_status
+from app.services.source_zone_context import source_backed_zone_context_status
 from app.services.store import FireGuardStore
 from app.services.zone_operations import google_sheets_zone_operations_status
 
@@ -22,6 +23,7 @@ def integration_status(settings: Settings = Depends(get_settings), store: FireGu
         "action_tasks": store.provider_status()["action_tasks"],
         "shelter_capacity": google_sheets_capacity_status(store),
         "zone_operations": google_sheets_zone_operations_status(store),
+        "source_backed_zone_context": source_backed_zone_context_status(store),
     }
 
 

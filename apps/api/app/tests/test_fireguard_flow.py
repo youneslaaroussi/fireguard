@@ -24,6 +24,10 @@ from app.services.shelter_capacity import (
     parse_capacity_sheet_values,
     sync_google_sheets_shelter_capacity,
 )
+from app.services.source_zone_context import (
+    source_backed_zone_context_status,
+    sync_source_backed_zone_context,
+)
 from app.services.store import FireGuardStore
 from app.services.zone_operations import (
     google_sheets_zone_operations_status,
@@ -656,6 +660,73 @@ def test_google_sheets_zone_operations_feed_updates_zone_assumptions(monkeypatch
     assert "INPUT_ZONE_C_ZONE_OPERATIONS_OPERATOR_CONFIRMED" in zone_c_sms.assumption_ids
     assert "ASSUMPTION_ZONE_C_VULNERABILITY" not in zone_c_sms.assumption_ids
     assert "ASSUMPTION_ZONE_C_VEHICLE_ACCESS" not in zone_c_sms.assumption_ids
+
+
+def test_source_backed_zone_context_replaces_demo_zone_inputs(monkeypatch) -> None:
+    store = seeded_store()
+
+    def fake_demographics(_profile_config):
+        return {
+            "population": 10000,
+            "age_65_plus": 2500,
+            "age_85_plus": 300,
+            "age_65_plus_ratio": 0.25,
+            "age_85_plus_ratio": 0.03,
+            "source_url": "https://api.statcan.gc.ca/census-recensement/profile/sdmx/rest/data/example",
+        }
+
+    def fake_road_access(zone, _road_events):
+        return {
+            "access_score": 0.31 if zone["zone_id"] == "ZONE_C" else 0.62,
+            "road_segment_count": 42,
+            "sample_cap": 500,
+            "total_road_km_sampled": 25.0,
+            "paved_road_km_sampled": 2.0,
+            "rough_road_km_sampled": 18.0,
+            "highway_or_arterial_km_sampled": 0.0,
+            "named_road_count_sampled": 3,
+            "sample_named_roads": ["Example Rd"],
+            "road_class_counts": {"resource": 20, "local": 22},
+            "nearby_closure_ids": ["DBC_REPLAY_CLOSURE_001"],
+        }
+
+    monkeypatch.setattr("app.services.source_zone_context.fetch_statscan_demographics", fake_demographics)
+    monkeypatch.setattr("app.services.source_zone_context.fetch_bc_dra_road_access", fake_road_access)
+
+    result = sync_source_backed_zone_context(store)
+    context = store.incident_context()
+    zones = {zone["zone_id"]: zone for zone in context["zones"]}
+
+    assert result["status"] == "synced"
+    assert result["updated_zone_ids"] == ["ZONE_A", "ZONE_B", "ZONE_C"]
+    assert zones["ZONE_C"]["vulnerable_count"] == 4
+    assert zones["ZONE_C"]["vehicle_access_score"] == 0.31
+    assert zones["ZONE_C"]["vulnerable_count_estimated"] is False
+    assert zones["ZONE_C"]["vehicle_access_score_estimated"] is False
+    assert zones["ZONE_C"]["zone_operations_source_type"] == "official_statscan_dra_zone_context"
+    assert any(
+        item["assumption_id"] == "INPUT_ZONE_C_SOURCE_BACKED_ZONE_CONTEXT"
+        and item["status"] == "source_backed_proxy_not_registry"
+        for item in context["operational_assumptions"]
+    )
+    status = source_backed_zone_context_status(store)
+    assert status["latest_update_count"] == 3
+
+    assessment = run_assessment(store)
+    zone_c_sms = [
+        action
+        for action in assessment.actions
+        if action.action_type == "resident_sms" and action.target == "ZONE_C"
+    ][0]
+    dispatch_task = [
+        action
+        for action in assessment.actions
+        if action.action_type == "dispatch_task" and action.target == "ZONE_C"
+    ][0]
+    assert "INPUT_ZONE_C_SOURCE_BACKED_ZONE_CONTEXT" in zone_c_sms.assumption_ids
+    assert "INPUT_ZONE_C_SOURCE_BACKED_ZONE_CONTEXT" in dispatch_task.assumption_ids
+    assert "ASSUMPTION_ZONE_C_VULNERABILITY" not in dispatch_task.assumption_ids
+    assert "ASSUMPTION_ZONE_C_VEHICLE_ACCESS" not in dispatch_task.assumption_ids
 
 
 def test_google_sheets_zone_operations_parser_rejects_bad_rows() -> None:

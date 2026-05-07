@@ -201,5 +201,7 @@ export type IntegrationStatus = {
   gemini: Record<string, unknown>;
   arize: Record<string, unknown>;
   shelter_capacity?: Record<string, unknown>;
+  source_backed_zone_context?: Record<string, unknown>;
+  zone_operations?: Record<string, unknown>;
   action_tasks?: Record<string, unknown>;
 };

@@ -17,7 +17,7 @@ def google_sheets_capacity_status(store: FireGuardStore) -> dict[str, Any]:
     settings = store.settings
     updates = [
         update
-        for update in store.list("capacity_updates")
+        for update in store.capacity_updates()
         if update.get("source_type") == "google_sheets_capacity_feed"
     ]
     latest = sorted(updates, key=lambda item: item.get("ingested_at") or item.get("updated_at") or "")[-1] if updates else None

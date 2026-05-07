@@ -426,6 +426,12 @@ class FireGuardStore:
     def _shelters_with_capacity_updates(self) -> list[dict[str, Any]]:
         return self._apply_capacity_updates(self.list("shelters"), self._capacity_updates())
 
+    def capacity_updates(self) -> list[dict[str, Any]]:
+        return self._capacity_updates()
+
+    def zone_updates(self) -> list[dict[str, Any]]:
+        return self._zone_updates()
+
     def _capacity_updates(self) -> list[dict[str, Any]]:
         updates = {update["_id"]: update for update in self.list("capacity_updates") if update.get("_id")}
         if self.es and not self.elastic_error:

@@ -54,6 +54,10 @@ export function syncShelterCapacitySheet() {
   return request<Record<string, unknown>>("/sync/google-sheets-shelter-capacity", { method: "POST" });
 }
 
+export function syncSourceBackedZoneContext() {
+  return request<Record<string, unknown>>("/sync/source-backed-zone-context", { method: "POST" });
+}
+
 export function runEval(incidentId: string) {
   return request<Record<string, unknown>>(`/evals/${incidentId}`, { method: "POST" });
 }

@@ -1,12 +1,12 @@
 "use client";
 
-import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, Database, FileSpreadsheet, Play, RefreshCcw, Send, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, Database, FileSpreadsheet, MapPinned, Play, RefreshCcw, Send, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { MapPanel } from "@/components/MapPanel";
 import { StatusBadge } from "@/components/StatusBadge";
-import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, registerResidentTestContact, resetDemo, runAssessment, runEval, syncFivetranToElastic, syncShelterCapacitySheet } from "@/lib/api";
+import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, registerResidentTestContact, resetDemo, runAssessment, runEval, syncFivetranToElastic, syncShelterCapacitySheet, syncSourceBackedZoneContext } from "@/lib/api";
 import type { ActionItem, AssessmentResult, IncidentContext, IntegrationStatus } from "@/lib/types";
 
 function buttonClass(kind: "primary" | "secondary" | "danger" = "secondary") {
@@ -153,6 +153,19 @@ export default function Home() {
     }
   }
 
+  async function handleSourceZoneContextSync() {
+    setBusy("source-zone-context");
+    setError(null);
+    try {
+      await syncSourceBackedZoneContext();
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleCapacityConfirm(shelterId: string, capacityAvailable: number, capacityTotal: number) {
     setBusy(`capacity-${shelterId}`);
     setError(null);
@@ -207,6 +220,9 @@ export default function Home() {
             </button>
             <button className={buttonClass()} onClick={handleShelterCapacitySheetSync} disabled={busy !== null}>
               <FileSpreadsheet size={16} /> Sync Shelter Sheet
+            </button>
+            <button className={buttonClass()} onClick={handleSourceZoneContextSync} disabled={busy !== null}>
+              <MapPinned size={16} /> Sync Census/Roads
             </button>
             <button className={buttonClass("danger")} onClick={handleAssessment} disabled={busy !== null}>
               <Play size={16} /> Run Agent Assessment
@@ -546,8 +562,10 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
   const shelterCapacityDetail = shelterCapacityConfigured
     ? `${String(shelterCapacity?.range || "shelter_capacity!A:F")}; latest ${String(shelterCapacity?.latest_update_at || "not synced yet")}`
     : "Share a Google Sheet with the Cloud Run service account and set the sheet ID.";
+  const sourceZoneContext = status?.source_backed_zone_context as Record<string, unknown> | undefined;
+  const sourceZoneUpdateCount = Number(sourceZoneContext?.latest_update_count || 0);
   return (
-    <section className="grid gap-2 border-b border-line bg-panel/70 px-4 py-3 md:grid-cols-2 xl:grid-cols-6">
+    <section className="grid gap-2 border-b border-line bg-panel/70 px-4 py-3 md:grid-cols-2 xl:grid-cols-7">
       <ProviderCard
         title="Fivetran"
         icon={<Database size={16} />}
@@ -575,6 +593,13 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
         value={shelterCapacityValue}
         detail={shelterCapacityDetail}
         tone={shelterCapacityConfigured ? "ok" : "warn"}
+      />
+      <ProviderCard
+        title="Census/Roads"
+        icon={<MapPinned size={16} />}
+        value={sourceZoneUpdateCount ? `${sourceZoneUpdateCount} zone updates` : "sync needed"}
+        detail={sourceZoneUpdateCount ? `latest ${String(sourceZoneContext?.latest_update_at || "not synced yet")}` : "StatsCan Census Profile + BC Digital Road Atlas WFS"}
+        tone={sourceZoneUpdateCount ? "ok" : "warn"}
       />
       <ProviderCard
         title="Arize Phoenix"

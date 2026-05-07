@@ -220,7 +220,10 @@ def _safety_flags(
         flags.append("Shared first segment with Zone A creates congestion risk if simultaneous.")
 
     if zone["zone_id"] == "ZONE_C":
-        flags.append("Low vehicle access and high vulnerable population require dispatch-assisted movement.")
+        if float(zone.get("vehicle_access_score") or 0) < 0.45:
+            flags.append("Source-backed road-access score is low; unsupported self-evacuation requires dispatcher review.")
+        else:
+            flags.append("Self-evacuation requires dispatcher review because no safe route is currently verified.")
         blocking = True
 
     return flags, sorted(set(evidence_ids)), sorted(set(assumption_ids)), blocking
@@ -381,7 +384,10 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
         return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), True, ["Shared rural corridor with Zone A creates congestion risk if simultaneous."], points, [])
     if zone_id == "ZONE_C":
         points = [origin, closure_point or origin, dest]
-        flags = ["Self-evacuation route crosses fire-risk buffer.", "Low vehicle access and high vulnerable population require dispatch-assisted movement."]
+        flags = [
+            "Self-evacuation route crosses fire-risk buffer.",
+            "Source-backed road-access score is low; unsupported self-evacuation requires dispatcher review.",
+        ]
         if closure_id:
             flags.insert(0, "Outbound route enters the DriveBC closure impact buffer.")
         fire_ids = [

@@ -460,11 +460,25 @@ def operational_assumptions(
 
     for zone in zones:
         if zone.get("zone_operations_source_type"):
+            source_type = zone.get("zone_operations_source_type")
+            if source_type == "official_statscan_dra_zone_context":
+                assumption_id = f"INPUT_{zone['zone_id']}_SOURCE_BACKED_ZONE_CONTEXT"
+                label = f"{zone['zone_id']} vulnerable/access data is source-backed"
+                status = "source_backed_proxy_not_registry"
+                fix_path = (
+                    "For production, replace the 65+ Census proxy with an authorized "
+                    "vulnerable-population registry aggregate if one is legally available."
+                )
+            else:
+                assumption_id = f"INPUT_{zone['zone_id']}_ZONE_OPERATIONS_OPERATOR_CONFIRMED"
+                label = f"{zone['zone_id']} vulnerable/access data is operator-confirmed"
+                status = "operator_confirmed_not_official_registry"
+                fix_path = "Replace with authorized municipal vulnerable-population and transportation-access feeds for production."
             assumptions.append({
-                "assumption_id": f"INPUT_{zone['zone_id']}_ZONE_OPERATIONS_OPERATOR_CONFIRMED",
+                "assumption_id": assumption_id,
                 "component": "zone_operational_data",
                 "target": zone["zone_id"],
-                "label": f"{zone['zone_id']} vulnerable/access data is operator-confirmed",
+                "label": label,
                 "detail": zone.get("zone_operations_source_label", "Operator-maintained zone operations feed."),
                 "affects_decision": True,
                 "current_value": {
@@ -472,8 +486,8 @@ def operational_assumptions(
                     "vehicle_access_score": zone.get("vehicle_access_score"),
                     "zone_operations_update_id": zone.get("zone_operations_update_id"),
                 },
-                "fix_path": "Replace with authorized municipal vulnerable-population and transportation-access feeds for production.",
-                "status": "operator_confirmed_not_official_registry",
+                "fix_path": fix_path,
+                "status": status,
             })
         if zone.get("vulnerable_count_estimated"):
             assumptions.append({

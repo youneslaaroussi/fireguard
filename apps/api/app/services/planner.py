@@ -125,7 +125,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         message=f"[DEMO - FireGuard] {zone_c_name} should shelter in place temporarily. A dispatch task is being created for vulnerable residents.",
         rationale=[
             "Self-evacuation routes cross the closure or fire-risk buffer.",
-            "Vulnerable population and low vehicle access make unsupported evacuation unsafe.",
+            "Source-backed road-access context makes unsupported evacuation unsafe.",
             "FireGuard requests dispatcher assignment but does not claim any specific vehicle is available.",
         ],
         evidence_ids=risk_by_zone["ZONE_C"].evidence_ids,
@@ -245,11 +245,11 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
                 "priority": "critical",
                 "source_plan_id": plan.plan_id,
             },
-            "Zone C has high vulnerable count and unsafe self-evacuation routes; a human dispatcher must assign actual resources.",
+            "Zone C has unsafe self-evacuation routes and low source-backed road access; a human dispatcher must assign actual resources.",
             ["ZONE_C"],
             plan.confidence,
             settings=settings,
-            assumption_ids=["ASSUMPTION_ZONE_C_VULNERABILITY", "ASSUMPTION_ZONE_C_VEHICLE_ACCESS"],
+            assumption_ids=_zone_decision_tracking_ids(context, "ZONE_C"),
         ),
     ])
     approval = create_approval(bundle_id)

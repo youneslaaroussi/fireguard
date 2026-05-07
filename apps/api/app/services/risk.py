@@ -62,7 +62,7 @@ def compute_zone_risk(zone: dict, context: dict) -> ZoneRisk:
         f"Nearest active hotspot is {nearest_fire_km:.1f} km from {zone['name']}.",
         f"Wind from {wind.get('wind_direction_degrees', 'unknown')} degrees favors spread toward the corridor.",
         "Primary local access route has an active DriveBC closure." if road_exit_risk_score > 0.8 else "No primary exit closure is known for this zone.",
-        f"{zone['vulnerable_count']} vulnerable residents and vehicle access score {zone['vehicle_access_score']:.2f}.",
+        f"{zone['vulnerable_count']} vulnerable-population proxy count and evacuation access score {zone['vehicle_access_score']:.2f}.",
     ]
     if shelter_constraint_score > 0.5:
         factors.append("Nearest shelter capacity is insufficient for a full-zone movement.")

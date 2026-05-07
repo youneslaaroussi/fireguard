@@ -18,7 +18,7 @@ def google_sheets_zone_operations_status(store: FireGuardStore) -> dict[str, Any
     spreadsheet_id = _spreadsheet_id(settings)
     updates = [
         update
-        for update in store.list("zone_updates")
+        for update in store.zone_updates()
         if update.get("source_type") == "google_sheets_zone_operations_feed"
     ]
     latest = sorted(updates, key=lambda item: item.get("ingested_at") or item.get("updated_at") or "")[-1] if updates else None
