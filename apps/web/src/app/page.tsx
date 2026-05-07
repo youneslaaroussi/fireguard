@@ -1,12 +1,12 @@
 "use client";
 
-import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, Database, Play, RefreshCcw, Send, ShieldCheck } from "lucide-react";
+import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, Database, FileSpreadsheet, Play, RefreshCcw, Send, ShieldCheck } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { MapPanel } from "@/components/MapPanel";
 import { StatusBadge } from "@/components/StatusBadge";
-import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, registerResidentTestContact, resetDemo, runAssessment, runEval, syncFivetranToElastic } from "@/lib/api";
+import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, registerResidentTestContact, resetDemo, runAssessment, runEval, syncFivetranToElastic, syncShelterCapacitySheet } from "@/lib/api";
 import type { ActionItem, AssessmentResult, IncidentContext, IntegrationStatus } from "@/lib/types";
 
 function buttonClass(kind: "primary" | "secondary" | "danger" = "secondary") {
@@ -140,6 +140,19 @@ export default function Home() {
     }
   }
 
+  async function handleShelterCapacitySheetSync() {
+    setBusy("shelter-sheet");
+    setError(null);
+    try {
+      await syncShelterCapacitySheet();
+      await load();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function handleCapacityConfirm(shelterId: string, capacityAvailable: number, capacityTotal: number) {
     setBusy(`capacity-${shelterId}`);
     setError(null);
@@ -191,6 +204,9 @@ export default function Home() {
             </button>
             <button className={buttonClass()} onClick={handleFivetranSync} disabled={busy !== null}>
               <Database size={16} /> Sync Fivetran To Elastic
+            </button>
+            <button className={buttonClass()} onClick={handleShelterCapacitySheetSync} disabled={busy !== null}>
+              <FileSpreadsheet size={16} /> Sync Shelter Sheet
             </button>
             <button className={buttonClass("danger")} onClick={handleAssessment} disabled={busy !== null}>
               <Play size={16} /> Run Agent Assessment
@@ -523,8 +539,15 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
     : `${arizeDeployment}; Phoenix ${String(arizeCheck?.status || "unchecked")}; AX ${String(arizeAxCheck?.status || "unchecked")}`;
   const taskBackend = String(status?.action_tasks?.backend || "pending");
   const taskRepo = String(status?.action_tasks?.github_repo || "no repo configured");
+  const shelterCapacity = status?.shelter_capacity as Record<string, unknown> | undefined;
+  const shelterCapacityConfigured = shelterCapacity?.configured === true;
+  const shelterCapacityUpdates = Number(shelterCapacity?.latest_update_count || 0);
+  const shelterCapacityValue = shelterCapacityConfigured ? `${shelterCapacityUpdates} sheet updates` : "sheet needed";
+  const shelterCapacityDetail = shelterCapacityConfigured
+    ? `${String(shelterCapacity?.range || "shelter_capacity!A:F")}; latest ${String(shelterCapacity?.latest_update_at || "not synced yet")}`
+    : "Share a Google Sheet with the Cloud Run service account and set the sheet ID.";
   return (
-    <section className="grid gap-2 border-b border-line bg-panel/70 px-4 py-3 md:grid-cols-5">
+    <section className="grid gap-2 border-b border-line bg-panel/70 px-4 py-3 md:grid-cols-2 xl:grid-cols-6">
       <ProviderCard
         title="Fivetran"
         icon={<Database size={16} />}
@@ -545,6 +568,13 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
         value={String(status?.gemini?.model || "gemini-3.1-flash-lite-preview")}
         detail={status?.gemini?.configured ? "Google Cloud project configured" : "tool API ready, project needed"}
         tone={status?.gemini?.configured ? "ok" : "warn"}
+      />
+      <ProviderCard
+        title="Shelter Sheet"
+        icon={<FileSpreadsheet size={16} />}
+        value={shelterCapacityValue}
+        detail={shelterCapacityDetail}
+        tone={shelterCapacityConfigured ? "ok" : "warn"}
       />
       <ProviderCard
         title="Arize Phoenix"

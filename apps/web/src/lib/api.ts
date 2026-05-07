@@ -50,6 +50,10 @@ export function syncFivetranToElastic() {
   return request<Record<string, unknown>>("/sync/fivetran-to-elastic", { method: "POST" });
 }
 
+export function syncShelterCapacitySheet() {
+  return request<Record<string, unknown>>("/sync/google-sheets-shelter-capacity", { method: "POST" });
+}
+
 export function runEval(incidentId: string) {
   return request<Record<string, unknown>>(`/evals/${incidentId}`, { method: "POST" });
 }
