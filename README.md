@@ -118,6 +118,8 @@ After Fivetran syncs into BigQuery, call:
 curl -X POST http://localhost:8000/sync/fivetran-to-elastic
 ```
 
+The hosted deployment also has Cloud Scheduler jobs documented in `infra/cloudrun/scheduler.md` that refresh Fivetran-to-Elastic and public BC context every 15 minutes.
+
 Direct `/ingest/*` API routes remain as replay/dev fallback only.
 
 ## Action Task Backend
