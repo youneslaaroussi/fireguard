@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     fivetran_connection_id: str | None = None
     fivetran_bigquery_project: str | None = None
     fivetran_bigquery_dataset: str = "fireguard_ingestion"
+    fivetran_sync_on_startup: bool = False
 
     nasa_firms_map_key: str | None = None
     nasa_firms_source: str = "VIIRS_SNPP_NRT"

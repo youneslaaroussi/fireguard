@@ -192,6 +192,7 @@ export type AssessmentResult = {
   gemini_status?: string | null;
   gemini_tool_calls?: string[];
   phoenix_trace_ids?: string[];
+  arize_ax_trace_ids?: string[];
 };
 
 export type IntegrationStatus = {

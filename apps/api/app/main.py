@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.routers import actions, agent, evals, incidents, ingest, integrations, residents, shelters, sync, tools, traces
+from app.services.fivetran import sync_fivetran_to_elastic
 from app.services.store import INDEX_MAPPINGS, get_store
 
 settings = get_settings()
@@ -36,7 +37,10 @@ app.include_router(traces.router)
 
 @app.on_event("startup")
 def startup() -> None:
-    get_store(settings).ensure_seeded()
+    store = get_store(settings)
+    store.ensure_seeded()
+    if settings.fivetran_sync_on_startup:
+        sync_fivetran_to_elastic(store)
 
 
 @app.get("/health")

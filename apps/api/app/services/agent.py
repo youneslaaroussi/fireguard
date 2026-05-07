@@ -118,6 +118,7 @@ def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_
         gemini_status=agent_review.get("status"),
         gemini_tool_calls=agent_review.get("tool_calls", []),
         phoenix_trace_ids=trace.phoenix_trace_ids,
+        arize_ax_trace_ids=trace.arize_ax_trace_ids,
     )
 
 

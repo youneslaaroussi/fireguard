@@ -158,6 +158,23 @@ def test_full_assessment_creates_auditable_action_bundle() -> None:
     assert any("closure" in alt["reason"].lower() for alt in assessment.plan.rejected_alternatives)
 
 
+def test_assessment_response_includes_phoenix_and_arize_trace_ids(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "app.services.trace.trace_tool_span",
+        lambda _settings, _incident_id, event_id, *_args, **_kwargs: f"phoenix-trace:{event_id}",
+    )
+    monkeypatch.setattr(
+        "app.services.trace.trace_arize_ax_span",
+        lambda _settings, _incident_id, event_id, *_args, **_kwargs: f"arize-trace:{event_id}",
+    )
+    store = seeded_store()
+    assessment = run_assessment(store)
+
+    assert assessment.phoenix_trace_ids
+    assert assessment.arize_ax_trace_ids
+    assert len(assessment.arize_ax_trace_ids) == len(assessment.trace)
+
+
 def test_context_labels_source_backed_zones_and_synthetic_operations() -> None:
     store = seeded_store()
     context = store.incident_context()

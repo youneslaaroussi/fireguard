@@ -118,6 +118,7 @@ class AssessmentResult(BaseModel):
     gemini_status: str | None = None
     gemini_tool_calls: list[str] = Field(default_factory=list)
     phoenix_trace_ids: list[str] = Field(default_factory=list)
+    arize_ax_trace_ids: list[str] = Field(default_factory=list)
 
 
 class ToolRequest(BaseModel):

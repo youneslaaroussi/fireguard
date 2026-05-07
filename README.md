@@ -76,6 +76,7 @@ See `.env.example`. The keys needed for a full submission are:
 - `ELASTICSEARCH_URL` and `ELASTICSEARCH_API_KEY`
 - `FIVETRAN_API_KEY`, `FIVETRAN_API_SECRET`, `FIVETRAN_DESTINATION_NAME`
 - `FIVETRAN_BIGQUERY_PROJECT`, `FIVETRAN_BIGQUERY_DATASET`
+- Optional `FIVETRAN_SYNC_ON_STARTUP=true` for deployed demo services that should hydrate from BigQuery immediately after Cloud Run replacement
 - `NASA_FIRMS_MAP_KEY`
 - `GOOGLE_CLOUD_PROJECT`
 - `GOOGLE_MAPS_API_KEY`
