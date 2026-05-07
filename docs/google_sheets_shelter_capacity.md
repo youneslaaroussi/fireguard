@@ -52,3 +52,15 @@ curl -X POST https://fireguard-api-dovhkdlznq-uc.a.run.app/sync/google-sheets-sh
 ```
 
 The sync rejects rows where the shelter ID is unknown, capacity is negative, or available capacity exceeds total capacity. Accepted rows update downstream route/action assumptions from capacity assumptions to operator-maintained Google Sheets inputs.
+
+Capacity cells may be formatted with thousands separators, such as `3,500`; the sync normalizes them to integers before validation.
+
+## Hosted Verification
+
+On `2026-05-07`, the hosted API read the shared `FireGuard` Sheet, tab `shelter_capacity`, and synced this operator row:
+
+```csv
+SHELTER_B,3500,3100,railyard-operator,live operator sheet check,2026-05-07T14:00:00Z
+```
+
+The hosted sync returned `status=synced`, `updated_count=1`, and `updated_shelter_ids=["SHELTER_B"]`. The next hosted assessment carried `capacity_source_type=google_sheets_capacity_feed` and the generated `capacity_update_id` into the Shelter B notification action payload.

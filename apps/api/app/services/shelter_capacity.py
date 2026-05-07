@@ -41,7 +41,16 @@ def sync_google_sheets_shelter_capacity(store: FireGuardStore) -> dict[str, Any]
             "reason": "GOOGLE_SHEETS_CAPACITY_SPREADSHEET_ID is not configured.",
         }
 
-    values = _read_sheets_values(settings)
+    try:
+        values = _read_sheets_values(settings)
+    except Exception as exc:  # pragma: no cover - provider/network dependent
+        return {
+            "provider": "google_sheets",
+            "status": "failed",
+            "configured": True,
+            "range": settings.google_sheets_capacity_range,
+            "reason": _provider_error_reason(exc),
+        }
     parsed = parse_capacity_sheet_values(values, store)
     for update in parsed["updates"]:
         store.upsert("capacity_updates", update["update_id"], update)
@@ -134,7 +143,7 @@ def _read_sheets_values(settings: Settings) -> list[list[Any]]:
     session = AuthorizedSession(credentials)
     spreadsheet_id = quote(settings.google_sheets_capacity_spreadsheet_id or "", safe="")
     range_name = quote(settings.google_sheets_capacity_range, safe="")
-    url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{range_name}"
+    url = f"https://sheets.googleapis.com/v4/spreadsheets/{spreadsheet_id}/values/{range_name}?valueRenderOption=UNFORMATTED_VALUE"
     response = session.get(url, timeout=20)
     response.raise_for_status()
     payload = response.json()
@@ -150,10 +159,22 @@ def _row_to_record(headers: list[str], row: list[Any]) -> dict[str, Any]:
 
 
 def _parse_non_negative_int(value: Any) -> int:
-    text = str(value).strip()
+    text = str(value).strip().replace(",", "")
     if not text:
         raise ValueError("Required capacity value is blank.")
     parsed = int(float(text))
     if parsed < 0:
         raise ValueError("Capacity values must be non-negative.")
     return parsed
+
+
+def _provider_error_reason(exc: Exception) -> str:
+    response = getattr(exc, "response", None)
+    status_code = getattr(response, "status_code", None)
+    if status_code == 404:
+        return "Spreadsheet or range was not found, or the Cloud Run service account does not have access."
+    if status_code == 403:
+        return "Sheets API denied access for the Cloud Run service account."
+    if status_code:
+        return f"Sheets API request failed with HTTP {status_code}."
+    return str(exc)[:300]

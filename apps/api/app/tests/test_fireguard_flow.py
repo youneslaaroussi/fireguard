@@ -479,6 +479,7 @@ def test_operator_capacity_check_in_updates_shelter_and_assumptions() -> None:
     shelter_action = [action for action in assessment.actions if action.action_type == "shelter_notify"][0]
     assert "INPUT_SHELTER_B_CAPACITY_OPERATOR_CONFIRMED" in shelter_action.assumption_ids
     assert shelter_action.payload["capacity_operator_confirmed"] is True
+    assert shelter_action.payload["capacity_source_type"] == "operator_capacity_check_in"
 
 
 def test_capacity_updates_overlay_seeded_shelters() -> None:
@@ -523,7 +524,7 @@ def test_google_sheets_capacity_feed_updates_shelter_and_assumptions(monkeypatch
     def fake_read(_settings: Settings) -> list[list[str]]:
         return [
             ["shelter_id", "capacity_total", "capacity_available", "updated_by", "note", "updated_at"],
-            ["SHELTER_B", "3500", "3100", "railyard-operator", "sheet test", "2026-05-07T14:00:00Z"],
+            ["SHELTER_B", "3,500", "3100", "railyard-operator", "sheet test", "2026-05-07T14:00:00Z"],
         ]
 
     monkeypatch.setattr("app.services.shelter_capacity._read_sheets_values", fake_read)
@@ -544,6 +545,10 @@ def test_google_sheets_capacity_feed_updates_shelter_and_assumptions(monkeypatch
     status = google_sheets_capacity_status(store)
     assert status["configured"] is True
     assert status["latest_update_count"] == 1
+    assessment = run_assessment(store)
+    shelter_action = [action for action in assessment.actions if action.action_type == "shelter_notify"][0]
+    assert shelter_action.payload["capacity_source_type"] == "google_sheets_capacity_feed"
+    assert shelter_action.payload["capacity_update_id"].startswith("SHEETS_CAPACITY_SHELTER_B_")
 
 
 def test_google_sheets_capacity_parser_rejects_bad_rows() -> None:
@@ -561,6 +566,37 @@ def test_google_sheets_capacity_parser_rejects_bad_rows() -> None:
     assert len(parsed["errors"]) == 2
     assert "cannot exceed" in parsed["errors"][0]["reason"]
     assert parsed["errors"][1]["reason"] == "Shelter not found."
+
+
+def test_google_sheets_sync_returns_failed_status_on_provider_error(monkeypatch) -> None:
+    settings = Settings(
+        demo_mode=True,
+        google_sheets_capacity_spreadsheet_id="sheet-123",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+
+    class FakeResponse:
+        status_code = 404
+
+    error = RuntimeError("provider failed")
+    error.response = FakeResponse()
+
+    def fake_read(_settings: Settings) -> list[list[str]]:
+        raise error
+
+    monkeypatch.setattr("app.services.shelter_capacity._read_sheets_values", fake_read)
+    result = sync_google_sheets_shelter_capacity(store)
+
+    assert result["status"] == "failed"
+    assert "service account" in result["reason"]
 
 
 def test_public_bc_emergency_context_is_source_backed() -> None:
