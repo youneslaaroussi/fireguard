@@ -33,3 +33,22 @@ On `JOIN`, FireGuard stores:
 - whether the phone is present in `TWILIO_ALLOWLIST`.
 
 Outbound SMS still requires the number to be in `TWILIO_ALLOWLIST`, so a random inbound sender cannot trigger outbound alert delivery.
+
+## Hosted Verification
+
+On `2026-05-07T17:46:23Z`, the hosted Cloud Run API received a real Twilio inbound SMS webhook from `TwilioProxy/1.1` at:
+
+```text
+POST /resident-contacts/twilio/inbound
+```
+
+The request returned HTTP 200 and stored `ZONE_C` as a non-synthetic Twilio opt-in contact with masked phone `+1***6110` and Twilio message SID `SMbbfa5e9f4a789d5ab67773b09886d992`.
+
+The next hosted assessment completed Gemini and the Zone C resident SMS action carried:
+
+```text
+INPUT_ZONE_C_ZONE_OPERATIONS_OPERATOR_CONFIRMED
+INPUT_ZONE_C_CONTACT_TWILIO_OPT_IN
+```
+
+No synthetic Zone C contact placeholder or stale derived Zone C vulnerable/access assumption was attached to that action.

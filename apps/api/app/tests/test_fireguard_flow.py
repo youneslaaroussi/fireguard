@@ -647,6 +647,15 @@ def test_google_sheets_zone_operations_feed_updates_zone_assumptions(monkeypatch
     status = google_sheets_zone_operations_status(store)
     assert status["configured"] is True
     assert status["latest_update_count"] == 1
+    assessment = run_assessment(store)
+    zone_c_sms = [
+        action
+        for action in assessment.actions
+        if action.action_type == "resident_sms" and action.target == "ZONE_C"
+    ][0]
+    assert "INPUT_ZONE_C_ZONE_OPERATIONS_OPERATOR_CONFIRMED" in zone_c_sms.assumption_ids
+    assert "ASSUMPTION_ZONE_C_VULNERABILITY" not in zone_c_sms.assumption_ids
+    assert "ASSUMPTION_ZONE_C_VEHICLE_ACCESS" not in zone_c_sms.assumption_ids
 
 
 def test_google_sheets_zone_operations_parser_rejects_bad_rows() -> None:

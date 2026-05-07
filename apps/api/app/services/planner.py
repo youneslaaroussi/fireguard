@@ -40,6 +40,15 @@ def _resident_contact_tracking_ids(context: dict, zone_id: str) -> list[str]:
     ]
 
 
+def _zone_decision_tracking_ids(context: dict, zone_id: str) -> list[str]:
+    return [
+        str(assumption["assumption_id"])
+        for assumption in context.get("operational_assumptions", [])
+        if assumption.get("component") in {"zone_demographics", "zone_accessibility", "zone_operational_data"}
+        and assumption.get("target") == zone_id
+    ]
+
+
 def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], routes: list) -> EvacuationPlan:
     risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
     zones_by_id = _by_id(context.get("zones", []), "zone_id")
@@ -94,7 +103,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         message=zone_a_message,
         rationale=zone_a_rationale,
         evidence_ids=risk_by_zone["ZONE_A"].evidence_ids + (route_a.evidence_ids if route_a else []),
-        assumption_ids=_route_assumption_ids(route_a),
+        assumption_ids=_route_assumption_ids(route_a) + _zone_decision_tracking_ids(context, "ZONE_A"),
     ))
     steps.append(PlanStep(
         step_id="STEP_ZONE_B_STAGE",
@@ -105,7 +114,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         message=zone_b_message,
         rationale=zone_b_rationale,
         evidence_ids=risk_by_zone["ZONE_B"].evidence_ids + (route_b.evidence_ids if route_b else []),
-        assumption_ids=_route_assumption_ids(route_b),
+        assumption_ids=_route_assumption_ids(route_b) + _zone_decision_tracking_ids(context, "ZONE_B"),
     ))
     steps.append(PlanStep(
         step_id="STEP_ZONE_C_SHELTER_DISPATCH",
@@ -120,7 +129,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
             "FireGuard requests dispatcher assignment but does not claim any specific vehicle is available.",
         ],
         evidence_ids=risk_by_zone["ZONE_C"].evidence_ids,
-        assumption_ids=["ASSUMPTION_ZONE_C_VULNERABILITY", "ASSUMPTION_ZONE_C_VEHICLE_ACCESS"],
+        assumption_ids=_zone_decision_tracking_ids(context, "ZONE_C"),
     ))
 
     plan_id = f"PLAN_{uuid.uuid4().hex[:8].upper()}"
