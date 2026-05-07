@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.services.phoenix import annotate_trace_eval, trace_tool_span
+from app.services.phoenix import annotate_trace_eval, trace_arize_ax_span, trace_tool_span
 from app.services.store import FireGuardStore
 from app.services.time import now_iso
 
@@ -53,5 +53,17 @@ def evaluate_incident(store: FireGuardStore, incident_id: str) -> dict[str, Any]
         annotation = annotate_trace_eval(store.settings, phoenix_trace_id, result)
         if annotation:
             result["phoenix_annotation"] = annotation
+    arize_ax_trace_id = trace_arize_ax_span(
+        store.settings,
+        incident_id,
+        eval_id,
+        "evaluate",
+        "arize_ax_eval",
+        {"incident_id": incident_id},
+        result,
+        [],
+    )
+    if arize_ax_trace_id:
+        result["arize_ax_trace_id"] = arize_ax_trace_id
     store.upsert("evals", eval_id, result)
     return result

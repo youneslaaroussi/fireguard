@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     phoenix_auth_enabled: bool = False
     phoenix_status_timeout_seconds: float = 10.0
     phoenix_storage_backend: str = "local_or_external"
+    arize_ax_tracing_enabled: bool = True
+    arize_space_id: str | None = None
+    arize_api_key: str | None = None
+    arize_collector_endpoint: str = "https://otlp.arize.com/v1/traces"
+    arize_project_name: str = "fireguard"
 
     action_webhook_secret: str = "dev-secret"
     action_task_backend: str = "simulated_webhook"

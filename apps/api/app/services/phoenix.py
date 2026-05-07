@@ -14,6 +14,10 @@ _tracer: Any | None = None
 _provider: Any | None = None
 _last_error: str | None = None
 _disabled_after_error = False
+_arize_ax_tracer: Any | None = None
+_arize_ax_provider: Any | None = None
+_arize_ax_last_error: str | None = None
+_arize_ax_disabled_after_error = False
 
 
 def phoenix_package_installed() -> bool:
@@ -37,6 +41,7 @@ def phoenix_status(settings: Settings) -> dict[str, Any]:
         "api_key_configured": bool(settings.phoenix_api_key),
         "connection_check": connection_check,
         "configuration_hint": _configuration_hint(settings, endpoint, connection_check),
+        "arize_ax": arize_ax_status(settings),
         "last_error": _last_error,
         "disabled_after_error": _disabled_after_error,
     }
@@ -167,6 +172,120 @@ def _configuration_hint(settings: Settings, endpoint: str, connection_check: dic
         return "Set PHOENIX_API_KEY before using Phoenix Cloud."
     if connection_check.get("http_status") == 401:
         return "Phoenix Cloud returned 401. Provide a valid Phoenix Cloud API key and, if your account uses spaces, set PHOENIX_CLOUD_SPACE_NAME or a space-specific PHOENIX_COLLECTOR_ENDPOINT."
+    return None
+
+
+def arize_ax_status(settings: Settings) -> dict[str, Any]:
+    configured = bool(settings.arize_space_id and settings.arize_api_key)
+    return {
+        "enabled": settings.arize_ax_tracing_enabled,
+        "configured": configured,
+        "endpoint": settings.arize_collector_endpoint,
+        "project": settings.arize_project_name,
+        "space_id_configured": bool(settings.arize_space_id),
+        "api_key_configured": bool(settings.arize_api_key),
+        "connection_check": _arize_ax_connection_check(settings) if configured else {"status": "skipped", "reason": "ARIZE_SPACE_ID and ARIZE_API_KEY are not configured."},
+        "last_error": _arize_ax_last_error,
+        "disabled_after_error": _arize_ax_disabled_after_error,
+    }
+
+
+def _arize_ax_connection_check(settings: Settings) -> dict[str, Any]:
+    try:
+        from opentelemetry.proto.collector.trace.v1.trace_service_pb2 import ExportTraceServiceRequest
+
+        payload = ExportTraceServiceRequest().SerializeToString()
+        request = urllib.request.Request(
+            settings.arize_collector_endpoint,
+            data=payload,
+            headers={
+                "Content-Type": "application/x-protobuf",
+                "space_id": settings.arize_space_id or "",
+                "api_key": settings.arize_api_key or "",
+            },
+            method="POST",
+        )
+        with urllib.request.urlopen(request, timeout=settings.phoenix_status_timeout_seconds) as response:
+            response.read()
+            return {"status": "ok", "http_status": response.status}
+    except urllib.error.HTTPError as exc:
+        return {"status": "failed", "http_status": exc.code, "error": "Arize AX OTLP check failed."}
+    except Exception as exc:  # pragma: no cover - provider/network dependent
+        return {"status": "failed", "error": str(exc)[:300]}
+
+
+def _get_arize_ax_tracer(settings: Settings) -> Any | None:
+    global _arize_ax_disabled_after_error, _arize_ax_last_error, _arize_ax_provider, _arize_ax_tracer
+    if not settings.arize_ax_tracing_enabled or not settings.arize_space_id or not settings.arize_api_key:
+        return None
+    if _arize_ax_disabled_after_error:
+        return None
+    if _arize_ax_tracer is not None:
+        return _arize_ax_tracer
+    try:
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import SimpleSpanProcessor
+
+        resource = Resource.create({
+            "service.name": "fireguard-api",
+            "model_id": settings.arize_project_name,
+            "project.name": settings.arize_project_name,
+        })
+        exporter = OTLPSpanExporter(
+            endpoint=settings.arize_collector_endpoint,
+            headers={
+                "space_id": settings.arize_space_id,
+                "api_key": settings.arize_api_key,
+            },
+        )
+        _arize_ax_provider = TracerProvider(resource=resource)
+        _arize_ax_provider.add_span_processor(SimpleSpanProcessor(exporter))
+        _arize_ax_tracer = _arize_ax_provider.get_tracer("fireguard-arize-ax")
+        _arize_ax_last_error = None
+        return _arize_ax_tracer
+    except Exception as exc:  # pragma: no cover - optional provider path
+        _arize_ax_last_error = str(exc)
+        _arize_ax_disabled_after_error = True
+        return None
+
+
+def trace_arize_ax_span(
+    settings: Settings,
+    incident_id: str,
+    event_id: str,
+    step: str,
+    tool: str,
+    inputs: dict[str, Any],
+    output: Any,
+    evidence_ids: list[str],
+    assumption_ids: list[str] | None = None,
+) -> str | None:
+    global _arize_ax_disabled_after_error, _arize_ax_last_error
+    tracer = _get_arize_ax_tracer(settings)
+    if tracer is None:
+        return None
+    try:
+        from opentelemetry import trace as trace_api
+
+        with tracer.start_as_current_span(f"fireguard.{tool}") as span:
+            span.set_attribute("fireguard.incident_id", incident_id)
+            span.set_attribute("fireguard.event_id", event_id)
+            span.set_attribute("fireguard.step", step)
+            span.set_attribute("fireguard.tool", tool)
+            span.set_attribute("fireguard.evidence_ids", json.dumps(evidence_ids))
+            span.set_attribute("fireguard.assumption_ids", json.dumps(assumption_ids or []))
+            span.set_attribute("fireguard.inputs", json.dumps(inputs, default=str)[:4000])
+            span.set_attribute("fireguard.output_type", type(output).__name__)
+            span.set_attribute("openinference.span.kind", "TOOL")
+            span.set_attribute("model_id", settings.arize_project_name)
+            span_context = trace_api.get_current_span().get_span_context()
+            if span_context.is_valid:
+                return f"{span_context.trace_id:032x}:{span_context.span_id:016x}"
+    except Exception as exc:  # pragma: no cover - exporter/runtime dependent
+        _arize_ax_last_error = str(exc)
+        _arize_ax_disabled_after_error = True
     return None
 
 

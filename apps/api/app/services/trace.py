@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.config import Settings, get_settings
-from app.services.phoenix import trace_tool_span
+from app.services.phoenix import trace_arize_ax_span, trace_tool_span
 from app.services.time import now_iso
 
 
@@ -13,6 +13,7 @@ class TraceRecorder:
         self.settings = settings or get_settings()
         self.events: list[dict[str, Any]] = []
         self.phoenix_trace_ids: list[str] = []
+        self.arize_ax_trace_ids: list[str] = []
 
     def add(
         self,
@@ -39,6 +40,19 @@ class TraceRecorder:
         )
         if phoenix_trace_id:
             self.phoenix_trace_ids.append(phoenix_trace_id)
+        arize_ax_trace_id = trace_arize_ax_span(
+            self.settings,
+            self.incident_id,
+            event_id,
+            step,
+            tool,
+            inputs,
+            output,
+            evidence,
+            assumptions,
+        )
+        if arize_ax_trace_id:
+            self.arize_ax_trace_ids.append(arize_ax_trace_id)
         event = {
             "event_id": event_id,
             "incident_id": self.incident_id,
@@ -49,6 +63,7 @@ class TraceRecorder:
             "evidence_ids": evidence,
             "assumption_ids": assumptions,
             "phoenix_trace_id": phoenix_trace_id,
+            "arize_ax_trace_id": arize_ax_trace_id,
             "created_at": now_iso(),
         }
         self.events.append(event)

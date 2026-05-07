@@ -96,7 +96,14 @@ def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_
         store.upsert("action_logs", action.action_id, action.model_dump())
     store.upsert("approval_requests", approval.approval_id, approval.model_dump())
     trace_id = f"TRACE_{incident_id}_{now_iso()}"
-    store.upsert("traces", trace_id, {"trace_id": trace_id, "incident_id": incident_id, "events": trace.events, "phoenix_trace_ids": trace.phoenix_trace_ids, "created_at": now_iso()})
+    store.upsert("traces", trace_id, {
+        "trace_id": trace_id,
+        "incident_id": incident_id,
+        "events": trace.events,
+        "phoenix_trace_ids": trace.phoenix_trace_ids,
+        "arize_ax_trace_ids": trace.arize_ax_trace_ids,
+        "created_at": now_iso(),
+    })
     evaluate_incident(store, incident_id)
 
     return AssessmentResult(

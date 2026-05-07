@@ -143,7 +143,7 @@ python3 -m pip install arize-phoenix
 phoenix serve
 ```
 
-The API exports spans to `PHOENIX_COLLECTOR_ENDPOINT`, defaulting to `http://localhost:6006/v1/traces`. The deployed demo currently uses a self-hosted Arize Phoenix service on Cloud Run because the provided Arize Cloud key returns `401` against Phoenix Cloud REST. Hosted Arize Cloud can be enabled by setting `PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com`, `PHOENIX_CLOUD_SPACE_NAME=<space-name>`, `PHOENIX_API_KEY`, and `PHOENIX_AUTH_ENABLED=true` after a valid Phoenix Cloud key/space is available. You can also set `PHOENIX_COLLECTOR_ENDPOINT` directly to `https://app.phoenix.arize.com/s/<space-name>/v1/traces`.
+The API exports spans to `PHOENIX_COLLECTOR_ENDPOINT`, defaulting to `http://localhost:6006/v1/traces`. The deployed demo uses a self-hosted Arize Phoenix service on Cloud Run for the in-app audit view and can also export duplicate OpenTelemetry spans to Arize AX when `ARIZE_SPACE_ID` and `ARIZE_API_KEY` are configured. Phoenix Cloud can be enabled separately by setting `PHOENIX_COLLECTOR_ENDPOINT=https://app.phoenix.arize.com`, `PHOENIX_CLOUD_SPACE_NAME=<space-name>`, `PHOENIX_API_KEY`, and `PHOENIX_AUTH_ENABLED=true` after a valid Phoenix Cloud key/space is available. You can also set `PHOENIX_COLLECTOR_ENDPOINT` directly to `https://app.phoenix.arize.com/s/<space-name>/v1/traces`.
 
 The Cloud Run Phoenix service now uses Cloud SQL PostgreSQL through `PHOENIX_SQL_DATABASE_URL` stored in Secret Manager. The API reports the expected status through `PHOENIX_STORAGE_BACKEND=cloud_sql_postgresql` in deployed environments. Eval runs create a Phoenix span and then attach a native `fireguard_eval` trace annotation with the deterministic safety checks.
 

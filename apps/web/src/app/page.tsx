@@ -485,6 +485,7 @@ export default function Home() {
               <p className="mt-2 text-xs text-slate-400">Evidence: {Array.isArray(event.evidence_ids) ? event.evidence_ids.join(", ") || "none" : "none"}</p>
               <p className="mt-1 text-xs text-amber-200">Assumptions: {Array.isArray(event.assumption_ids) ? event.assumption_ids.join(", ") || "none" : "none"}</p>
               <p className="mt-1 text-xs text-slate-500">Phoenix: {String(event.phoenix_trace_id || "pending/local-disabled")}</p>
+              <p className="mt-1 text-xs text-slate-500">Arize AX: {String(event.arize_ax_trace_id || "pending/not-configured")}</p>
             </div>
           ))}
         </div>
@@ -512,12 +513,14 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
   const passed = evalChecks ? Object.values(evalChecks).filter(Boolean).length : 0;
   const arizeCheck = status?.arize?.connection_check as Record<string, unknown> | undefined;
-  const arizeOk = status?.arize?.enabled === true && arizeCheck?.status === "ok";
+  const arizeAx = status?.arize?.arize_ax as Record<string, unknown> | undefined;
+  const arizeAxCheck = arizeAx?.connection_check as Record<string, unknown> | undefined;
+  const arizeOk = (status?.arize?.enabled === true && arizeCheck?.status === "ok") || arizeAxCheck?.status === "ok";
   const arizeDeployment = String(status?.arize?.deployment || "local");
   const arizeStorage = String(status?.arize?.storage_backend || "storage unreported");
   const arizeDetail = evalChecks
-    ? `${passed}/${Object.keys(evalChecks).length} eval checks passed; ${arizeStorage}`
-    : `${arizeDeployment}; ${arizeStorage}; ${String(arizeCheck?.status || "unchecked")}`;
+    ? `${passed}/${Object.keys(evalChecks).length} eval checks passed; AX ${String(arizeAxCheck?.status || "unchecked")}; ${arizeStorage}`
+    : `${arizeDeployment}; Phoenix ${String(arizeCheck?.status || "unchecked")}; AX ${String(arizeAxCheck?.status || "unchecked")}`;
   const taskBackend = String(status?.action_tasks?.backend || "pending");
   const taskRepo = String(status?.action_tasks?.github_repo || "no repo configured");
   return (

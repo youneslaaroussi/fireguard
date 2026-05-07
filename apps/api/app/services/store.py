@@ -511,6 +511,11 @@ class FireGuardStore:
             for trace in self.list("traces")
             for span_id in trace.get("phoenix_trace_ids", [])
         ]
+        arize_ax_span_ids = [
+            span_id
+            for trace in self.list("traces")
+            for span_id in trace.get("arize_ax_trace_ids", [])
+        ]
         return {
             "fivetran": {
                 "configured": bool(self.settings.fivetran_api_key and self.settings.fivetran_api_secret),
@@ -537,6 +542,13 @@ class FireGuardStore:
                 "endpoint": self.settings.phoenix_collector_endpoint,
                 "project": self.settings.phoenix_project_name,
                 "exported_span_count": len(phoenix_span_ids),
+            },
+            "arize_ax": {
+                "enabled": self.settings.arize_ax_tracing_enabled,
+                "configured": bool(self.settings.arize_space_id and self.settings.arize_api_key),
+                "endpoint": self.settings.arize_collector_endpoint,
+                "project": self.settings.arize_project_name,
+                "exported_span_count": len(arize_ax_span_ids),
             },
             "action_tasks": {
                 "backend": self.settings.action_task_backend,

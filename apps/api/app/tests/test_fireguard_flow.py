@@ -645,6 +645,44 @@ def test_phoenix_cloud_space_name_builds_space_specific_endpoint() -> None:
     assert _application_url(endpoint) == "https://app.phoenix.arize.com/s/deep-shot"
 
 
+def test_arize_ax_status_checks_otlp_without_exposing_credentials(monkeypatch) -> None:
+    from app.services.phoenix import arize_ax_status
+
+    settings = Settings(
+        arize_space_id="test-space-id",
+        arize_api_key="test-arize-secret",
+        arize_collector_endpoint="https://otlp.arize.com/v1/traces",
+        phoenix_tracing_enabled=False,
+    )
+
+    class FakeResponse:
+        status = 200
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self) -> bytes:
+            return b""
+
+    def fake_urlopen(request, timeout):
+        headers = dict(request.header_items())
+        assert headers["Space_id"] == "test-space-id"
+        assert headers["Api_key"] == "test-arize-secret"
+        assert timeout == settings.phoenix_status_timeout_seconds
+        return FakeResponse()
+
+    monkeypatch.setattr("app.services.phoenix.urllib.request.urlopen", fake_urlopen)
+    status = arize_ax_status(settings)
+
+    assert status["connection_check"]["status"] == "ok"
+    assert status["connection_check"]["http_status"] == 200
+    assert "test-arize-secret" not in json.dumps(status)
+    assert "test-space-id" not in json.dumps(status)
+
+
 def test_eval_records_safety_and_grounding() -> None:
     store = seeded_store()
     assessment = run_assessment(store)
