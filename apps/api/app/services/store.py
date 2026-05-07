@@ -31,6 +31,7 @@ INDEX_NAMES = [
     "ingestion_runs",
     "plans",
     "capacity_updates",
+    "zone_updates",
     "contact_updates",
 ]
 
@@ -85,6 +86,17 @@ INDEX_MAPPINGS: dict[str, dict[str, Any]] = {
             "source_type": {"type": "keyword"},
             "capacity_total": {"type": "integer"},
             "capacity_available": {"type": "integer"},
+        }
+    },
+    "zone_updates": {
+        "properties": {
+            "update_id": {"type": "keyword"},
+            "zone_id": {"type": "keyword"},
+            "updated_at": {"type": "date"},
+            "updated_by": {"type": "keyword"},
+            "source_type": {"type": "keyword"},
+            "vulnerable_count": {"type": "integer"},
+            "vehicle_access_score": {"type": "float"},
         }
     },
     "contact_updates": {
@@ -354,7 +366,7 @@ class FireGuardStore:
                 for item in disclosures
             ]
         shelters = self._shelters_with_capacity_updates()
-        zones = self.list("evacuation_zones")
+        zones = self._zones_with_operational_updates()
         dispatch_assets = self.list("dispatch_assets")
         resident_contacts = self.resident_contacts_with_updates()
         context = {
@@ -387,6 +399,9 @@ class FireGuardStore:
     def resident_contacts_with_updates(self) -> list[dict[str, Any]]:
         return self._apply_contact_updates(self.list("resident_contacts"), self._contact_updates())
 
+    def _zones_with_operational_updates(self) -> list[dict[str, Any]]:
+        return self._apply_zone_updates(self.list("evacuation_zones"), self._zone_updates())
+
     @staticmethod
     def _resident_contact_status(residents: list[dict[str, Any]]) -> list[dict[str, Any]]:
         return [
@@ -417,6 +432,23 @@ class FireGuardStore:
             try:
                 response = self.es.search(
                     index="capacity_updates",
+                    size=200,
+                    query={"match_all": {}},
+                    sort=[{"updated_at": {"order": "desc"}}],
+                )
+                for hit in response["hits"]["hits"]:
+                    source = {**hit["_source"], "_id": hit["_id"]}
+                    updates[hit["_id"]] = source
+            except Exception as exc:  # pragma: no cover - external Elastic only
+                self.elastic_error = str(exc)
+        return list(updates.values())
+
+    def _zone_updates(self) -> list[dict[str, Any]]:
+        updates = {update["_id"]: update for update in self.list("zone_updates") if update.get("_id")}
+        if self.es and not self.elastic_error:
+            try:
+                response = self.es.search(
+                    index="zone_updates",
                     size=200,
                     query={"match_all": {}},
                     sort=[{"updated_at": {"order": "desc"}}],
@@ -486,6 +518,49 @@ class FireGuardStore:
                 "updated_at": update.get("updated_at") or shelter.get("updated_at"),
             })
         return updated_shelters
+
+    @staticmethod
+    def _apply_zone_updates(zones: list[dict[str, Any]], updates: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        latest_by_zone: dict[str, dict[str, Any]] = {}
+        for update in sorted(updates, key=lambda item: item.get("updated_at", "")):
+            if update.get("zone_id"):
+                latest_by_zone[update["zone_id"]] = update
+
+        updated_zones = []
+        for zone in zones:
+            update = latest_by_zone.get(zone["zone_id"])
+            if not update:
+                updated_zones.append(zone)
+                continue
+            source_label = (
+                update.get("source_label")
+                or f"Google Sheets zone operations feed row by {update.get('updated_by')} at {update.get('updated_at')}; "
+                "not an official vulnerable-population or transportation registry unless separately authorized."
+            )
+            merged = {
+                **zone,
+                "zone_operations_source_type": update.get("source_type") or "google_sheets_zone_operations_feed",
+                "zone_operations_source_label": source_label,
+                "zone_operations_update_id": update.get("update_id") or update.get("_id"),
+                "zone_operations_confirmed_at": update.get("updated_at"),
+                "zone_operations_confirmed_by": update.get("updated_by"),
+                "zone_operations_update_note": update.get("note"),
+                "updated_at": update.get("updated_at") or zone.get("updated_at"),
+            }
+            if update.get("vulnerable_count") is not None:
+                merged.update({
+                    "vulnerable_count": update["vulnerable_count"],
+                    "vulnerable_count_estimated": False,
+                    "vulnerability_source_label": source_label,
+                })
+            if update.get("vehicle_access_score") is not None:
+                merged.update({
+                    "vehicle_access_score": update["vehicle_access_score"],
+                    "vehicle_access_score_estimated": False,
+                    "vehicle_access_source_label": source_label,
+                })
+            updated_zones.append(merged)
+        return updated_zones
 
     @staticmethod
     def _apply_contact_updates(residents: list[dict[str, Any]], updates: list[dict[str, Any]]) -> list[dict[str, Any]]:

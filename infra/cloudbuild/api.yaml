@@ -1,3 +1,6 @@
+substitutions:
+  _IMAGE: us-central1-docker.pkg.dev/verdant-upgrade-493301-q1/fireguard/fireguard-api:manual
+
 steps:
   - name: gcr.io/cloud-builders/docker
     args:
@@ -7,5 +10,6 @@ steps:
       - -t
       - ${_IMAGE}
       - .
+
 images:
   - ${_IMAGE}

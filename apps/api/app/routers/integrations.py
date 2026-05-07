@@ -7,6 +7,7 @@ from app.services.gemini import gemini_status
 from app.services.phoenix import phoenix_status
 from app.services.shelter_capacity import google_sheets_capacity_status
 from app.services.store import FireGuardStore
+from app.services.zone_operations import google_sheets_zone_operations_status
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -20,6 +21,7 @@ def integration_status(settings: Settings = Depends(get_settings), store: FireGu
         "arize": phoenix_status(settings),
         "action_tasks": store.provider_status()["action_tasks"],
         "shelter_capacity": google_sheets_capacity_status(store),
+        "zone_operations": google_sheets_zone_operations_status(store),
     }
 
 

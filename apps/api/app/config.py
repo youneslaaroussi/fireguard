@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     google_maps_api_key: str | None = None
     google_sheets_capacity_spreadsheet_id: str | None = None
     google_sheets_capacity_range: str = "shelter_capacity!A:F"
+    google_sheets_zone_operations_spreadsheet_id: str | None = None
+    google_sheets_zone_operations_range: str = "zone_operations!A:F"
 
     twilio_account_sid: str | None = None
     twilio_auth_token: str | None = None

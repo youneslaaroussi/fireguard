@@ -25,6 +25,11 @@ from app.services.shelter_capacity import (
     sync_google_sheets_shelter_capacity,
 )
 from app.services.store import FireGuardStore
+from app.services.zone_operations import (
+    google_sheets_zone_operations_status,
+    parse_zone_operations_sheet_values,
+    sync_google_sheets_zone_operations,
+)
 
 
 def seeded_store() -> FireGuardStore:
@@ -594,6 +599,101 @@ def test_google_sheets_sync_returns_failed_status_on_provider_error(monkeypatch)
 
     monkeypatch.setattr("app.services.shelter_capacity._read_sheets_values", fake_read)
     result = sync_google_sheets_shelter_capacity(store)
+
+    assert result["status"] == "failed"
+    assert "service account" in result["reason"]
+
+
+def test_google_sheets_zone_operations_feed_updates_zone_assumptions(monkeypatch) -> None:
+    settings = Settings(
+        demo_mode=True,
+        google_sheets_capacity_spreadsheet_id="sheet-123",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+
+    def fake_read(_settings: Settings, _spreadsheet_id: str) -> list[list[str]]:
+        return [
+            ["zone_id", "vulnerable_count", "vehicle_access_score", "updated_by", "note", "updated_at"],
+            ["ZONE_C", "275", "0.35", "access-branch", "operator access check", "2026-05-07T16:00:00Z"],
+        ]
+
+    monkeypatch.setattr("app.services.zone_operations._read_sheets_values", fake_read)
+    result = sync_google_sheets_zone_operations(store)
+    context = store.incident_context()
+    zone = {item["zone_id"]: item for item in context["zones"]}["ZONE_C"]
+
+    assert result["status"] == "synced"
+    assert result["updated_zone_ids"] == ["ZONE_C"]
+    assert zone["vulnerable_count"] == 275
+    assert zone["vulnerable_count_estimated"] is False
+    assert zone["vehicle_access_score"] == 0.35
+    assert zone["vehicle_access_score_estimated"] is False
+    assert zone["zone_operations_source_type"] == "google_sheets_zone_operations_feed"
+    assert any(
+        item["assumption_id"] == "INPUT_ZONE_C_ZONE_OPERATIONS_OPERATOR_CONFIRMED"
+        and item["status"] == "operator_confirmed_not_official_registry"
+        for item in context["operational_assumptions"]
+    )
+    assert not any(item["assumption_id"] == "ASSUMPTION_ZONE_C_VULNERABILITY" for item in context["operational_assumptions"])
+    assert not any(item["assumption_id"] == "ASSUMPTION_ZONE_C_VEHICLE_ACCESS" for item in context["operational_assumptions"])
+    status = google_sheets_zone_operations_status(store)
+    assert status["configured"] is True
+    assert status["latest_update_count"] == 1
+
+
+def test_google_sheets_zone_operations_parser_rejects_bad_rows() -> None:
+    store = seeded_store()
+    parsed = parse_zone_operations_sheet_values(
+        [
+            ["zone_id", "vulnerable_count", "vehicle_access_score"],
+            ["ZONE_A", "", ""],
+            ["ZONE_B", "100", "1.5"],
+            ["NOPE", "10", "0.2"],
+        ],
+        store,
+    )
+
+    assert parsed["updates"] == []
+    assert len(parsed["errors"]) == 3
+    assert "At least one" in parsed["errors"][0]["reason"]
+    assert "between 0 and 1" in parsed["errors"][1]["reason"]
+    assert parsed["errors"][2]["reason"] == "Evacuation zone not found."
+
+
+def test_google_sheets_zone_operations_sync_returns_failed_status_on_provider_error(monkeypatch) -> None:
+    settings = Settings(
+        demo_mode=True,
+        google_sheets_capacity_spreadsheet_id="sheet-123",
+        phoenix_tracing_enabled=False,
+        gemini_assessment_enabled=False,
+        fivetran_bigquery_project=None,
+        google_application_credentials=None,
+        twilio_account_sid=None,
+        twilio_auth_token=None,
+        twilio_from_number=None,
+    )
+    store = FireGuardStore(settings)
+    store.seed_demo()
+
+    class FakeResponse:
+        status_code = 404
+
+    error = RuntimeError("provider failed")
+    error.response = FakeResponse()
+
+    def fake_read(_settings: Settings, _spreadsheet_id: str) -> list[list[str]]:
+        raise error
+
+    monkeypatch.setattr("app.services.zone_operations._read_sheets_values", fake_read)
+    result = sync_google_sheets_zone_operations(store)
 
     assert result["status"] == "failed"
     assert "service account" in result["reason"]
