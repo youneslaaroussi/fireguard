@@ -296,8 +296,7 @@ button {
   margin-top: 10px;
 }
 
-.ops-provider-row,
-.ops-table-row {
+.ops-provider-row {
   display: grid;
   align-items: center;
   gap: 8px;
@@ -350,11 +349,6 @@ button {
   background: #2d72d2;
 }
 
-.ops-table-row {
-  grid-template-columns: minmax(0, 1fr) 72px max-content;
-}
-
-.ops-table-row span,
 .ops-provider-row span {
   min-width: 0;
   overflow: hidden;
@@ -415,8 +409,101 @@ button {
   min-height: 236px;
 }
 
-.ops-table {
+.ops-action-list {
   margin-top: 8px;
+  display: grid;
+  gap: 7px;
+}
+
+.ops-action-row {
+  position: relative;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 3px 26px minmax(0, 1fr);
+  gap: 9px;
+  border: 1px solid rgba(47, 63, 79, 0.76);
+  background: rgba(8, 18, 26, 0.7);
+  padding: 9px 10px 9px 0;
+}
+
+.ops-action-rail {
+  display: block;
+  width: 3px;
+  height: 100%;
+  background: #5f6b7c;
+}
+
+.ops-action-rail-success {
+  background: #0f9960;
+}
+
+.ops-action-rail-warning {
+  background: #f2b824;
+}
+
+.ops-action-rail-danger {
+  background: #db3737;
+}
+
+.ops-action-rail-primary {
+  background: #2d72d2;
+}
+
+.ops-action-glyph {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(64, 78, 92, 0.85);
+  background: rgba(24, 36, 48, 0.88);
+  color: #cbd4dd;
+}
+
+.ops-action-copy {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+
+.ops-action-title-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: center;
+  gap: 8px;
+}
+
+.ops-action-title-row span {
+  min-width: 0;
+  overflow: hidden;
+  color: #f5f8fa;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.ops-action-meta {
+  min-width: 0;
+  display: flex;
+  gap: 7px;
+  color: #8f99a8;
+  font-size: 11px;
+}
+
+.ops-action-meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-action-meta span + span::before {
+  content: "/";
+  margin-right: 7px;
+  color: #5f6b7c;
 }
 
 .ops-empty-line {

@@ -714,13 +714,9 @@ function OverviewPane({
         <div className="ops-panel-title">
           <H5 className="m-0">Action Queue</H5>
         </div>
-        <div className="ops-table">
+        <div className="ops-action-list">
           {actions.length ? actions.slice(0, 7).map((action) => (
-            <div key={action.action_id} className="ops-table-row">
-              <span>{action.action_type.replaceAll("_", " ")}</span>
-              <span>{action.target}</span>
-              <Tag minimal intent={intentForStatus(action.status)}>{action.status}</Tag>
-            </div>
+            <ActionQueueRow key={action.action_id} action={action} />
           )) : (
             <div className="ops-empty-line">No action bundle drafted.</div>
           )}
@@ -728,6 +724,35 @@ function OverviewPane({
       </section>
     </PaneBody>
   );
+}
+
+function ActionQueueRow({ action }: { action: ActionItem }) {
+  const statusIntent = intentForStatus(action.status);
+  return (
+    <div className="ops-action-row">
+      <span className={`ops-action-rail ops-action-rail-${statusIntent}`} />
+      <span aria-hidden className={`ops-action-glyph bp6-icon bp6-icon-${actionIcon(action.action_type)}`} />
+      <div className="ops-action-copy">
+        <div className="ops-action-title-row">
+          <span>{action.action_type.replaceAll("_", " ")}</span>
+          <Tag minimal intent={statusIntent}>{action.status}</Tag>
+        </div>
+        <div className="ops-action-meta">
+          <span>{action.target}</span>
+          <span>{action.external_system}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function actionIcon(actionType: string) {
+  if (actionType.includes("sms") || actionType.includes("resident")) return "send-message";
+  if (actionType.includes("shelter")) return "home";
+  if (actionType.includes("road")) return "git-branch";
+  if (actionType.includes("dispatch")) return "truck";
+  if (actionType.includes("timeline")) return "timeline-events";
+  return "flows";
 }
 
 function MiniChart({ title, subtitle, values, tone }: { title: string; subtitle: string; values: number[]; tone: string }) {
