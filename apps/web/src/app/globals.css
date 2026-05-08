@@ -320,10 +320,12 @@ button {
   min-width: 0;
   overflow: hidden;
   color: #8f99a8;
+  display: -webkit-box;
   font-size: 11px;
   line-height: 1.25;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
 }
 
 .ops-status-dot {
@@ -522,6 +524,81 @@ button {
   color: #abb3bf;
   font-size: 13px;
   padding: 10px;
+}
+
+.fireguard-workflow {
+  display: grid;
+  gap: 0;
+  border: 1px solid rgba(64, 78, 92, 0.88);
+  background: rgba(8, 14, 20, 0.58);
+  padding: 11px 12px;
+}
+
+.fireguard-workflow-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  gap: 9px;
+  min-height: 38px;
+}
+
+.fireguard-workflow-node {
+  position: relative;
+  z-index: 1;
+  display: block;
+  width: 10px;
+  height: 10px;
+  margin-top: 4px;
+  border: 1px solid rgba(245, 248, 250, 0.24);
+  background: #5f6b7c;
+}
+
+.fireguard-workflow-node.ops-status-success {
+  background: #0f9960;
+}
+
+.fireguard-workflow-node.ops-status-warning {
+  background: #f2b824;
+}
+
+.fireguard-workflow-node.ops-status-danger {
+  background: #db3737;
+}
+
+.fireguard-workflow-node.ops-status-primary {
+  background: #2d72d2;
+}
+
+.fireguard-workflow-line {
+  position: absolute;
+  left: 4px;
+  top: 15px;
+  bottom: -4px;
+  width: 1px;
+  background: rgba(95, 107, 124, 0.45);
+}
+
+.fireguard-workflow-copy {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+}
+
+.fireguard-workflow-copy span {
+  min-width: 0;
+  overflow: hidden;
+  color: #f5f8fa;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fireguard-workflow-copy small {
+  color: #8f99a8;
+  font-size: 11px;
+  line-height: 1.2;
 }
 
 .ops-analytics {

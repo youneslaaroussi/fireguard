@@ -54,7 +54,8 @@ function operatorText(value: string) {
   return value
     .replaceAll("source-backed", "current operational")
     .replaceAll("FireGuard is logging an internal monitoring update instead of sending", "The system will record a monitoring update and will not send")
-    .replaceAll("public evacuation instruction drafted", "public evacuation instruction recommended");
+    .replaceAll("public evacuation instruction drafted", "public evacuation instruction recommended")
+    .replaceAll("current current", "current");
 }
 
 export default function Home() {
@@ -477,6 +478,29 @@ function CommandPanel({
   const plan = assessment?.plan;
   const approved = assessment?.approval.status === "approved";
   const blockers = assumptions.filter((item) => item.blocks_execution).length;
+  const recordCount = (context?.fires.length || 0) + (context?.road_events.length || 0) + (context?.zones.length || 0) + (context?.shelters.length || 0);
+  const workflowSteps = [
+    {
+      label: "Context",
+      detail: context ? `${recordCount} records loaded` : "loading",
+      intent: context ? Intent.SUCCESS : Intent.NONE,
+    },
+    {
+      label: "Assessment",
+      detail: plan ? "recommendation ready" : busy === "assessment" ? "running" : "standby",
+      intent: plan ? Intent.SUCCESS : busy === "assessment" ? Intent.WARNING : Intent.NONE,
+    },
+    {
+      label: "Approval",
+      detail: assessment ? assessment.approval.status : "locked",
+      intent: assessment ? intentForStatus(assessment.approval.status) : Intent.NONE,
+    },
+    {
+      label: "Execution",
+      detail: executedCount ? `${executedCount}/${actions.length} complete` : actions.length ? "pending" : "locked",
+      intent: executedCount ? Intent.SUCCESS : actions.length ? Intent.WARNING : Intent.NONE,
+    },
+  ];
 
   return (
     <PaneBody>
@@ -568,8 +592,27 @@ function CommandPanel({
             )}
           </div>
         </section>
+
+        <WorkflowStatus steps={workflowSteps} />
       </div>
     </PaneBody>
+  );
+}
+
+function WorkflowStatus({ steps }: { steps: Array<{ label: string; detail: string; intent: Intent }> }) {
+  return (
+    <section className="fireguard-workflow">
+      {steps.map((step, index) => (
+        <div key={step.label} className="fireguard-workflow-row">
+          <span className={`fireguard-workflow-node ops-status-${step.intent}`} />
+          {index < steps.length - 1 ? <span className="fireguard-workflow-line" /> : null}
+          <div className="fireguard-workflow-copy">
+            <span>{step.label}</span>
+            <small>{step.detail}</small>
+          </div>
+        </div>
+      ))}
+    </section>
   );
 }
 
