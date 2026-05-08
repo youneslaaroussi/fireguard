@@ -424,13 +424,19 @@ export function MapPanel({ context, assessment }: Props) {
           <MapLegendItem tone="road" label="Road event" />
           <MapLegendItem tone="shelter" label="Shelter" />
           <MapLegendItem tone="zone" label="Zone" />
+          {assessment ? (
+            <>
+              <MapLegendItem tone="route-safe" label="Safe route" />
+              <MapLegendItem tone="route-blocked" label="Blocked route" />
+            </>
+          ) : null}
         </div>
       </div>
     </section>
   );
 }
 
-function MapLegendItem({ tone, label }: { tone: "fire" | "road" | "shelter" | "zone"; label: string }) {
+function MapLegendItem({ tone, label }: { tone: "fire" | "road" | "shelter" | "zone" | "route-safe" | "route-blocked"; label: string }) {
   return (
     <div className="fireguard-map-legend-item">
       <span className={`fireguard-map-legend-symbol fireguard-map-legend-${tone}`} />

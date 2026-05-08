@@ -780,9 +780,15 @@ function ActionQueueRow({ action }: { action: ActionItem }) {
           <span>{action.action_type.replaceAll("_", " ")}</span>
           <Tag minimal intent={statusIntent}>{action.status}</Tag>
         </div>
-        <div className="ops-action-meta">
-          <span>{action.target}</span>
-          <span>{action.external_system}</span>
+        <div className="ops-action-meta-grid">
+          <div>
+            <small>Target</small>
+            <span>{action.target}</span>
+          </div>
+          <div>
+            <small>System</small>
+            <span>{action.external_system}</span>
+          </div>
         </div>
       </div>
     </div>

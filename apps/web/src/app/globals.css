@@ -487,25 +487,37 @@ button {
   white-space: nowrap;
 }
 
-.ops-action-meta {
+.ops-action-meta-grid {
   min-width: 0;
-  display: flex;
-  gap: 7px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 5px;
   color: #8f99a8;
   font-size: 11px;
 }
 
-.ops-action-meta span {
+.ops-action-meta-grid div {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: grid;
+  gap: 1px;
 }
 
-.ops-action-meta span + span::before {
-  content: "/";
-  margin-right: 7px;
-  color: #5f6b7c;
+.ops-action-meta-grid small {
+  color: #6f7c8a;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.ops-action-meta-grid span {
+  min-width: 0;
+  overflow: hidden;
+  color: #aab4c0;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .ops-empty-line {
@@ -666,7 +678,8 @@ button {
 
 .fireguard-map-legend {
   display: grid;
-  gap: 7px;
+  grid-template-columns: repeat(2, max-content);
+  gap: 8px 14px;
   border: 1px solid rgba(64, 78, 92, 0.88);
   background: rgba(11, 18, 24, 0.88);
   padding: 9px 10px;
@@ -714,6 +727,16 @@ button {
   height: 12px;
   border: 1px solid #c0a0ff;
   background: rgba(143, 87, 255, 0.28);
+}
+
+.fireguard-map-legend-route-safe {
+  height: 4px;
+  background: #0f9960;
+}
+
+.fireguard-map-legend-route-blocked {
+  height: 4px;
+  background: repeating-linear-gradient(90deg, #db3737 0 6px, transparent 6px 10px);
 }
 
 .fireguard-command-overview {
