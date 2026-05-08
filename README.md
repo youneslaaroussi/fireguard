@@ -2,37 +2,37 @@
 
 FireGuard is an AI evacuation coordinator that turns wildfire, road, weather, shelter, and population-zone data into staged, human-approved evacuation actions.
 
-This is a Google Cloud Rapid Agent Hackathon project for the **Elastic track**. Elastic is the operational memory and geospatial retrieval layer. Fivetran and Arize Phoenix are visible supporting integrations: Fivetran handles production-style ingestion into BigQuery, and Phoenix/Arize capture trace and eval evidence.
+Elastic is the operational memory and geospatial retrieval layer. Fivetran handles production-style ingestion into BigQuery, and Phoenix/Arize capture trace and evaluation evidence.
 
-The demo loop is:
+Operational loop:
 
 ```text
 real/open data -> Fivetran -> BigQuery -> Elastic -> Gemini tools -> approval -> SMS/tasks -> Phoenix/Arize audit
 ```
 
-FireGuard is not a fire map and not a chatbot. It is a tool-using emergency coordination agent: it retrieves operational context, evaluates conflicting constraints, drafts a staged plan, blocks public actions until human approval, executes test-channel actions, and records the evidence trail.
+The application retrieves operational context, evaluates conflicting constraints, drafts a staged plan, blocks public actions until human approval, executes test-channel actions, and records the evidence trail.
 
-## Hosted Demo
+## Hosted Services
 
 - Web app: https://fireguard-web-dovhkdlznq-uc.a.run.app
 - API docs: https://fireguard-api-dovhkdlznq-uc.a.run.app/docs
 - Repository: https://github.com/youneslaaroussi/fireguard
 - Transparency ledger: [docs/transparency_ledger.md](docs/transparency_ledger.md)
-- Demo script: [docs/demo_script.md](docs/demo_script.md)
+- Walkthrough script: [docs/demo_script.md](docs/demo_script.md)
 
 ## Safety Notice
 
-FireGuard is a hackathon prototype. It does **not** issue official emergency alerts and must not be used for real emergency response. Public-facing actions require explicit approval, SMS delivery is restricted to allowlisted test contacts, and demo action tasks are sent to test channels such as GitHub Issues unless an official agency integration is configured.
+FireGuard does **not** issue official emergency alerts and must not be used for real emergency response. Public-facing actions require explicit approval, SMS delivery is restricted to allowlisted test contacts, and action tasks are sent to test channels such as GitHub Issues unless an official agency integration is configured.
 
-The project intentionally separates:
+Data and actions are labeled by source:
 
 - **real/live provider paths**: Fivetran, BigQuery, Elastic, Gemini, Google Routes, Twilio, Phoenix/Arize;
 - **real public source data**: NASA FIRMS, DriveBC/Open511, BC Wildfire, BC ESS facilities, EmergencyMapBC, Statistics Canada, BC Digital Road Atlas;
-- **operator-provided demo inputs**: shelter capacity Sheet values and test resident opt-ins;
-- **replay mode**: stored real source snapshots for deterministic judging;
-- **simulated endpoints**: municipal systems that are not available to a hackathon team.
+- **operator-provided inputs**: shelter capacity Sheet values and test resident opt-ins;
+- **replay mode**: stored real source snapshots for deterministic runs;
+- **simulated municipal endpoints**: unavailable official systems.
 
-For the complete source-of-truth list, read [docs/transparency_ledger.md](docs/transparency_ledger.md).
+For the detailed status ledger, read [docs/transparency_ledger.md](docs/transparency_ledger.md).
 
 ## Why It Matters
 
@@ -47,7 +47,7 @@ FireGuard closes that gap by converting fragmented signals into a coordinated pl
 - which actions require approval before execution;
 - which evidence justified the decision.
 
-## What Is Real Right Now
+## Provider Status
 
 | Area | Current implementation |
 |---|---|
@@ -63,7 +63,7 @@ FireGuard closes that gap by converting fragmented signals into a coordinated pl
 | Observability | OpenTelemetry spans export to self-hosted Phoenix and duplicate Arize AX OTLP when configured. |
 | Evals | Deterministic eval checks run after assessment and are exported as trace spans. |
 
-Current live BC FIRMS data may not threaten the configured demo zones. In that case FireGuard correctly returns a **monitor-only** internal update and creates no public actions. The staged evacuation and route-rejection story is demonstrated through labeled replay mode unless live conditions genuinely match the scenario.
+Current live BC FIRMS data may not threaten the configured zones. In that case FireGuard returns a **monitor-only** internal update and creates no public actions. Route-rejection workflows use labeled replay mode unless live conditions genuinely match the scenario.
 
 ## Architecture
 
@@ -229,7 +229,7 @@ The API exports OpenTelemetry spans to Phoenix and duplicate spans to Arize AX w
 
 ### Twilio And GitHub Issues
 
-Twilio proves real communication execution, but only to allowlisted test contacts. GitHub Issues prove concrete operational task creation for shelter, road-ops, and dispatch channels. These are test/demo action channels, not official municipal systems.
+Twilio executes real messages, but only to allowlisted test contacts. GitHub Issues creates concrete operational task records for shelter, road-ops, and dispatch channels. These are test action channels, not official municipal systems.
 
 ## Data Sources
 
@@ -251,14 +251,14 @@ Source-backed replay paths:
 - recorded road-event/perimeter/weather snapshots;
 - BC historical evacuation-zone snapshots with provenance.
 
-Operator/demo paths:
+Operator/test paths:
 
 - shelter capacity from operator Sheet or manual check-in;
 - Twilio inbound resident test opt-in;
 - GitHub Issues action tasks;
 - simulated municipal webhooks when GitHub task backend is not configured.
 
-## Demo Flow
+## Walkthrough
 
 1. Open the hosted dashboard.
 2. Show provider strip: Fivetran, Elastic, Gemini, Phoenix/Arize.
@@ -270,10 +270,6 @@ Operator/demo paths:
 8. Approve the action bundle.
 9. Execute actions: Twilio SMS and GitHub Issues tasks.
 10. Open audit view: source records, freshness, confidence, rejected options, evals, Phoenix/Arize trace IDs.
-
-Judging line:
-
-> FireGuard turns fragmented emergency data into coordinated action, with human approval and an audit trail.
 
 ## Local Setup
 
@@ -351,7 +347,7 @@ After Fivetran syncs into BigQuery:
 curl -X POST http://localhost:8000/sync/fivetran-to-elastic
 ```
 
-Direct `/ingest/*` routes remain as replay/dev fallback only.
+Direct `/ingest/*` routes remain as replay/development fallback only.
 
 ## Google ADK Agent
 
@@ -364,7 +360,7 @@ cp fireguard_agent/.env.example fireguard_agent/.env
 adk run fireguard_agent
 ```
 
-The ADK agent loads `tools.openapi.json` and points at the same FastAPI tool endpoints used by the web demo.
+The ADK agent loads `tools.openapi.json` and points at the same FastAPI tool endpoints used by the web application.
 
 ## Phoenix / Arize
 
@@ -456,8 +452,8 @@ Cloud Scheduler jobs are documented in [infra/cloudrun/scheduler.md](infra/cloud
 apps/
   api/        FastAPI backend, deterministic safety services, tool endpoints
   web/        Next.js dashboard
-data/         replay snapshots, source-backed public datasets, synthetic demo fixtures
-docs/         architecture, data sources, transparency ledger, demo script
+data/         replay snapshots, source-backed public datasets, synthetic test fixtures
+docs/         architecture, data sources, transparency ledger, walkthrough script
 infra/        Cloud Run, Cloud Build, Elastic MCP, scheduler notes
 integrations/
   fivetran/   Connector SDK implementation
