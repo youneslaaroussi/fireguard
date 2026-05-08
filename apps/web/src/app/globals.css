@@ -806,6 +806,17 @@ button {
   padding: 8px;
 }
 
+.fireguard-map-style-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fireguard-map-style-row .bp6-button.bp6-active {
+  background: rgba(45, 114, 210, 0.28);
+  color: #f5f8fa;
+}
+
 .fireguard-map-legend {
   display: grid;
   grid-template-columns: repeat(2, max-content);

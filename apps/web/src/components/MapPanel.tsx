@@ -12,8 +12,16 @@ type Props = {
 };
 
 type LayerKey = "fires" | "perimeters" | "roads" | "zones" | "shelters" | "routes" | "public";
+type BasemapKey = "dark" | "satellite" | "streets" | "outdoors";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
+
+const BASEMAPS: Array<{ key: BasemapKey; label: string; styleUrl: string }> = [
+  { key: "dark", label: "Dark", styleUrl: "mapbox://styles/mapbox/dark-v11" },
+  { key: "satellite", label: "Satellite", styleUrl: "mapbox://styles/mapbox/satellite-streets-v12" },
+  { key: "streets", label: "Streets", styleUrl: "mapbox://styles/mapbox/streets-v12" },
+  { key: "outdoors", label: "Terrain", styleUrl: "mapbox://styles/mapbox/outdoors-v12" },
+];
 
 const LAYER_IDS: Record<LayerKey, string[]> = {
   fires: ["fires"],
@@ -24,6 +32,10 @@ const LAYER_IDS: Record<LayerKey, string[]> = {
   routes: ["routes"],
   public: ["public-orders", "public-ess"],
 };
+
+function styleUrlForBasemap(key: BasemapKey) {
+  return BASEMAPS.find((style) => style.key === key)?.styleUrl || BASEMAPS[0].styleUrl;
+}
 
 function pointFeature(id: string, coordinates: [number, number], properties: Record<string, unknown>) {
   return {
@@ -278,6 +290,42 @@ function addSourcesAndLayers(map: Map) {
   }
 }
 
+function applyMapFog(map: Map) {
+  map.setFog?.({
+    color: "rgb(16, 22, 30)",
+    "high-color": "rgb(45, 65, 88)",
+    "horizon-blend": 0.12,
+  });
+}
+
+function setOperationalData(map: Map, collections: ReturnType<typeof buildCollections>) {
+  setSourceData(map, "zones", collections.zones);
+  setSourceData(map, "shelters", collections.shelters);
+  setSourceData(map, "fires", collections.fires);
+  setSourceData(map, "roads", collections.roads);
+  setSourceData(map, "perimeters", collections.perimeters);
+  setSourceData(map, "public-orders", collections.publicOrders);
+  setSourceData(map, "public-ess", collections.publicEss);
+  setSourceData(map, "routes", collections.routes);
+}
+
+function applyLayerVisibility(map: Map, visible: Record<LayerKey, boolean>) {
+  for (const [layerKey, layerIds] of Object.entries(LAYER_IDS) as Array<[LayerKey, string[]]>) {
+    for (const layerId of layerIds) {
+      if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, "visibility", visible[layerKey] ? "visible" : "none");
+      }
+    }
+  }
+}
+
+function hydrateOperationalLayers(map: Map, collections: ReturnType<typeof buildCollections>, visible: Record<LayerKey, boolean>) {
+  applyMapFog(map);
+  addSourcesAndLayers(map);
+  setOperationalData(map, collections);
+  applyLayerVisibility(map, visible);
+}
+
 function featureHtml(properties: mapboxgl.GeoJSONFeature["properties"]) {
   if (!properties) return "<strong>Operational record</strong>";
   const rows = Object.entries(properties)
@@ -291,6 +339,8 @@ function featureHtml(properties: mapboxgl.GeoJSONFeature["properties"]) {
 export function MapPanel({ context, assessment }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
+  const styleRef = useRef<BasemapKey>("dark");
+  const [basemap, setBasemap] = useState<BasemapKey>("dark");
   const [layersOpen, setLayersOpen] = useState(false);
   const [visible, setVisible] = useState<Record<LayerKey, boolean>>({
     fires: true,
@@ -303,7 +353,17 @@ export function MapPanel({ context, assessment }: Props) {
   });
 
   const collections = useMemo(() => buildCollections(context, assessment), [context, assessment]);
+  const collectionsRef = useRef(collections);
+  const visibleRef = useRef(visible);
   const mapboxConfigured = Boolean(MAPBOX_TOKEN);
+
+  useEffect(() => {
+    collectionsRef.current = collections;
+  }, [collections]);
+
+  useEffect(() => {
+    visibleRef.current = visible;
+  }, [visible]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !mapboxConfigured) return;
@@ -316,18 +376,14 @@ export function MapPanel({ context, assessment }: Props) {
       pitch: 42,
       bearing: -18,
       attributionControl: false,
-      style: "mapbox://styles/mapbox/dark-v11",
+      style: styleUrlForBasemap(styleRef.current),
     });
 
     map.addControl(new mapboxgl.NavigationControl({ showCompass: true }), "top-left");
     map.addControl(new mapboxgl.AttributionControl({ compact: true }), "bottom-right");
 
     map.on("load", () => {
-      map.setFog?.({
-        color: "rgb(16, 22, 30)",
-        "high-color": "rgb(45, 65, 88)",
-        "horizon-blend": 0.12,
-      });
+      applyMapFog(map);
       addSourcesAndLayers(map);
       for (const layerId of ["fires", "shelters", "public-orders", "public-ess", "routes", "roads"]) {
         map.on("click", layerId, (event) => {
@@ -356,17 +412,21 @@ export function MapPanel({ context, assessment }: Props) {
 
   useEffect(() => {
     const map = mapRef.current;
+    if (!map || styleRef.current === basemap) return;
+    styleRef.current = basemap;
+    const rehydrate = () => hydrateOperationalLayers(map, collectionsRef.current, visibleRef.current);
+    map.once("style.load", rehydrate);
+    map.setStyle(styleUrlForBasemap(basemap));
+    return () => {
+      map.off("style.load", rehydrate);
+    };
+  }, [basemap]);
+
+  useEffect(() => {
+    const map = mapRef.current;
     if (!map) return;
     const apply = () => {
-      addSourcesAndLayers(map);
-      setSourceData(map, "zones", collections.zones);
-      setSourceData(map, "shelters", collections.shelters);
-      setSourceData(map, "fires", collections.fires);
-      setSourceData(map, "roads", collections.roads);
-      setSourceData(map, "perimeters", collections.perimeters);
-      setSourceData(map, "public-orders", collections.publicOrders);
-      setSourceData(map, "public-ess", collections.publicEss);
-      setSourceData(map, "routes", collections.routes);
+      hydrateOperationalLayers(map, collections, visible);
       const bounds = collectBounds(collections);
       if (bounds && !bounds.isEmpty()) {
         map.fitBounds(bounds, { padding: 80, maxZoom: 9.5, duration: 900 });
@@ -379,13 +439,7 @@ export function MapPanel({ context, assessment }: Props) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map?.loaded()) return;
-    for (const [layerKey, layerIds] of Object.entries(LAYER_IDS) as Array<[LayerKey, string[]]>) {
-      for (const layerId of layerIds) {
-        if (map.getLayer(layerId)) {
-          map.setLayoutProperty(layerId, "visibility", visible[layerKey] ? "visible" : "none");
-        }
-      }
-    }
+    applyLayerVisibility(map, visible);
   }, [visible]);
 
   return (
@@ -393,7 +447,20 @@ export function MapPanel({ context, assessment }: Props) {
       {mapboxConfigured ? <div ref={containerRef} className="absolute inset-0" /> : <MapboxTokenPending context={context} assessment={assessment} />}
       <div className="absolute right-4 top-4 max-w-[460px]">
         <div className="fireguard-map-layer-control shadow-lg">
-          <Button small icon="layers" text="Layers" onClick={() => setLayersOpen((open) => !open)} />
+          <div className="fireguard-map-style-row">
+            <ButtonGroup minimal>
+              {BASEMAPS.map((style) => (
+                <Button
+                  key={style.key}
+                  active={basemap === style.key}
+                  small
+                  text={style.label}
+                  onClick={() => setBasemap(style.key)}
+                />
+              ))}
+            </ButtonGroup>
+            <Button small icon="layers" text="Layers" onClick={() => setLayersOpen((open) => !open)} />
+          </div>
           {layersOpen ? (
             <ButtonGroup className="mt-3 flex flex-wrap" minimal>
               {([
