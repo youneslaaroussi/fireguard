@@ -230,21 +230,29 @@ export default function Home() {
         />
         <div className="ops-grid">
           <div className="ops-left-stack">
-            <CommandPanel
+            <LeftOpsPanel
+              activePane={activePane}
+              status={integrationStatus}
+              evalResult={evalResult}
               context={context}
               assessment={assessment}
               actions={actions}
               assumptions={assumptionsToShow}
+              contactInputs={contactInputs}
               rejectedRoute={rejectedRoute}
               publicActionCount={publicActionCount}
               executedCount={executedCount}
               busy={busy}
+              traceEvents={traceSource}
+              onSelectPane={setActivePane}
               onRunAssessment={handleAssessment}
-              onOpenContext={() => setActivePane("sources")}
-              onOpenPlan={() => setActivePane("evidence")}
               onOpenApproval={() => setApprovalOpen(true)}
-              onOpenActions={() => setActivePane("actions")}
-              onOpenAudit={() => setActivePane("audit")}
+              onRefreshFeeds={handleFivetranSync}
+              onRefreshShelters={handleShelterCapacitySheetSync}
+              onRefreshZones={handleSourceZoneContextSync}
+              onContactChange={(zoneId, phone) => setContactInputs((current) => ({ ...current, [zoneId]: phone }))}
+              onContactCheckIn={handleContactCheckIn}
+              onCapacityConfirm={handleCapacityConfirm}
               onExecute={handleExecute}
             />
           </div>
@@ -253,24 +261,12 @@ export default function Home() {
             <AnalyticsPanel context={context} assessment={assessment} actions={actions} />
           </div>
           <RightOpsPanel
-            activePane={activePane}
             status={integrationStatus}
             evalResult={evalResult}
             context={context}
             assessment={assessment}
             actions={actions}
-            assumptions={assumptionsToShow}
-            contactInputs={contactInputs}
-            busy={busy}
-            traceEvents={traceSource}
             onSelectPane={setActivePane}
-            onRefreshFeeds={handleFivetranSync}
-            onRefreshShelters={handleShelterCapacitySheetSync}
-            onRefreshZones={handleSourceZoneContextSync}
-            onContactChange={(zoneId, phone) => setContactInputs((current) => ({ ...current, [zoneId]: phone }))}
-            onContactCheckIn={handleContactCheckIn}
-            onCapacityConfirm={handleCapacityConfirm}
-            onExecute={handleExecute}
           />
         </div>
       </div>
@@ -349,6 +345,124 @@ function OpsRail({
   );
 }
 
+function LeftOpsPanel({
+  activePane,
+  status,
+  evalResult,
+  context,
+  assessment,
+  actions,
+  assumptions,
+  contactInputs,
+  rejectedRoute,
+  publicActionCount,
+  executedCount,
+  busy,
+  traceEvents,
+  onSelectPane,
+  onRunAssessment,
+  onOpenApproval,
+  onRefreshFeeds,
+  onRefreshShelters,
+  onRefreshZones,
+  onContactChange,
+  onContactCheckIn,
+  onCapacityConfirm,
+  onExecute,
+}: {
+  activePane: ActivePane;
+  status: IntegrationStatus | null;
+  evalResult: Record<string, unknown> | null;
+  context: IncidentContext | null;
+  assessment: AssessmentResult | null;
+  actions: ActionItem[];
+  assumptions: Record<string, unknown>[];
+  contactInputs: Record<string, string>;
+  rejectedRoute?: Record<string, unknown>;
+  publicActionCount: number;
+  executedCount: number;
+  busy: string | null;
+  traceEvents: Array<Record<string, unknown>>;
+  onSelectPane: (pane: ActivePane) => void;
+  onRunAssessment: () => void;
+  onOpenApproval: () => void;
+  onRefreshFeeds: () => void;
+  onRefreshShelters: () => void;
+  onRefreshZones: () => void;
+  onContactChange: (zoneId: string, phone: string) => void;
+  onContactCheckIn: (zoneId: string) => void;
+  onCapacityConfirm: (shelter: Shelter) => void;
+  onExecute: () => void;
+}) {
+  const paneTitle = {
+    overview: "Command",
+    sources: "Sources",
+    evidence: "Evidence",
+    actions: "Actions",
+    audit: "Audit",
+    diagnostics: "Diagnostics",
+  }[activePane];
+
+  const renderPane = () => {
+    if (activePane === "sources") {
+      return (
+        <ContextDetails
+          context={context}
+          assumptions={assumptions}
+          contactInputs={contactInputs}
+          busy={busy}
+          onRefreshFeeds={onRefreshFeeds}
+          onRefreshShelters={onRefreshShelters}
+          onRefreshZones={onRefreshZones}
+          onContactChange={onContactChange}
+          onContactCheckIn={onContactCheckIn}
+          onCapacityConfirm={onCapacityConfirm}
+        />
+      );
+    }
+    if (activePane === "evidence") return <PlanDetails assessment={assessment} />;
+    if (activePane === "actions") return <ActionDetails actions={actions} assessment={assessment} busy={busy} onExecute={onExecute} />;
+    if (activePane === "audit") return <AuditDetails traceEvents={traceEvents} evalResult={evalResult} assessment={assessment} />;
+    if (activePane === "diagnostics") return <ProviderDetails status={status} evalResult={evalResult} />;
+    return (
+      <CommandPanel
+        context={context}
+        assessment={assessment}
+        actions={actions}
+        assumptions={assumptions}
+        rejectedRoute={rejectedRoute}
+        publicActionCount={publicActionCount}
+        executedCount={executedCount}
+        busy={busy}
+        onRunAssessment={onRunAssessment}
+        onOpenContext={() => onSelectPane("sources")}
+        onOpenPlan={() => onSelectPane("evidence")}
+        onOpenApproval={onOpenApproval}
+        onOpenActions={() => onSelectPane("actions")}
+        onOpenAudit={() => onSelectPane("audit")}
+        onExecute={onExecute}
+      />
+    );
+  };
+
+  return (
+    <aside className="fireguard-command-panel">
+      <div className="ops-pane-header">
+        <H5 className="m-0">{paneTitle}</H5>
+        <ButtonGroup minimal className="ops-pane-tabs">
+          <Button active={activePane === "overview"} small icon="dashboard" title="Command overview" onClick={() => onSelectPane("overview")} />
+          <Button active={activePane === "sources"} small icon="folder-open" title="Sources" onClick={() => onSelectPane("sources")} />
+          <Button active={activePane === "evidence"} small icon="timeline-events" title="Evidence" onClick={() => onSelectPane("evidence")} />
+          <Button active={activePane === "actions"} small icon="send-message" title="Actions" onClick={() => onSelectPane("actions")} />
+          <Button active={activePane === "audit"} small icon="path-search" title="Audit" onClick={() => onSelectPane("audit")} disabled={!assessment} />
+          <Button active={activePane === "diagnostics"} small icon="layers" title="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
+        </ButtonGroup>
+      </div>
+      <div className="ops-pane-content">{renderPane()}</div>
+    </aside>
+  );
+}
+
 function CommandPanel({
   context,
   assessment,
@@ -387,88 +501,90 @@ function CommandPanel({
   const blockers = assumptions.filter((item) => item.blocks_execution).length;
 
   return (
-    <aside className="fireguard-command-panel">
-      <section className="fireguard-panel-head">
-        <div>
-          <p className="m-0 text-xs font-semibold uppercase tracking-[0.16em] text-[#8abbff]">Evacuation command</p>
-          <H4 className="mb-0 mt-1">{plan ? "Recommendation Ready" : "Awaiting Assessment"}</H4>
-        </div>
-        <Button icon="play" text={plan ? "Reassess" : "Run Assessment"} intent={Intent.DANGER} loading={busy === "assessment"} disabled={busy !== null} onClick={onRunAssessment} />
-      </section>
-
-      {plan ? (
-        <section className="fireguard-decision-block">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <Tag intent={plan.recommended_strategy === "monitor" ? Intent.PRIMARY : Intent.WARNING}>
-                {plan.recommended_strategy.replaceAll("_", " ")}
-              </Tag>
-              <p className="m-0 mt-3 text-base leading-6 text-[#eef3f7]">{shortText(operatorText(plan.summary), 330)}</p>
-            </div>
-            <Button minimal icon="timeline-events" text="Evidence" onClick={onOpenPlan} />
+    <PaneBody>
+      <div className="fireguard-command-overview">
+        <section className="fireguard-panel-head">
+          <div>
+            <p className="m-0 text-xs font-semibold uppercase tracking-[0.16em] text-[#8abbff]">Evacuation command</p>
+            <H4 className="mb-0 mt-1">{plan ? "Recommendation Ready" : "Awaiting Assessment"}</H4>
           </div>
-          <div className="mt-4">
-            <div className="mb-1 flex items-center justify-between text-xs text-[#abb3bf]">
-              <span>Decision confidence</span>
-              <span>{Math.round(plan.confidence * 100)}%</span>
+          <Button icon="play" text={plan ? "Reassess" : "Run Assessment"} intent={Intent.DANGER} loading={busy === "assessment"} disabled={busy !== null} onClick={onRunAssessment} />
+        </section>
+
+        {plan ? (
+          <section className="fireguard-decision-block">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <Tag intent={plan.recommended_strategy === "monitor" ? Intent.PRIMARY : Intent.WARNING}>
+                  {plan.recommended_strategy.replaceAll("_", " ")}
+                </Tag>
+                <p className="m-0 mt-3 text-base leading-6 text-[#eef3f7]">{shortText(operatorText(plan.summary), 330)}</p>
+              </div>
+              <Button minimal icon="timeline-events" text="Evidence" onClick={onOpenPlan} />
             </div>
-            <ProgressBar intent={Intent.SUCCESS} value={plan.confidence} />
-          </div>
-        </section>
-      ) : (
-        <section className="fireguard-empty-command">
-          <NonIdealState icon="pulse" title="Ready to assess" description="Run the agent when feeds are refreshed and the incident commander is ready." />
-        </section>
-      )}
+            <div className="mt-4">
+              <div className="mb-1 flex items-center justify-between text-xs text-[#abb3bf]">
+                <span>Decision confidence</span>
+                <span>{Math.round(plan.confidence * 100)}%</span>
+              </div>
+              <ProgressBar intent={Intent.SUCCESS} value={plan.confidence} />
+            </div>
+          </section>
+        ) : (
+          <section className="fireguard-empty-command">
+            <NonIdealState icon="pulse" title="Ready to assess" description="Run the agent when feeds are refreshed and the incident commander is ready." />
+          </section>
+        )}
 
-      <section className="fireguard-command-section">
-        <div className="flex items-center justify-between gap-2">
-          <H5 className="m-0">Operational Picture</H5>
-          <Button minimal small icon="folder-open" text="Sources" onClick={onOpenContext} />
-        </div>
-        <div className="mt-3 grid grid-cols-4 gap-2">
-          <MiniMetric label="Fires" value={context?.fires.length ?? 0} intent={Intent.DANGER} />
-          <MiniMetric label="Roads" value={context?.road_events.length ?? 0} intent={Intent.WARNING} />
-          <MiniMetric label="Zones" value={context?.zones.length ?? 0} intent={Intent.NONE} />
-          <MiniMetric label="Shelters" value={context?.shelters.length ?? 0} intent={Intent.PRIMARY} />
-        </div>
-        {assumptions.length ? (
-          <Callout className="mt-3" compact intent={blockers ? Intent.WARNING : Intent.PRIMARY} icon="info-sign">
-            {assumptions.length} input{assumptions.length === 1 ? "" : "s"} need review; {blockers} block public execution.
-          </Callout>
-        ) : null}
-      </section>
-
-      {rejectedRoute ? (
         <section className="fireguard-command-section">
           <div className="flex items-center justify-between gap-2">
-            <H5 className="m-0">Route Decision</H5>
-            <Tag intent={Intent.DANGER}>blocked</Tag>
+            <H5 className="m-0">Operational Picture</H5>
+            <Button minimal small icon="folder-open" text="Sources" onClick={onOpenContext} />
           </div>
-          <p className="m-0 mt-2 text-sm leading-5 text-[#cbd4dd]">{shortText(String(rejectedRoute.reason), 190)}</p>
+          <div className="mt-3 grid grid-cols-4 gap-2">
+            <MiniMetric label="Fires" value={context?.fires.length ?? 0} intent={Intent.DANGER} />
+            <MiniMetric label="Roads" value={context?.road_events.length ?? 0} intent={Intent.WARNING} />
+            <MiniMetric label="Zones" value={context?.zones.length ?? 0} intent={Intent.NONE} />
+            <MiniMetric label="Shelters" value={context?.shelters.length ?? 0} intent={Intent.PRIMARY} />
+          </div>
+          {assumptions.length ? (
+            <Callout className="mt-3" compact intent={blockers ? Intent.WARNING : Intent.PRIMARY} icon="info-sign">
+              {assumptions.length} input{assumptions.length === 1 ? "" : "s"} need review; {blockers} block public execution.
+            </Callout>
+          ) : null}
         </section>
-      ) : null}
 
-      <section className="fireguard-command-section">
-        <div className="flex items-center justify-between gap-2">
-          <H5 className="m-0">Action Control</H5>
-          {assessment ? <Tag intent={intentForStatus(assessment.approval.status)}>{assessment.approval.status}</Tag> : <Tag minimal>locked</Tag>}
-        </div>
-        <div className="mt-3 grid grid-cols-3 gap-2">
-          <MiniMetric label="Drafted" value={actions.length} />
-          <MiniMetric label="Public" value={publicActionCount} />
-          <MiniMetric label="Done" value={executedCount} />
-        </div>
-        <div className="mt-3 grid gap-2">
-          <Button icon="confirm" text="Review & Approve" intent={Intent.PRIMARY} disabled={!assessment || approved} onClick={onOpenApproval} />
-          <div className="grid grid-cols-2 gap-2">
-            <Button icon="send-message" text="Actions" disabled={!actions.length} onClick={onOpenActions} />
-            <Button icon="path-search" text="Audit" disabled={!assessment} onClick={onOpenAudit} />
+        {rejectedRoute ? (
+          <section className="fireguard-command-section">
+            <div className="flex items-center justify-between gap-2">
+              <H5 className="m-0">Route Decision</H5>
+              <Tag intent={Intent.DANGER}>blocked</Tag>
+            </div>
+            <p className="m-0 mt-2 text-sm leading-5 text-[#cbd4dd]">{shortText(String(rejectedRoute.reason), 190)}</p>
+          </section>
+        ) : null}
+
+        <section className="fireguard-command-section">
+          <div className="flex items-center justify-between gap-2">
+            <H5 className="m-0">Action Control</H5>
+            {assessment ? <Tag intent={intentForStatus(assessment.approval.status)}>{assessment.approval.status}</Tag> : <Tag minimal>locked</Tag>}
           </div>
-          <Button icon="play" text="Execute Approved Actions" intent={Intent.SUCCESS} disabled={!assessment || !approved || busy !== null} loading={busy === "execute"} onClick={onExecute} />
-        </div>
-      </section>
-    </aside>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            <MiniMetric label="Drafted" value={actions.length} />
+            <MiniMetric label="Public" value={publicActionCount} />
+            <MiniMetric label="Done" value={executedCount} />
+          </div>
+          <div className="mt-3 grid gap-2">
+            <Button icon="confirm" text="Review & Approve" intent={Intent.PRIMARY} disabled={!assessment || approved} onClick={onOpenApproval} />
+            <div className="grid grid-cols-2 gap-2">
+              <Button icon="send-message" text="Actions" disabled={!actions.length} onClick={onOpenActions} />
+              <Button icon="path-search" text="Audit" disabled={!assessment} onClick={onOpenAudit} />
+            </div>
+            <Button icon="play" text="Execute Approved Actions" intent={Intent.SUCCESS} disabled={!assessment || !approved || busy !== null} loading={busy === "execute"} onClick={onExecute} />
+          </div>
+        </section>
+      </div>
+    </PaneBody>
   );
 }
 
@@ -492,93 +608,23 @@ function AnalyticsPanel({ context, assessment, actions }: { context: IncidentCon
 }
 
 function RightOpsPanel({
-  activePane,
   status,
   evalResult,
   context,
   assessment,
   actions,
-  assumptions,
-  contactInputs,
-  busy,
-  traceEvents,
   onSelectPane,
-  onRefreshFeeds,
-  onRefreshShelters,
-  onRefreshZones,
-  onContactChange,
-  onContactCheckIn,
-  onCapacityConfirm,
-  onExecute,
 }: {
-  activePane: ActivePane;
   status: IntegrationStatus | null;
   evalResult: Record<string, unknown> | null;
   context: IncidentContext | null;
   assessment: AssessmentResult | null;
   actions: ActionItem[];
-  assumptions: Record<string, unknown>[];
-  contactInputs: Record<string, string>;
-  busy: string | null;
-  traceEvents: Array<Record<string, unknown>>;
   onSelectPane: (pane: ActivePane) => void;
-  onRefreshFeeds: () => void;
-  onRefreshShelters: () => void;
-  onRefreshZones: () => void;
-  onContactChange: (zoneId: string, phone: string) => void;
-  onContactCheckIn: (zoneId: string) => void;
-  onCapacityConfirm: (shelter: Shelter) => void;
-  onExecute: () => void;
 }) {
-  const paneTitle = {
-    overview: "Overview",
-    sources: "Sources",
-    evidence: "Evidence",
-    actions: "Actions",
-    audit: "Audit",
-    diagnostics: "Diagnostics",
-  }[activePane];
-
-  const renderPane = () => {
-    if (activePane === "sources") {
-      return (
-        <ContextDetails
-          context={context}
-          assumptions={assumptions}
-          contactInputs={contactInputs}
-          busy={busy}
-          onRefreshFeeds={onRefreshFeeds}
-          onRefreshShelters={onRefreshShelters}
-          onRefreshZones={onRefreshZones}
-          onContactChange={onContactChange}
-          onContactCheckIn={onContactCheckIn}
-          onCapacityConfirm={onCapacityConfirm}
-        />
-      );
-    }
-    if (activePane === "evidence") return <PlanDetails assessment={assessment} />;
-    if (activePane === "actions") return <ActionDetails actions={actions} assessment={assessment} busy={busy} onExecute={onExecute} />;
-    if (activePane === "audit") return <AuditDetails traceEvents={traceEvents} evalResult={evalResult} assessment={assessment} />;
-    if (activePane === "diagnostics") return <ProviderDetails status={status} evalResult={evalResult} />;
-    return <OverviewPane status={status} evalResult={evalResult} context={context} assessment={assessment} actions={actions} onSelectPane={onSelectPane} />;
-  };
-
   return (
     <aside className="ops-right-stack">
-      <section className="ops-tabbed-panel">
-        <div className="ops-pane-header">
-          <H5 className="m-0">{paneTitle}</H5>
-          <ButtonGroup minimal className="ops-pane-tabs">
-            <Button active={activePane === "overview"} small icon="dashboard" title="Overview" onClick={() => onSelectPane("overview")} />
-            <Button active={activePane === "sources"} small icon="folder-open" title="Sources" onClick={() => onSelectPane("sources")} />
-            <Button active={activePane === "evidence"} small icon="timeline-events" title="Evidence" onClick={() => onSelectPane("evidence")} />
-            <Button active={activePane === "actions"} small icon="send-message" title="Actions" onClick={() => onSelectPane("actions")} />
-            <Button active={activePane === "audit"} small icon="path-search" title="Audit" onClick={() => onSelectPane("audit")} disabled={!assessment} />
-            <Button active={activePane === "diagnostics"} small icon="layers" title="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
-          </ButtonGroup>
-        </div>
-        <div className="ops-pane-content">{renderPane()}</div>
-      </section>
+      <OverviewPane status={status} evalResult={evalResult} context={context} assessment={assessment} actions={actions} onSelectPane={onSelectPane} />
     </aside>
   );
 }

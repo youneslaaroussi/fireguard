@@ -313,15 +313,19 @@ button {
 
 .fireguard-command-panel {
   display: grid;
-  grid-auto-rows: max-content;
-  gap: 8px;
+  grid-template-rows: max-content minmax(0, 1fr);
   height: 100%;
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   border: 1px solid rgba(95, 107, 124, 0.7);
   background: rgba(11, 15, 20, 0.94);
-  padding: 8px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.28);
+}
+
+.fireguard-command-overview {
+  display: grid;
+  grid-auto-rows: max-content;
+  gap: 8px;
 }
 
 .fireguard-panel-head,
