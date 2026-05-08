@@ -6,6 +6,8 @@ steps:
       - apps/web/Dockerfile
       - --build-arg
       - NEXT_PUBLIC_API_BASE_URL=${_API_URL}
+      - --build-arg
+      - NEXT_PUBLIC_MAPBOX_TOKEN=${_MAPBOX_TOKEN}
       - -t
       - ${_IMAGE}
       - .
