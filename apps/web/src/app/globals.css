@@ -116,9 +116,32 @@ button {
 }
 
 .ops-rail .bp6-button {
+  position: relative;
   min-width: 34px;
   min-height: 34px;
+  border: 1px solid transparent;
   color: #cbd4dd;
+}
+
+.ops-rail .bp6-button:hover {
+  border-color: rgba(64, 78, 92, 0.86);
+  background: rgba(24, 36, 48, 0.92);
+}
+
+.ops-rail .bp6-button.bp6-active {
+  border-color: rgba(138, 187, 255, 0.64);
+  background: rgba(45, 114, 210, 0.22);
+  color: #f5f8fa;
+}
+
+.ops-rail .bp6-button.bp6-active::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 6px;
+  bottom: 6px;
+  width: 3px;
+  background: #8abbff;
 }
 
 .ops-rail-spacer {
@@ -449,9 +472,13 @@ button {
 }
 
 .fireguard-empty-command {
-  min-height: 180px;
+  min-height: 128px;
   display: grid;
-  place-items: center;
+  align-items: center;
+}
+
+.fireguard-pending-state {
+  max-width: 310px;
 }
 
 .fireguard-mini-metric {

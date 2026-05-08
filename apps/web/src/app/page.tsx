@@ -296,7 +296,6 @@ function OpsTopbar({
         <span className="ops-brand-mark">FG</span>
         <span className="font-semibold">FireGuard</span>
         <Tag minimal intent={Intent.PRIMARY}>Elastic</Tag>
-        <Tag minimal intent={mode === "replay" ? Intent.WARNING : Intent.SUCCESS}>{mode === "replay" ? "Replay" : "Live"}</Tag>
       </div>
       <div className="ops-status-strip" aria-label="Incident status">
         <StatusPill label="Incident" value={mode === "replay" ? "Replay" : "Live"} intent={mode === "replay" ? Intent.WARNING : Intent.SUCCESS} />
@@ -527,7 +526,11 @@ function CommandPanel({
           </section>
         ) : (
           <section className="fireguard-empty-command">
-            <NonIdealState icon="pulse" title="Ready to assess" description="Run the agent when feeds are refreshed and the incident commander is ready." />
+            <div className="fireguard-pending-state">
+              <Tag minimal intent={Intent.NONE}>no plan drafted</Tag>
+              <H5 className="m-0 mt-3">Assessment Pending</H5>
+              <p className="m-0 mt-2 text-sm leading-5 text-[#abb3bf]">Operational signals are loaded; public actions remain locked until an assessment and approval bundle exist.</p>
+            </div>
           </section>
         )}
 
