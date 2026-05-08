@@ -640,7 +640,7 @@ function CenterOpsArea({ context, assessment, actions }: { context: IncidentCont
       <section className="ops-analytics-frame">
         <div className="ops-column-header ops-column-header-compact">
           <div>
-            <p className="ops-section-kicker">Signal trend</p>
+            <p className="ops-section-kicker">Operational summary</p>
             <H5 className="m-0">Risk, Routes, Actions</H5>
           </div>
           <Tag minimal>{actions.length} actions</Tag>
@@ -652,21 +652,109 @@ function CenterOpsArea({ context, assessment, actions }: { context: IncidentCont
 }
 
 function AnalyticsPanel({ context, assessment, actions }: { context: IncidentContext | null; assessment: AssessmentResult | null; actions: ActionItem[] }) {
-  const riskValues = assessment?.plan.zone_risks.map((risk) => Math.round(risk.score * 100)) || [];
-  const routeValues = assessment?.plan.routes.map((route) => route.duration_minutes).filter((value) => Number.isFinite(value)) || [];
-  const actionValues = [
-    actions.filter((action) => action.status === "pending").length,
-    actions.filter((action) => action.status === "approved").length,
-    actions.filter((action) => ["executed", "sent"].includes(action.status)).length,
-  ];
-  const signalValues = [context?.fires.length || 0, context?.road_events.length || 0, context?.zones.length || 0, context?.shelters.length || 0];
+  const risks = assessment?.plan.zone_risks || [];
+  const routes = assessment?.plan.routes || [];
 
   return (
     <section className="ops-analytics">
-      <MiniChart title="Risk by zone" subtitle={assessment ? `${riskValues.length} zones scored` : "waiting for assessment"} values={riskValues.length ? riskValues : signalValues} tone="#f29d49" />
-      <MiniChart title="Route duration" subtitle={routeValues.length ? `${routeValues.length} options evaluated` : "no routes yet"} values={routeValues.length ? routeValues : signalValues} tone="#8abbff" />
-      <MiniChart title="Action state" subtitle={`${actions.length} drafted actions`} values={actionValues} tone="#0f9960" />
+      <RiskSummaryCard risks={risks} context={context} />
+      <RouteSummaryCard routes={routes} />
+      <ActionStateSummary actions={actions} />
     </section>
+  );
+}
+
+function RiskSummaryCard({ risks, context }: { risks: ZoneRisk[]; context: IncidentContext | null }) {
+  const ranked = [...risks].sort((a, b) => b.score - a.score).slice(0, 3);
+  return (
+    <div className="ops-summary-card">
+      <SummaryCardHeader title="Zone risk" subtitle={ranked.length ? `${ranked.length} zones scored` : "assessment pending"} />
+      {ranked.length ? (
+        <div className="ops-risk-list">
+          {ranked.map((risk) => (
+            <div key={risk.zone_id} className="ops-risk-row">
+              <div className="ops-risk-copy">
+                <span>{risk.zone_id}</span>
+                <Tag minimal intent={intentForRisk(risk.risk_level)}>{risk.risk_level}</Tag>
+              </div>
+              <div className="ops-meter">
+                <span className={`ops-meter-fill ops-meter-${risk.risk_level.toLowerCase()}`} style={{ width: `${Math.round(risk.score * 100)}%` }} />
+              </div>
+              <small>{Math.round(risk.score * 100)}%</small>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="ops-summary-waiting">
+          <MetricLine label="Fire records" value={String(context?.fires.length || 0)} />
+          <MetricLine label="Road events" value={String(context?.road_events.length || 0)} />
+          <MetricLine label="Zones loaded" value={String(context?.zones.length || 0)} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RouteSummaryCard({ routes }: { routes: AssessmentResult["plan"]["routes"] }) {
+  const safe = routes.filter((route) => route.safe);
+  const blocked = routes.filter((route) => !route.safe);
+  const fastest = safe.reduce<number | null>((best, route) => best === null ? route.duration_minutes : Math.min(best, route.duration_minutes), null);
+  const total = Math.max(routes.length, 1);
+  return (
+    <div className="ops-summary-card">
+      <SummaryCardHeader title="Route safety" subtitle={routes.length ? `${routes.length} route options` : "no routes evaluated"} />
+      <div className="ops-route-split" aria-hidden="true">
+        <span className="ops-route-safe" style={{ width: `${(safe.length / total) * 100}%` }} />
+        <span className="ops-route-blocked" style={{ width: `${(blocked.length / total) * 100}%` }} />
+      </div>
+      <div className="ops-summary-grid">
+        <MetricLine label="Safe" value={String(safe.length)} tone="safe" />
+        <MetricLine label="Blocked" value={String(blocked.length)} tone="blocked" />
+        <MetricLine label="Fastest safe" value={fastest === null ? "none" : `${fastest}m`} />
+      </div>
+    </div>
+  );
+}
+
+function ActionStateSummary({ actions }: { actions: ActionItem[] }) {
+  const pending = actions.filter((action) => action.status === "pending").length;
+  const approved = actions.filter((action) => action.status === "approved").length;
+  const executed = actions.filter((action) => ["executed", "sent"].includes(action.status)).length;
+  const failed = actions.filter((action) => action.status === "failed").length;
+  const total = Math.max(actions.length, 1);
+  return (
+    <div className="ops-summary-card">
+      <SummaryCardHeader title="Action state" subtitle={actions.length ? `${actions.length} drafted actions` : "no bundle drafted"} />
+      <div className="ops-action-state-bar" aria-hidden="true">
+        <span className="ops-action-state-pending" style={{ width: `${(pending / total) * 100}%` }} />
+        <span className="ops-action-state-approved" style={{ width: `${(approved / total) * 100}%` }} />
+        <span className="ops-action-state-executed" style={{ width: `${(executed / total) * 100}%` }} />
+        <span className="ops-action-state-failed" style={{ width: `${(failed / total) * 100}%` }} />
+      </div>
+      <div className="ops-summary-grid">
+        <MetricLine label="Pending" value={String(pending)} />
+        <MetricLine label="Approved" value={String(approved)} tone="safe" />
+        <MetricLine label="Executed" value={String(executed)} />
+      </div>
+    </div>
+  );
+}
+
+function SummaryCardHeader({ title, subtitle }: { title: string; subtitle: string }) {
+  return (
+    <div className="ops-summary-header">
+      <p>{title}</p>
+      <span>{subtitle}</span>
+    </div>
+  );
+}
+
+function MetricLine({ label, value, tone }: { label: string; value: string; tone?: "safe" | "blocked" }) {
+  return (
+    <div className="ops-metric-line">
+      <span>{label}</span>
+      <strong className={tone ? `ops-metric-${tone}` : undefined}>{value}</strong>
+    </div>
   );
 }
 
@@ -802,45 +890,6 @@ function actionIcon(actionType: string) {
   if (actionType.includes("dispatch")) return "truck";
   if (actionType.includes("timeline")) return "timeline-events";
   return "flows";
-}
-
-function MiniChart({ title, subtitle, values, tone }: { title: string; subtitle: string; values: number[]; tone: string }) {
-  return (
-    <div className="ops-chart-card">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="m-0 text-sm font-semibold text-[#f5f8fa]">{title}</p>
-          <p className="m-0 mt-1 text-xs text-[#8f99a8]">{subtitle}</p>
-        </div>
-      </div>
-      <Sparkline values={values} color={tone} />
-    </div>
-  );
-}
-
-function Sparkline({ values, color }: { values: number[]; color: string }) {
-  const safeValues = values.length >= 2 ? values : [0, values[0] || 0];
-  const max = Math.max(...safeValues, 1);
-  const min = Math.min(...safeValues, 0);
-  const span = Math.max(max - min, 1);
-  const points = safeValues
-    .map((value, index) => {
-      const x = safeValues.length === 1 ? 0 : (index / (safeValues.length - 1)) * 100;
-      const y = 46 - ((value - min) / span) * 38;
-      return `${x.toFixed(2)},${y.toFixed(2)}`;
-    })
-    .join(" ");
-
-  return (
-    <svg className="ops-sparkline" viewBox="0 0 100 52" preserveAspectRatio="none" aria-hidden="true">
-      <polyline points={points} fill="none" stroke={color} strokeWidth="2.2" vectorEffect="non-scaling-stroke" />
-      {safeValues.map((value, index) => {
-        const x = safeValues.length === 1 ? 0 : (index / (safeValues.length - 1)) * 100;
-        const y = 46 - ((value - min) / span) * 38;
-        return <circle key={`${value}-${index}`} cx={x} cy={y} r="1.5" fill={color} />;
-      })}
-    </svg>
-  );
 }
 
 function DonutGauge({ label, value, intent }: { label: string; value: number; intent: Intent }) {

@@ -166,7 +166,7 @@ button {
 
 .ops-center-stack {
   display: grid;
-  grid-template-rows: minmax(0, 1fr) 190px;
+  grid-template-rows: minmax(0, 1fr) 214px;
   gap: 10px;
 }
 
@@ -273,7 +273,7 @@ button {
 }
 
 .ops-panel,
-.ops-chart-card {
+.ops-summary-card {
   border: 1px solid rgba(64, 78, 92, 0.92);
   background: rgba(12, 16, 21, 0.9);
 }
@@ -621,21 +621,151 @@ button {
   padding: 8px;
 }
 
-.ops-chart-card {
+.ops-summary-card {
   min-width: 0;
-  padding: 12px;
+  display: grid;
+  grid-template-rows: max-content minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px;
 }
 
-.ops-sparkline {
-  width: 100%;
-  height: 78px;
-  margin-top: 10px;
-  border-top: 1px solid rgba(47, 63, 79, 0.8);
-  border-bottom: 1px solid rgba(47, 63, 79, 0.8);
-  background:
-    linear-gradient(90deg, rgba(95, 107, 124, 0.12) 1px, transparent 1px),
-    linear-gradient(rgba(95, 107, 124, 0.10) 1px, transparent 1px);
-  background-size: 24px 18px;
+.ops-summary-header {
+  min-width: 0;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.ops-summary-header p {
+  margin: 0;
+  color: #f5f8fa;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ops-summary-header span {
+  max-width: 122px;
+  color: #8f99a8;
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: right;
+}
+
+.ops-risk-list,
+.ops-summary-waiting {
+  display: grid;
+  gap: 6px;
+}
+
+.ops-risk-row {
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 46px;
+  gap: 4px 8px;
+}
+
+.ops-risk-copy {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  grid-column: 1 / -1;
+}
+
+.ops-risk-copy span {
+  min-width: 0;
+  overflow: hidden;
+  color: #dce5ee;
+  font-size: 12px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ops-risk-row small {
+  color: #abb3bf;
+  font-size: 11px;
+  line-height: 7px;
+  text-align: right;
+}
+
+.ops-meter {
+  height: 7px;
+  overflow: hidden;
+  background: #1b2834;
+}
+
+.ops-meter-fill {
+  display: block;
+  height: 100%;
+  background: #5f6b7c;
+}
+
+.ops-meter-low {
+  background: #0f9960;
+}
+
+.ops-meter-moderate {
+  background: #f2b824;
+}
+
+.ops-meter-high,
+.ops-meter-critical {
+  background: #db3737;
+}
+
+.ops-route-split,
+.ops-action-state-bar {
+  display: flex;
+  height: 10px;
+  overflow: hidden;
+  background: #1b2834;
+}
+
+.ops-route-safe,
+.ops-action-state-approved,
+.ops-action-state-executed {
+  background: #0f9960;
+}
+
+.ops-route-blocked,
+.ops-action-state-failed {
+  background: #db3737;
+}
+
+.ops-action-state-pending {
+  background: #f2b824;
+}
+
+.ops-summary-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.ops-metric-line {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-top: 1px solid rgba(47, 63, 79, 0.72);
+  padding-top: 6px;
+  color: #8f99a8;
+  font-size: 11px;
+}
+
+.ops-metric-line strong {
+  color: #f5f8fa;
+  font-size: 13px;
+}
+
+.ops-metric-safe {
+  color: #45d483 !important;
+}
+
+.ops-metric-blocked {
+  color: #ff7373 !important;
 }
 
 .fireguard-card {
