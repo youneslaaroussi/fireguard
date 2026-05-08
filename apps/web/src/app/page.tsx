@@ -204,11 +204,9 @@ export default function Home() {
         mode={context?.mode}
         hasAssessment={Boolean(assessment)}
         hasActions={Boolean(actions.length)}
-        activePane={activePane}
         busy={busy}
         onReset={handleReset}
         onRunAssessment={handleAssessment}
-        onSelectPane={setActivePane}
       />
 
       {error ? (
@@ -256,10 +254,7 @@ export default function Home() {
               onExecute={handleExecute}
             />
           </div>
-          <div className="ops-center-stack">
-            <MapPanel context={context} assessment={assessment} />
-            <AnalyticsPanel context={context} assessment={assessment} actions={actions} />
-          </div>
+          <CenterOpsArea context={context} assessment={assessment} actions={actions} />
           <RightOpsPanel
             status={integrationStatus}
             evalResult={evalResult}
@@ -286,20 +281,16 @@ function OpsTopbar({
   mode,
   hasAssessment,
   hasActions,
-  activePane,
   busy,
   onReset,
   onRunAssessment,
-  onSelectPane,
 }: {
   mode?: string;
   hasAssessment: boolean;
   hasActions: boolean;
-  activePane: ActivePane;
   busy: string | null;
   onReset: () => void;
   onRunAssessment: () => void;
-  onSelectPane: (pane: ActivePane) => void;
 }) {
   return (
     <header className="ops-topbar">
@@ -309,16 +300,25 @@ function OpsTopbar({
         <Tag minimal intent={Intent.PRIMARY}>Elastic</Tag>
         <Tag minimal intent={mode === "replay" ? Intent.WARNING : Intent.SUCCESS}>{mode === "replay" ? "Replay" : "Live"}</Tag>
       </div>
+      <div className="ops-status-strip" aria-label="Incident status">
+        <StatusPill label="Incident" value={mode === "replay" ? "Replay" : "Live"} intent={mode === "replay" ? Intent.WARNING : Intent.SUCCESS} />
+        <StatusPill label="Assessment" value={hasAssessment ? "Ready" : "Pending"} intent={hasAssessment ? Intent.SUCCESS : Intent.NONE} />
+        <StatusPill label="Action bundle" value={hasActions ? "Drafted" : "Empty"} intent={hasActions ? Intent.WARNING : Intent.NONE} />
+      </div>
       <ButtonGroup minimal className="ops-toolbar-group">
         <Button icon="refresh" text="Reset" loading={busy === "reset"} disabled={busy !== null} onClick={onReset} />
-        <Button active={activePane === "overview"} icon="dashboard" text="Overview" onClick={() => onSelectPane("overview")} />
-        <Button active={activePane === "sources"} icon="folder-open" text="Sources" onClick={() => onSelectPane("sources")} />
-        {hasActions ? <Button active={activePane === "actions"} icon="send-message" text="Actions" onClick={() => onSelectPane("actions")} /> : null}
-        <Button active={activePane === "audit"} icon="path-search" text="Audit" disabled={!hasAssessment} onClick={() => onSelectPane("audit")} />
-        <Button active={activePane === "diagnostics"} icon="layers" text="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
+        <Button icon="play" text={hasAssessment ? "Reassess" : "Run Assessment"} intent={Intent.DANGER} loading={busy === "assessment"} disabled={busy !== null} onClick={onRunAssessment} />
       </ButtonGroup>
-      <Button icon="play" text={hasAssessment ? "Reassess" : "Run Assessment"} intent={Intent.DANGER} loading={busy === "assessment"} disabled={busy !== null} onClick={onRunAssessment} />
     </header>
+  );
+}
+
+function StatusPill({ label, value, intent }: { label: string; value: string; intent: Intent }) {
+  return (
+    <div className="ops-status-pill">
+      <span>{label}</span>
+      <Tag minimal intent={intent}>{value}</Tag>
+    </div>
   );
 }
 
@@ -448,7 +448,10 @@ function LeftOpsPanel({
   return (
     <aside className="fireguard-command-panel">
       <div className="ops-pane-header">
-        <H5 className="m-0">{paneTitle}</H5>
+        <div>
+          <p className="ops-section-kicker">Command workspace</p>
+          <H5 className="m-0">{paneTitle}</H5>
+        </div>
         <ButtonGroup minimal className="ops-pane-tabs">
           <Button active={activePane === "overview"} small icon="dashboard" title="Command overview" onClick={() => onSelectPane("overview")} />
           <Button active={activePane === "sources"} small icon="folder-open" title="Sources" onClick={() => onSelectPane("sources")} />
@@ -588,6 +591,41 @@ function CommandPanel({
   );
 }
 
+function CenterOpsArea({ context, assessment, actions }: { context: IncidentContext | null; assessment: AssessmentResult | null; actions: ActionItem[] }) {
+  const incidentMode = context?.mode === "replay" ? "Replay window" : "Live window";
+  const signalCount = (context?.fires.length || 0) + (context?.road_events.length || 0) + (context?.shelters.length || 0) + (context?.zones.length || 0);
+
+  return (
+    <div className="ops-center-stack">
+      <section className="ops-map-frame">
+        <div className="ops-column-header">
+          <div>
+            <p className="ops-section-kicker">Operational map</p>
+            <H5 className="m-0">BC Fire, Roads, Shelters, Routes</H5>
+          </div>
+          <div className="ops-header-tags">
+            <Tag minimal intent={context?.mode === "replay" ? Intent.WARNING : Intent.SUCCESS}>{incidentMode}</Tag>
+            <Tag minimal>{signalCount} records</Tag>
+          </div>
+        </div>
+        <div className="ops-map-body">
+          <MapPanel context={context} assessment={assessment} />
+        </div>
+      </section>
+      <section className="ops-analytics-frame">
+        <div className="ops-column-header ops-column-header-compact">
+          <div>
+            <p className="ops-section-kicker">Signal trend</p>
+            <H5 className="m-0">Risk, Routes, Actions</H5>
+          </div>
+          <Tag minimal>{actions.length} actions</Tag>
+        </div>
+        <AnalyticsPanel context={context} assessment={assessment} actions={actions} />
+      </section>
+    </div>
+  );
+}
+
 function AnalyticsPanel({ context, assessment, actions }: { context: IncidentContext | null; assessment: AssessmentResult | null; actions: ActionItem[] }) {
   const riskValues = assessment?.plan.zone_risks.map((risk) => Math.round(risk.score * 100)) || [];
   const routeValues = assessment?.plan.routes.map((route) => route.duration_minutes).filter((value) => Number.isFinite(value)) || [];
@@ -624,7 +662,16 @@ function RightOpsPanel({
 }) {
   return (
     <aside className="ops-right-stack">
-      <OverviewPane status={status} evalResult={evalResult} context={context} assessment={assessment} actions={actions} onSelectPane={onSelectPane} />
+      <div className="ops-column-header">
+        <div>
+          <p className="ops-section-kicker">Execution status</p>
+          <H5 className="m-0">Systems & Queue</H5>
+        </div>
+        <Tag minimal intent={actions.length ? Intent.WARNING : Intent.NONE}>{actions.length ? `${actions.length} drafted` : "idle"}</Tag>
+      </div>
+      <div className="ops-pane-content">
+        <OverviewPane status={status} evalResult={evalResult} context={context} assessment={assessment} actions={actions} onSelectPane={onSelectPane} />
+      </div>
     </aside>
   );
 }

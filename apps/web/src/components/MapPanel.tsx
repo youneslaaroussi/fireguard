@@ -389,7 +389,7 @@ export function MapPanel({ context, assessment }: Props) {
   }, [visible]);
 
   return (
-    <section className="relative h-full min-h-[620px] overflow-hidden border border-[#394b59] bg-[#101820]">
+    <section className="fireguard-map-panel">
       {mapboxConfigured ? <div ref={containerRef} className="absolute inset-0" /> : <MapboxTokenPending context={context} assessment={assessment} />}
       <div className="absolute left-4 top-4 max-w-[520px]">
         <div className="fireguard-muted-card p-3 shadow-lg">
