@@ -241,7 +241,6 @@ export default function Home() {
               executedCount={executedCount}
               busy={busy}
               traceEvents={traceSource}
-              onSelectPane={setActivePane}
               onOpenApproval={() => setApprovalOpen(true)}
               onRefreshFeeds={handleFivetranSync}
               onRefreshShelters={handleShelterCapacitySheetSync}
@@ -259,7 +258,6 @@ export default function Home() {
             context={context}
             assessment={assessment}
             actions={actions}
-            onSelectPane={setActivePane}
           />
         </div>
       </div>
@@ -353,7 +351,6 @@ function LeftOpsPanel({
   executedCount,
   busy,
   traceEvents,
-  onSelectPane,
   onOpenApproval,
   onRefreshFeeds,
   onRefreshShelters,
@@ -376,7 +373,6 @@ function LeftOpsPanel({
   executedCount: number;
   busy: string | null;
   traceEvents: Array<Record<string, unknown>>;
-  onSelectPane: (pane: ActivePane) => void;
   onOpenApproval: () => void;
   onRefreshFeeds: () => void;
   onRefreshShelters: () => void;
@@ -434,11 +430,7 @@ function LeftOpsPanel({
         publicActionCount={publicActionCount}
         executedCount={executedCount}
         busy={busy}
-        onOpenContext={() => onSelectPane("sources")}
-        onOpenPlan={() => onSelectPane("evidence")}
         onOpenApproval={onOpenApproval}
-        onOpenActions={() => onSelectPane("actions")}
-        onOpenAudit={() => onSelectPane("audit")}
         onExecute={onExecute}
       />
     );
@@ -468,11 +460,7 @@ function CommandPanel({
   publicActionCount,
   executedCount,
   busy,
-  onOpenContext,
-  onOpenPlan,
   onOpenApproval,
-  onOpenActions,
-  onOpenAudit,
   onExecute,
 }: {
   context: IncidentContext | null;
@@ -483,11 +471,7 @@ function CommandPanel({
   publicActionCount: number;
   executedCount: number;
   busy: string | null;
-  onOpenContext: () => void;
-  onOpenPlan: () => void;
   onOpenApproval: () => void;
-  onOpenActions: () => void;
-  onOpenAudit: () => void;
   onExecute: () => void;
 }) {
   const plan = assessment?.plan;
@@ -514,7 +498,6 @@ function CommandPanel({
                 </Tag>
                 <p className="m-0 mt-3 text-base leading-6 text-[#eef3f7]">{shortText(operatorText(plan.summary), 330)}</p>
               </div>
-              <Button minimal icon="timeline-events" text="Evidence" onClick={onOpenPlan} />
             </div>
             <div className="mt-4">
               <div className="mb-1 flex items-center justify-between text-xs text-[#abb3bf]">
@@ -537,7 +520,7 @@ function CommandPanel({
         <section className="fireguard-command-section">
           <div className="flex items-center justify-between gap-2">
             <H5 className="m-0">Operational Picture</H5>
-            <Button minimal small icon="folder-open" text="Sources" onClick={onOpenContext} />
+            <Tag minimal>{context?.mode === "replay" ? "replay" : "live"}</Tag>
           </div>
           <div className="mt-3 grid grid-cols-4 gap-2">
             <MiniMetric label="Fires" value={context?.fires.length ?? 0} intent={Intent.DANGER} />
@@ -574,10 +557,6 @@ function CommandPanel({
           </div>
           <div className="mt-3 grid gap-2">
             <Button icon="confirm" text="Review & Approve" intent={Intent.PRIMARY} disabled={!assessment || approved} onClick={onOpenApproval} />
-            <div className="grid grid-cols-2 gap-2">
-              <Button icon="send-message" text="Actions" disabled={!actions.length} onClick={onOpenActions} />
-              <Button icon="path-search" text="Audit" disabled={!assessment} onClick={onOpenAudit} />
-            </div>
             <Button icon="play" text="Execute Approved Actions" intent={Intent.SUCCESS} disabled={!assessment || !approved || busy !== null} loading={busy === "execute"} onClick={onExecute} />
           </div>
         </section>
@@ -646,14 +625,12 @@ function RightOpsPanel({
   context,
   assessment,
   actions,
-  onSelectPane,
 }: {
   status: IntegrationStatus | null;
   evalResult: Record<string, unknown> | null;
   context: IncidentContext | null;
   assessment: AssessmentResult | null;
   actions: ActionItem[];
-  onSelectPane: (pane: ActivePane) => void;
 }) {
   return (
     <aside className="ops-right-stack">
@@ -665,7 +642,7 @@ function RightOpsPanel({
         <Tag minimal intent={actions.length ? Intent.WARNING : Intent.NONE}>{actions.length ? `${actions.length} drafted` : "idle"}</Tag>
       </div>
       <div className="ops-pane-content">
-        <OverviewPane status={status} evalResult={evalResult} context={context} assessment={assessment} actions={actions} onSelectPane={onSelectPane} />
+        <OverviewPane status={status} evalResult={evalResult} context={context} assessment={assessment} actions={actions} />
       </div>
     </aside>
   );
@@ -677,14 +654,12 @@ function OverviewPane({
   context,
   assessment,
   actions,
-  onSelectPane,
 }: {
   status: IntegrationStatus | null;
   evalResult: Record<string, unknown> | null;
   context: IncidentContext | null;
   assessment: AssessmentResult | null;
   actions: ActionItem[];
-  onSelectPane: (pane: ActivePane) => void;
 }) {
   const summaries = providerSummaries(status, evalResult).slice(0, 5);
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
@@ -698,7 +673,6 @@ function OverviewPane({
       <section className="ops-panel">
         <div className="ops-panel-title">
           <H5 className="m-0">System Links</H5>
-          <Button minimal small icon="layers" text="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
         </div>
         <div className="ops-provider-grid">
           {summaries.map((item) => (
@@ -713,7 +687,6 @@ function OverviewPane({
       <section className="ops-panel">
         <div className="ops-panel-title">
           <H5 className="m-0">Assessment</H5>
-          <Button minimal small icon="path-search" text="Audit" disabled={!assessment} onClick={() => onSelectPane("audit")} />
         </div>
         <div className="ops-gauge-row">
           <DonutGauge label="Max risk" value={maxRisk} intent={maxRisk >= 0.6 ? Intent.WARNING : Intent.SUCCESS} />
@@ -728,7 +701,6 @@ function OverviewPane({
       <section className="ops-panel ops-action-table">
         <div className="ops-panel-title">
           <H5 className="m-0">Action Queue</H5>
-          <Button minimal small icon="send-message" text="Actions" disabled={!actions.length} onClick={() => onSelectPane("actions")} />
         </div>
         <div className="ops-table">
           {actions.length ? actions.slice(0, 7).map((action) => (
