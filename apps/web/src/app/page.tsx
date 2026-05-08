@@ -685,7 +685,11 @@ function OverviewPane({
         <div className="ops-provider-grid">
           {summaries.map((item) => (
             <div key={item.title} className="ops-provider-row">
-              <span>{item.title}</span>
+              <span className={`ops-status-dot ops-status-${item.intent}`} />
+              <div className="ops-provider-copy">
+                <span>{item.title}</span>
+                <small>{item.detail}</small>
+              </div>
               <Tag minimal intent={item.intent}>{item.value}</Tag>
             </div>
           ))}

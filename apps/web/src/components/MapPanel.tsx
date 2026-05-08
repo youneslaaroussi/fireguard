@@ -418,15 +418,24 @@ export function MapPanel({ context, assessment }: Props) {
           ) : null}
         </div>
       </div>
-      <div className="absolute bottom-4 left-4 grid gap-2 text-xs">
-        <div className="fireguard-muted-card flex flex-wrap gap-2 p-2">
-          <Tag intent={Intent.DANGER}>Fire</Tag>
-          <Tag intent={Intent.WARNING}>Road event</Tag>
-          <Tag intent={Intent.PRIMARY}>Shelter</Tag>
-          <Tag intent={Intent.NONE}>Zone</Tag>
+      <div className="absolute bottom-4 left-4 text-xs">
+        <div className="fireguard-map-legend">
+          <MapLegendItem tone="fire" label="Fire" />
+          <MapLegendItem tone="road" label="Road event" />
+          <MapLegendItem tone="shelter" label="Shelter" />
+          <MapLegendItem tone="zone" label="Zone" />
         </div>
       </div>
     </section>
+  );
+}
+
+function MapLegendItem({ tone, label }: { tone: "fire" | "road" | "shelter" | "zone"; label: string }) {
+  return (
+    <div className="fireguard-map-legend-item">
+      <span className={`fireguard-map-legend-symbol fireguard-map-legend-${tone}`} />
+      <span>{label}</span>
+    </div>
   );
 }
 
