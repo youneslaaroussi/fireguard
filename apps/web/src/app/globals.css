@@ -123,9 +123,42 @@ button {
 
 .ops-right-stack {
   display: grid;
-  grid-auto-rows: max-content;
-  gap: 8px;
+  grid-template-rows: minmax(0, 1fr);
   overflow: auto;
+}
+
+.ops-tabbed-panel {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: max-content minmax(0, 1fr);
+  border: 1px solid rgba(64, 78, 92, 0.92);
+  background: rgba(12, 16, 21, 0.9);
+}
+
+.ops-pane-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid rgba(64, 78, 92, 0.92);
+  background: #10161d;
+  padding: 10px 12px;
+}
+
+.ops-pane-tabs {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.ops-pane-content {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ops-pane-body {
+  height: 100%;
+  overflow: auto;
+  padding: 12px;
 }
 
 .ops-panel,
@@ -136,6 +169,7 @@ button {
 
 .ops-panel {
   padding: 12px;
+  margin-bottom: 8px;
 }
 
 .ops-panel-title {
@@ -362,8 +396,7 @@ button {
   min-height: 50px;
 }
 
-.bp6-dialog,
-.bp6-drawer {
+.bp6-dialog {
   background: #182430;
 }
 

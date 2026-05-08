@@ -6,7 +6,6 @@ import {
   Callout,
   Classes,
   Dialog,
-  Drawer,
   H4,
   H5,
   InputGroup,
@@ -22,7 +21,7 @@ import { MapPanel } from "@/components/MapPanel";
 import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, registerResidentTestContact, resetDemo, runAssessment, runEval, syncFivetranToElastic, syncShelterCapacitySheet, syncSourceBackedZoneContext } from "@/lib/api";
 import type { ActionItem, AssessmentResult, IncidentContext, IntegrationStatus, Shelter, ZoneRisk } from "@/lib/types";
 
-type DrawerKey = "providers" | "context" | "plan" | "actions" | "audit" | null;
+type ActivePane = "overview" | "sources" | "evidence" | "actions" | "audit" | "diagnostics";
 
 function intentForRisk(level: string): Intent {
   if (level === "CRITICAL" || level === "HIGH") return Intent.DANGER;
@@ -66,7 +65,7 @@ export default function Home() {
   const [integrationStatus, setIntegrationStatus] = useState<IntegrationStatus | null>(null);
   const [evalResult, setEvalResult] = useState<Record<string, unknown> | null>(null);
   const [contactInputs, setContactInputs] = useState<Record<string, string>>({});
-  const [drawer, setDrawer] = useState<DrawerKey>(null);
+  const [activePane, setActivePane] = useState<ActivePane>("overview");
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -140,7 +139,7 @@ export default function Home() {
       setActions(result.actions);
       setAssessment({ ...assessment, approval: result.approval, actions: result.actions });
       setApprovalOpen(false);
-      setDrawer("actions");
+      setActivePane("actions");
     });
   }
 
@@ -155,7 +154,7 @@ export default function Home() {
       setTraceEvents(traces.latest?.events || traceEvents);
       setEvalResult(await runEval(assessment.incident_id));
       setIntegrationStatus(await getIntegrationStatus());
-      setDrawer("audit");
+      setActivePane("audit");
     });
   }
 
@@ -170,7 +169,7 @@ export default function Home() {
     await runWithBusy("shelter-sheet", async () => {
       await syncShelterCapacitySheet();
       await load();
-      setDrawer("context");
+      setActivePane("sources");
     });
   }
 
@@ -178,7 +177,7 @@ export default function Home() {
     await runWithBusy("source-zone-context", async () => {
       await syncSourceBackedZoneContext();
       await load();
-      setDrawer("context");
+      setActivePane("sources");
     });
   }
 
@@ -205,13 +204,11 @@ export default function Home() {
         mode={context?.mode}
         hasAssessment={Boolean(assessment)}
         hasActions={Boolean(actions.length)}
+        activePane={activePane}
         busy={busy}
         onReset={handleReset}
         onRunAssessment={handleAssessment}
-        onOpenContext={() => setDrawer("context")}
-        onOpenActions={() => setDrawer("actions")}
-        onOpenAudit={() => setDrawer("audit")}
-        onOpenDiagnostics={() => setDrawer("providers")}
+        onSelectPane={setActivePane}
       />
 
       {error ? (
@@ -219,7 +216,7 @@ export default function Home() {
           <Callout intent={Intent.DANGER} icon="error" title="Action needed">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <span>{error}</span>
-              <Button small icon="layers" text="Open diagnostics" onClick={() => setDrawer("providers")} />
+              <Button small icon="layers" text="Open diagnostics" onClick={() => setActivePane("diagnostics")} />
             </div>
           </Callout>
         </div>
@@ -227,11 +224,9 @@ export default function Home() {
 
       <div className="ops-body">
         <OpsRail
+          activePane={activePane}
           onRunAssessment={handleAssessment}
-          onOpenContext={() => setDrawer("context")}
-          onOpenActions={() => setDrawer("actions")}
-          onOpenAudit={() => setDrawer("audit")}
-          onOpenDiagnostics={() => setDrawer("providers")}
+          onSelectPane={setActivePane}
         />
         <div className="ops-grid">
           <div className="ops-left-stack">
@@ -245,11 +240,11 @@ export default function Home() {
               executedCount={executedCount}
               busy={busy}
               onRunAssessment={handleAssessment}
-              onOpenContext={() => setDrawer("context")}
-              onOpenPlan={() => setDrawer("plan")}
+              onOpenContext={() => setActivePane("sources")}
+              onOpenPlan={() => setActivePane("evidence")}
               onOpenApproval={() => setApprovalOpen(true)}
-              onOpenActions={() => setDrawer("actions")}
-              onOpenAudit={() => setDrawer("audit")}
+              onOpenActions={() => setActivePane("actions")}
+              onOpenAudit={() => setActivePane("audit")}
               onExecute={handleExecute}
             />
           </div>
@@ -258,14 +253,24 @@ export default function Home() {
             <AnalyticsPanel context={context} assessment={assessment} actions={actions} />
           </div>
           <RightOpsPanel
+            activePane={activePane}
             status={integrationStatus}
             evalResult={evalResult}
             context={context}
             assessment={assessment}
             actions={actions}
-            onOpenDiagnostics={() => setDrawer("providers")}
-            onOpenActions={() => setDrawer("actions")}
-            onOpenAudit={() => setDrawer("audit")}
+            assumptions={assumptionsToShow}
+            contactInputs={contactInputs}
+            busy={busy}
+            traceEvents={traceSource}
+            onSelectPane={setActivePane}
+            onRefreshFeeds={handleFivetranSync}
+            onRefreshShelters={handleShelterCapacitySheetSync}
+            onRefreshZones={handleSourceZoneContextSync}
+            onContactChange={(zoneId, phone) => setContactInputs((current) => ({ ...current, [zoneId]: phone }))}
+            onContactCheckIn={handleContactCheckIn}
+            onCapacityConfirm={handleCapacityConfirm}
+            onExecute={handleExecute}
           />
         </div>
       </div>
@@ -277,77 +282,6 @@ export default function Home() {
         onClose={() => setApprovalOpen(false)}
         onApprove={handleApprove}
       />
-
-      <Drawer
-        className="bp6-dark"
-        icon="layers"
-        isOpen={drawer === "providers"}
-        onClose={() => setDrawer(null)}
-        position="right"
-        size="520px"
-        title="System Diagnostics"
-      >
-        <ProviderDetails status={integrationStatus} evalResult={evalResult} />
-      </Drawer>
-
-      <Drawer
-        className="bp6-dark"
-        icon="folder-open"
-        isOpen={drawer === "context"}
-        onClose={() => setDrawer(null)}
-        position="right"
-        size="640px"
-        title="Data Sources"
-      >
-        <ContextDetails
-          context={context}
-          assumptions={assumptionsToShow}
-          contactInputs={contactInputs}
-          busy={busy}
-          onRefreshFeeds={handleFivetranSync}
-          onRefreshShelters={handleShelterCapacitySheetSync}
-          onRefreshZones={handleSourceZoneContextSync}
-          onContactChange={(zoneId, phone) => setContactInputs((current) => ({ ...current, [zoneId]: phone }))}
-          onContactCheckIn={handleContactCheckIn}
-          onCapacityConfirm={handleCapacityConfirm}
-        />
-      </Drawer>
-
-      <Drawer
-        className="bp6-dark"
-        icon="timeline-events"
-        isOpen={drawer === "plan"}
-        onClose={() => setDrawer(null)}
-        position="right"
-        size="700px"
-        title="Decision Details"
-      >
-        <PlanDetails assessment={assessment} />
-      </Drawer>
-
-      <Drawer
-        className="bp6-dark"
-        icon="send-message"
-        isOpen={drawer === "actions"}
-        onClose={() => setDrawer(null)}
-        position="right"
-        size="640px"
-        title="Action Queue"
-      >
-        <ActionDetails actions={actions} assessment={assessment} busy={busy} onExecute={handleExecute} />
-      </Drawer>
-
-      <Drawer
-        className="bp6-dark"
-        icon="path-search"
-        isOpen={drawer === "audit"}
-        onClose={() => setDrawer(null)}
-        position="right"
-        size="720px"
-        title="Audit Trail"
-      >
-        <AuditDetails traceEvents={traceSource} evalResult={evalResult} assessment={assessment} />
-      </Drawer>
     </main>
   );
 }
@@ -356,24 +290,20 @@ function OpsTopbar({
   mode,
   hasAssessment,
   hasActions,
+  activePane,
   busy,
   onReset,
   onRunAssessment,
-  onOpenContext,
-  onOpenActions,
-  onOpenAudit,
-  onOpenDiagnostics,
+  onSelectPane,
 }: {
   mode?: string;
   hasAssessment: boolean;
   hasActions: boolean;
+  activePane: ActivePane;
   busy: string | null;
   onReset: () => void;
   onRunAssessment: () => void;
-  onOpenContext: () => void;
-  onOpenActions: () => void;
-  onOpenAudit: () => void;
-  onOpenDiagnostics: () => void;
+  onSelectPane: (pane: ActivePane) => void;
 }) {
   return (
     <header className="ops-topbar">
@@ -385,10 +315,11 @@ function OpsTopbar({
       </div>
       <ButtonGroup minimal className="ops-toolbar-group">
         <Button icon="refresh" text="Reset" loading={busy === "reset"} disabled={busy !== null} onClick={onReset} />
-        <Button icon="folder-open" text="Sources" onClick={onOpenContext} />
-        {hasActions ? <Button icon="send-message" text="Actions" onClick={onOpenActions} /> : null}
-        <Button icon="path-search" text="Audit" disabled={!hasAssessment} onClick={onOpenAudit} />
-        <Button icon="layers" text="Diagnostics" onClick={onOpenDiagnostics} />
+        <Button active={activePane === "overview"} icon="dashboard" text="Overview" onClick={() => onSelectPane("overview")} />
+        <Button active={activePane === "sources"} icon="folder-open" text="Sources" onClick={() => onSelectPane("sources")} />
+        {hasActions ? <Button active={activePane === "actions"} icon="send-message" text="Actions" onClick={() => onSelectPane("actions")} /> : null}
+        <Button active={activePane === "audit"} icon="path-search" text="Audit" disabled={!hasAssessment} onClick={() => onSelectPane("audit")} />
+        <Button active={activePane === "diagnostics"} icon="layers" text="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
       </ButtonGroup>
       <Button icon="play" text={hasAssessment ? "Reassess" : "Run Assessment"} intent={Intent.DANGER} loading={busy === "assessment"} disabled={busy !== null} onClick={onRunAssessment} />
     </header>
@@ -396,26 +327,24 @@ function OpsTopbar({
 }
 
 function OpsRail({
+  activePane,
   onRunAssessment,
-  onOpenContext,
-  onOpenActions,
-  onOpenAudit,
-  onOpenDiagnostics,
+  onSelectPane,
 }: {
+  activePane: ActivePane;
   onRunAssessment: () => void;
-  onOpenContext: () => void;
-  onOpenActions: () => void;
-  onOpenAudit: () => void;
-  onOpenDiagnostics: () => void;
+  onSelectPane: (pane: ActivePane) => void;
 }) {
   return (
     <nav className="ops-rail" aria-label="FireGuard tools">
       <Button minimal icon="flame" title="Assess incident" onClick={onRunAssessment} />
-      <Button minimal icon="map" title="Data sources" onClick={onOpenContext} />
-      <Button minimal icon="send-message" title="Actions" onClick={onOpenActions} />
-      <Button minimal icon="path-search" title="Audit" onClick={onOpenAudit} />
+      <Button active={activePane === "overview"} minimal icon="dashboard" title="Overview" onClick={() => onSelectPane("overview")} />
+      <Button active={activePane === "sources"} minimal icon="map" title="Data sources" onClick={() => onSelectPane("sources")} />
+      <Button active={activePane === "evidence"} minimal icon="timeline-events" title="Evidence" onClick={() => onSelectPane("evidence")} />
+      <Button active={activePane === "actions"} minimal icon="send-message" title="Actions" onClick={() => onSelectPane("actions")} />
+      <Button active={activePane === "audit"} minimal icon="path-search" title="Audit" onClick={() => onSelectPane("audit")} />
       <div className="ops-rail-spacer" />
-      <Button minimal icon="layers" title="Diagnostics" onClick={onOpenDiagnostics} />
+      <Button active={activePane === "diagnostics"} minimal icon="layers" title="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
     </nav>
   );
 }
@@ -563,23 +492,111 @@ function AnalyticsPanel({ context, assessment, actions }: { context: IncidentCon
 }
 
 function RightOpsPanel({
+  activePane,
   status,
   evalResult,
   context,
   assessment,
   actions,
-  onOpenDiagnostics,
-  onOpenActions,
-  onOpenAudit,
+  assumptions,
+  contactInputs,
+  busy,
+  traceEvents,
+  onSelectPane,
+  onRefreshFeeds,
+  onRefreshShelters,
+  onRefreshZones,
+  onContactChange,
+  onContactCheckIn,
+  onCapacityConfirm,
+  onExecute,
+}: {
+  activePane: ActivePane;
+  status: IntegrationStatus | null;
+  evalResult: Record<string, unknown> | null;
+  context: IncidentContext | null;
+  assessment: AssessmentResult | null;
+  actions: ActionItem[];
+  assumptions: Record<string, unknown>[];
+  contactInputs: Record<string, string>;
+  busy: string | null;
+  traceEvents: Array<Record<string, unknown>>;
+  onSelectPane: (pane: ActivePane) => void;
+  onRefreshFeeds: () => void;
+  onRefreshShelters: () => void;
+  onRefreshZones: () => void;
+  onContactChange: (zoneId: string, phone: string) => void;
+  onContactCheckIn: (zoneId: string) => void;
+  onCapacityConfirm: (shelter: Shelter) => void;
+  onExecute: () => void;
+}) {
+  const paneTitle = {
+    overview: "Overview",
+    sources: "Sources",
+    evidence: "Evidence",
+    actions: "Actions",
+    audit: "Audit",
+    diagnostics: "Diagnostics",
+  }[activePane];
+
+  const renderPane = () => {
+    if (activePane === "sources") {
+      return (
+        <ContextDetails
+          context={context}
+          assumptions={assumptions}
+          contactInputs={contactInputs}
+          busy={busy}
+          onRefreshFeeds={onRefreshFeeds}
+          onRefreshShelters={onRefreshShelters}
+          onRefreshZones={onRefreshZones}
+          onContactChange={onContactChange}
+          onContactCheckIn={onContactCheckIn}
+          onCapacityConfirm={onCapacityConfirm}
+        />
+      );
+    }
+    if (activePane === "evidence") return <PlanDetails assessment={assessment} />;
+    if (activePane === "actions") return <ActionDetails actions={actions} assessment={assessment} busy={busy} onExecute={onExecute} />;
+    if (activePane === "audit") return <AuditDetails traceEvents={traceEvents} evalResult={evalResult} assessment={assessment} />;
+    if (activePane === "diagnostics") return <ProviderDetails status={status} evalResult={evalResult} />;
+    return <OverviewPane status={status} evalResult={evalResult} context={context} assessment={assessment} actions={actions} onSelectPane={onSelectPane} />;
+  };
+
+  return (
+    <aside className="ops-right-stack">
+      <section className="ops-tabbed-panel">
+        <div className="ops-pane-header">
+          <H5 className="m-0">{paneTitle}</H5>
+          <ButtonGroup minimal className="ops-pane-tabs">
+            <Button active={activePane === "overview"} small icon="dashboard" title="Overview" onClick={() => onSelectPane("overview")} />
+            <Button active={activePane === "sources"} small icon="folder-open" title="Sources" onClick={() => onSelectPane("sources")} />
+            <Button active={activePane === "evidence"} small icon="timeline-events" title="Evidence" onClick={() => onSelectPane("evidence")} />
+            <Button active={activePane === "actions"} small icon="send-message" title="Actions" onClick={() => onSelectPane("actions")} />
+            <Button active={activePane === "audit"} small icon="path-search" title="Audit" onClick={() => onSelectPane("audit")} disabled={!assessment} />
+            <Button active={activePane === "diagnostics"} small icon="layers" title="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
+          </ButtonGroup>
+        </div>
+        <div className="ops-pane-content">{renderPane()}</div>
+      </section>
+    </aside>
+  );
+}
+
+function OverviewPane({
+  status,
+  evalResult,
+  context,
+  assessment,
+  actions,
+  onSelectPane,
 }: {
   status: IntegrationStatus | null;
   evalResult: Record<string, unknown> | null;
   context: IncidentContext | null;
   assessment: AssessmentResult | null;
   actions: ActionItem[];
-  onOpenDiagnostics: () => void;
-  onOpenActions: () => void;
-  onOpenAudit: () => void;
+  onSelectPane: (pane: ActivePane) => void;
 }) {
   const summaries = providerSummaries(status, evalResult).slice(0, 5);
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
@@ -589,11 +606,11 @@ function RightOpsPanel({
   const openShelters = context?.shelters.filter((shelter) => (shelter.official_facility_status || shelter.status) === "OPEN").length || 0;
 
   return (
-    <aside className="ops-right-stack">
+    <PaneBody>
       <section className="ops-panel">
         <div className="ops-panel-title">
           <H5 className="m-0">System Links</H5>
-          <Button minimal small icon="layers" text="Open" onClick={onOpenDiagnostics} />
+          <Button minimal small icon="layers" text="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
         </div>
         <div className="ops-provider-grid">
           {summaries.map((item) => (
@@ -608,7 +625,7 @@ function RightOpsPanel({
       <section className="ops-panel">
         <div className="ops-panel-title">
           <H5 className="m-0">Assessment</H5>
-          <Button minimal small icon="path-search" text="Audit" disabled={!assessment} onClick={onOpenAudit} />
+          <Button minimal small icon="path-search" text="Audit" disabled={!assessment} onClick={() => onSelectPane("audit")} />
         </div>
         <div className="ops-gauge-row">
           <DonutGauge label="Max risk" value={maxRisk} intent={maxRisk >= 0.6 ? Intent.WARNING : Intent.SUCCESS} />
@@ -623,7 +640,7 @@ function RightOpsPanel({
       <section className="ops-panel ops-action-table">
         <div className="ops-panel-title">
           <H5 className="m-0">Action Queue</H5>
-          <Button minimal small icon="send-message" text="Open" disabled={!actions.length} onClick={onOpenActions} />
+          <Button minimal small icon="send-message" text="Actions" disabled={!actions.length} onClick={() => onSelectPane("actions")} />
         </div>
         <div className="ops-table">
           {actions.length ? actions.slice(0, 7).map((action) => (
@@ -637,7 +654,7 @@ function RightOpsPanel({
           )}
         </div>
       </section>
-    </aside>
+    </PaneBody>
   );
 }
 
@@ -743,7 +760,7 @@ function ApprovalDialog({
 function ProviderDetails({ status, evalResult }: { status: IntegrationStatus | null; evalResult: Record<string, unknown> | null }) {
   const summaries = providerSummaries(status, evalResult);
   return (
-    <DrawerBody>
+    <PaneBody>
       <div className="grid gap-3">
         {summaries.map((item) => (
           <div key={item.title} className="fireguard-muted-card p-3">
@@ -756,7 +773,7 @@ function ProviderDetails({ status, evalResult }: { status: IntegrationStatus | n
           </div>
         ))}
       </div>
-    </DrawerBody>
+    </PaneBody>
   );
 }
 
@@ -783,9 +800,9 @@ function ContextDetails({
   onContactCheckIn: (zoneId: string) => void;
   onCapacityConfirm: (shelter: Shelter) => void;
 }) {
-  if (!context) return <DrawerBody><NonIdealState icon="database" title="Context loading" /></DrawerBody>;
+  if (!context) return <PaneBody><NonIdealState icon="database" title="Context loading" /></PaneBody>;
   return (
-    <DrawerBody>
+    <PaneBody>
       <div className="grid gap-4">
         <section>
           <H5>Refresh Data</H5>
@@ -881,14 +898,14 @@ function ContextDetails({
           </div>
         </section>
       </div>
-    </DrawerBody>
+    </PaneBody>
   );
 }
 
 function PlanDetails({ assessment }: { assessment: AssessmentResult | null }) {
-  if (!assessment) return <DrawerBody><NonIdealState icon="timeline-events" title="No plan yet" /></DrawerBody>;
+  if (!assessment) return <PaneBody><NonIdealState icon="timeline-events" title="No plan yet" /></PaneBody>;
   return (
-    <DrawerBody>
+    <PaneBody>
       <div className="grid gap-4">
         <Callout title={assessment.plan.recommended_strategy.replaceAll("_", " ")} intent={assessment.plan.requires_approval ? Intent.WARNING : Intent.PRIMARY}>
           {operatorText(assessment.plan.summary)}
@@ -929,13 +946,13 @@ function PlanDetails({ assessment }: { assessment: AssessmentResult | null }) {
           </div>
         </section>
       </div>
-    </DrawerBody>
+    </PaneBody>
   );
 }
 
 function ActionDetails({ actions, assessment, busy, onExecute }: { actions: ActionItem[]; assessment: AssessmentResult | null; busy: string | null; onExecute: () => void }) {
   return (
-    <DrawerBody>
+    <PaneBody>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
           <H5 className="m-0">Bundle {assessment?.bundle_id || "pending"}</H5>
@@ -965,14 +982,14 @@ function ActionDetails({ actions, assessment, busy, onExecute }: { actions: Acti
           </div>
         )) : <NonIdealState icon="send-message" title="No actions generated" />}
       </div>
-    </DrawerBody>
+    </PaneBody>
   );
 }
 
 function AuditDetails({ traceEvents, evalResult, assessment }: { traceEvents: Array<Record<string, unknown>>; evalResult: Record<string, unknown> | null; assessment: AssessmentResult | null }) {
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
   return (
-    <DrawerBody>
+    <PaneBody>
       <div className="grid gap-4">
         <section>
           <H5>Trace Exports</H5>
@@ -1013,7 +1030,7 @@ function AuditDetails({ traceEvents, evalResult, assessment }: { traceEvents: Ar
           </div>
         </section>
       </div>
-    </DrawerBody>
+    </PaneBody>
   );
 }
 
@@ -1030,8 +1047,8 @@ function RiskRow({ risk }: { risk: ZoneRisk }) {
   );
 }
 
-function DrawerBody({ children }: { children: ReactNode }) {
-  return <div className="fireguard-scroll h-full overflow-auto p-4">{children}</div>;
+function PaneBody({ children }: { children: ReactNode }) {
+  return <div className="fireguard-scroll ops-pane-body">{children}</div>;
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
