@@ -391,17 +391,9 @@ export function MapPanel({ context, assessment }: Props) {
   return (
     <section className="fireguard-map-panel">
       {mapboxConfigured ? <div ref={containerRef} className="absolute inset-0" /> : <MapboxTokenPending context={context} assessment={assessment} />}
-      <div className="absolute left-4 top-4 max-w-[520px]">
-        <div className="fireguard-muted-card p-3 shadow-lg">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Tag intent={mapboxConfigured ? Intent.SUCCESS : Intent.WARNING} minimal>
-                {mapboxConfigured ? "Map online" : "Basemap offline"}
-              </Tag>
-              <Tag minimal>{context?.mode === "replay" ? "Replay" : "Live"}</Tag>
-            </div>
-            <Button small minimal icon="layers" text="Layers" onClick={() => setLayersOpen((open) => !open)} />
-          </div>
+      <div className="absolute right-4 top-4 max-w-[460px]">
+        <div className="fireguard-map-layer-control shadow-lg">
+          <Button small icon="layers" text="Layers" onClick={() => setLayersOpen((open) => !open)} />
           {layersOpen ? (
             <ButtonGroup className="mt-3 flex flex-wrap" minimal>
               {([

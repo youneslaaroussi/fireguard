@@ -386,6 +386,17 @@ button {
   padding-top: 12px;
 }
 
+.fireguard-locked-state {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(64, 78, 92, 0.78);
+  background: rgba(8, 18, 26, 0.7);
+  color: #abb3bf;
+  font-size: 13px;
+  padding: 10px;
+}
+
 .ops-analytics {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -441,6 +452,12 @@ button {
   overflow: hidden;
   border: 0;
   background: #101820;
+}
+
+.fireguard-map-layer-control {
+  border: 1px solid rgba(64, 78, 92, 0.88);
+  background: rgba(11, 18, 24, 0.9);
+  padding: 8px;
 }
 
 .fireguard-command-overview {

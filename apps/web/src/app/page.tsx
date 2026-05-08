@@ -486,7 +486,6 @@ function CommandPanel({
             <p className="m-0 text-xs font-semibold uppercase tracking-[0.16em] text-[#8abbff]">Evacuation command</p>
             <H4 className="mb-0 mt-1">{plan ? "Recommendation Ready" : "Awaiting Assessment"}</H4>
           </div>
-          <Tag minimal intent={plan ? Intent.SUCCESS : Intent.NONE}>{plan ? "plan drafted" : "standby"}</Tag>
         </section>
 
         {plan ? (
@@ -556,8 +555,17 @@ function CommandPanel({
             <MiniMetric label="Done" value={executedCount} />
           </div>
           <div className="mt-3 grid gap-2">
-            <Button icon="confirm" text="Review & Approve" intent={Intent.PRIMARY} disabled={!assessment || approved} onClick={onOpenApproval} />
-            <Button icon="play" text="Execute Approved Actions" intent={Intent.SUCCESS} disabled={!assessment || !approved || busy !== null} loading={busy === "execute"} onClick={onExecute} />
+            {!assessment ? (
+              <div className="fireguard-locked-state">
+                <Tag minimal>locked</Tag>
+                <span>Approval bundle pending.</span>
+              </div>
+            ) : (
+              <>
+                {!approved ? <Button icon="confirm" text="Review & Approve" intent={Intent.PRIMARY} onClick={onOpenApproval} /> : null}
+                <Button icon="play" text="Execute Approved Actions" intent={Intent.SUCCESS} disabled={!approved || busy !== null} loading={busy === "execute"} onClick={onExecute} />
+              </>
+            )}
           </div>
         </section>
       </div>
@@ -672,7 +680,7 @@ function OverviewPane({
     <PaneBody>
       <section className="ops-panel">
         <div className="ops-panel-title">
-          <H5 className="m-0">System Links</H5>
+          <H5 className="m-0">Provider Status</H5>
         </div>
         <div className="ops-provider-grid">
           {summaries.map((item) => (
