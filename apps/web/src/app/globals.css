@@ -198,22 +198,6 @@ button {
   padding: 10px 12px;
 }
 
-.ops-pane-tabs {
-  flex-wrap: wrap;
-  justify-content: flex-end;
-}
-
-.ops-pane-tabs .bp6-button {
-  border: 1px solid rgba(64, 78, 92, 0.68);
-  background: rgba(8, 13, 18, 0.62);
-}
-
-.ops-pane-tabs .bp6-button.bp6-active {
-  border-color: rgba(138, 187, 255, 0.55);
-  background: rgba(45, 114, 210, 0.22);
-  box-shadow: inset 0 -2px 0 #8abbff;
-}
-
 .ops-column-header {
   min-height: 52px;
   display: flex;
@@ -238,6 +222,13 @@ button {
   letter-spacing: 0.12em;
   line-height: 1;
   text-transform: uppercase;
+}
+
+.ops-pane-subtitle {
+  margin: 4px 0 0;
+  color: #8f99a8;
+  font-size: 12px;
+  line-height: 1.25;
 }
 
 .ops-header-tags {

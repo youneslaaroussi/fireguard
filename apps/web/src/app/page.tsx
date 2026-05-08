@@ -223,7 +223,6 @@ export default function Home() {
       <div className="ops-body">
         <OpsRail
           activePane={activePane}
-          onRunAssessment={handleAssessment}
           onSelectPane={setActivePane}
         />
         <div className="ops-grid">
@@ -243,7 +242,6 @@ export default function Home() {
               busy={busy}
               traceEvents={traceSource}
               onSelectPane={setActivePane}
-              onRunAssessment={handleAssessment}
               onOpenApproval={() => setApprovalOpen(true)}
               onRefreshFeeds={handleFivetranSync}
               onRefreshShelters={handleShelterCapacitySheetSync}
@@ -324,16 +322,13 @@ function StatusPill({ label, value, intent }: { label: string; value: string; in
 
 function OpsRail({
   activePane,
-  onRunAssessment,
   onSelectPane,
 }: {
   activePane: ActivePane;
-  onRunAssessment: () => void;
   onSelectPane: (pane: ActivePane) => void;
 }) {
   return (
     <nav className="ops-rail" aria-label="FireGuard tools">
-      <Button minimal icon="flame" title="Assess incident" onClick={onRunAssessment} />
       <Button active={activePane === "overview"} minimal icon="dashboard" title="Overview" onClick={() => onSelectPane("overview")} />
       <Button active={activePane === "sources"} minimal icon="map" title="Data sources" onClick={() => onSelectPane("sources")} />
       <Button active={activePane === "evidence"} minimal icon="timeline-events" title="Evidence" onClick={() => onSelectPane("evidence")} />
@@ -360,7 +355,6 @@ function LeftOpsPanel({
   busy,
   traceEvents,
   onSelectPane,
-  onRunAssessment,
   onOpenApproval,
   onRefreshFeeds,
   onRefreshShelters,
@@ -384,7 +378,6 @@ function LeftOpsPanel({
   busy: string | null;
   traceEvents: Array<Record<string, unknown>>;
   onSelectPane: (pane: ActivePane) => void;
-  onRunAssessment: () => void;
   onOpenApproval: () => void;
   onRefreshFeeds: () => void;
   onRefreshShelters: () => void;
@@ -401,6 +394,14 @@ function LeftOpsPanel({
     actions: "Actions",
     audit: "Audit",
     diagnostics: "Diagnostics",
+  }[activePane];
+  const paneSubtitle = {
+    overview: "Primary evacuation controls",
+    sources: "Feeds, capacity, and open inputs",
+    evidence: "Risk scores and rejected options",
+    actions: "Approval-gated execution bundle",
+    audit: "Tool calls, traces, and eval checks",
+    diagnostics: "Provider and integration status",
   }[activePane];
 
   const renderPane = () => {
@@ -434,7 +435,6 @@ function LeftOpsPanel({
         publicActionCount={publicActionCount}
         executedCount={executedCount}
         busy={busy}
-        onRunAssessment={onRunAssessment}
         onOpenContext={() => onSelectPane("sources")}
         onOpenPlan={() => onSelectPane("evidence")}
         onOpenApproval={onOpenApproval}
@@ -451,15 +451,9 @@ function LeftOpsPanel({
         <div>
           <p className="ops-section-kicker">Command workspace</p>
           <H5 className="m-0">{paneTitle}</H5>
+          <p className="ops-pane-subtitle">{paneSubtitle}</p>
         </div>
-        <ButtonGroup minimal className="ops-pane-tabs">
-          <Button active={activePane === "overview"} small icon="dashboard" title="Command overview" onClick={() => onSelectPane("overview")} />
-          <Button active={activePane === "sources"} small icon="folder-open" title="Sources" onClick={() => onSelectPane("sources")} />
-          <Button active={activePane === "evidence"} small icon="timeline-events" title="Evidence" onClick={() => onSelectPane("evidence")} />
-          <Button active={activePane === "actions"} small icon="send-message" title="Actions" onClick={() => onSelectPane("actions")} />
-          <Button active={activePane === "audit"} small icon="path-search" title="Audit" onClick={() => onSelectPane("audit")} disabled={!assessment} />
-          <Button active={activePane === "diagnostics"} small icon="layers" title="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
-        </ButtonGroup>
+        <Tag minimal intent={assessment ? Intent.SUCCESS : Intent.NONE}>{assessment ? "assessed" : "standby"}</Tag>
       </div>
       <div className="ops-pane-content">{renderPane()}</div>
     </aside>
@@ -475,7 +469,6 @@ function CommandPanel({
   publicActionCount,
   executedCount,
   busy,
-  onRunAssessment,
   onOpenContext,
   onOpenPlan,
   onOpenApproval,
@@ -491,7 +484,6 @@ function CommandPanel({
   publicActionCount: number;
   executedCount: number;
   busy: string | null;
-  onRunAssessment: () => void;
   onOpenContext: () => void;
   onOpenPlan: () => void;
   onOpenApproval: () => void;
@@ -511,7 +503,7 @@ function CommandPanel({
             <p className="m-0 text-xs font-semibold uppercase tracking-[0.16em] text-[#8abbff]">Evacuation command</p>
             <H4 className="mb-0 mt-1">{plan ? "Recommendation Ready" : "Awaiting Assessment"}</H4>
           </div>
-          <Button icon="play" text={plan ? "Reassess" : "Run Assessment"} intent={Intent.DANGER} loading={busy === "assessment"} disabled={busy !== null} onClick={onRunAssessment} />
+          <Tag minimal intent={plan ? Intent.SUCCESS : Intent.NONE}>{plan ? "plan drafted" : "standby"}</Tag>
         </section>
 
         {plan ? (
