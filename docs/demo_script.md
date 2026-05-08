@@ -12,11 +12,15 @@ Fivetran ingests wildfire, road, and weather data into BigQuery. FireGuard syncs
 
 Show the provider strip: Fivetran ingestion, Elastic memory, Gemini tool calls, and Arize Phoenix traces. Then show fire, road, shelter, and zone layers.
 
-## 0:45-1:30 Agent Assessment
+If current live fires are far from the configured zones, say that directly:
 
-Click `Run Agent Assessment`.
+> In live mode today, FireGuard correctly chooses monitor-only and creates no public evacuation actions. For a reproducible evacuation decision, I am switching to replay mode using recorded real source snapshots.
 
-The nearest route from Zone A looks fastest, but FireGuard rejects it because it intersects a road closure and a wildfire risk buffer. It also sees that the nearest shelter cannot absorb the full load.
+## 0:45-1:30 Agent Assessment / Replay Scenario
+
+Click `Reset Demo` if needed to load the replay-ready scenario, then click `Run Agent Assessment`.
+
+In the replay scenario, the nearest route from Zone A looks fastest, but FireGuard rejects it because it intersects a road closure or wildfire risk buffer. It also sees that the nearest reception centre or shelter option is unavailable or cannot absorb the full load.
 
 ## 1:30-2:10 Staged Plan
 
@@ -32,7 +36,7 @@ This is why FireGuard is an agent, not a dashboard. It sequences actions across 
 
 Click approve, then execute.
 
-Show SMS, shelter webhook, road ops task, dispatch task, and action timeline.
+Show SMS, GitHub Issues tasks for shelter/road/dispatch, and the action timeline. Make clear these are real demo action channels, not official municipal systems.
 
 ## 2:35-3:00 Audit
 
