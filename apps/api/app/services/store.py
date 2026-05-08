@@ -224,6 +224,18 @@ class FireGuardStore:
     def bulk_upsert(self, index: str, docs: list[dict[str, Any]], id_field: str) -> list[dict[str, Any]]:
         return [self.upsert(index, str(doc[id_field]), doc) for doc in docs if doc.get(id_field)]
 
+    def replace_index(self, index: str, docs: list[dict[str, Any]], id_field: str) -> list[dict[str, Any]]:
+        self.ensure_indices()
+        for doc_id in list(self.indices[index].keys()):
+            self.indices[index].pop(doc_id, None)
+            if self.es and not self.elastic_error:
+                try:
+                    self.es.options(ignore_status=[404]).delete(index=index, id=doc_id)
+                except Exception as exc:  # pragma: no cover - external Elastic only
+                    self.elastic_error = str(exc)
+                    break
+        return self.bulk_upsert(index, docs, id_field)
+
     def list(self, index: str) -> list[dict[str, Any]]:
         self.ensure_indices()
         return list(self.indices[index].values())

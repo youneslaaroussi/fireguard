@@ -27,7 +27,8 @@ class Settings(BaseSettings):
 
     nasa_firms_map_key: str | None = None
     nasa_firms_source: str = "VIIRS_SNPP_NRT"
-    nasa_firms_bbox: str = "-122.2,52.0,-121.3,52.9"
+    nasa_firms_bbox: str = "-139.2,48.2,-114.0,60.1"
+    nasa_firms_day_range: int = 2
 
     google_cloud_project: str | None = None
     google_cloud_location: str = "global"

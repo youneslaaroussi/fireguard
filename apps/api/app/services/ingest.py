@@ -122,8 +122,9 @@ async def ingest_firms(settings: Settings) -> dict[str, Any]:
         return {"mode": "historical_snapshot_replay", "docs": docs, "reason": "NASA_FIRMS_MAP_KEY is not configured."}
 
     bbox = settings.nasa_firms_bbox
-    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{settings.nasa_firms_map_key}/{settings.nasa_firms_source}/{bbox}/1"
-    redacted_url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/[MAP_KEY]/{settings.nasa_firms_source}/{bbox}/1"
+    day_range = max(1, min(int(settings.nasa_firms_day_range), 5))
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{settings.nasa_firms_map_key}/{settings.nasa_firms_source}/{bbox}/{day_range}"
+    redacted_url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/[MAP_KEY]/{settings.nasa_firms_source}/{bbox}/{day_range}"
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.get(url)
         response.raise_for_status()
@@ -134,7 +135,7 @@ async def ingest_firms(settings: Settings) -> dict[str, Any]:
             "mode": "live_empty_historical_snapshot_fallback",
             "docs": docs,
             "source_url": redacted_url,
-            "reason": "NASA FIRMS returned zero current rows for the configured bbox.",
+            "reason": "NASA FIRMS returned zero rows for the configured bbox and lookback window.",
         }
     docs = []
     ingested_at = now_iso()
@@ -156,7 +157,14 @@ async def ingest_firms(settings: Settings) -> dict[str, Any]:
             "ingested_at": ingested_at,
             "raw": row,
         })
-    return {"mode": "live", "docs": docs, "source_url": redacted_url}
+    return {
+        "mode": "live",
+        "docs": docs,
+        "source_url": redacted_url,
+        "source_bbox": bbox,
+        "day_range": day_range,
+        "row_count": len(docs),
+    }
 
 
 async def ingest_bc_perimeters() -> dict[str, Any]:

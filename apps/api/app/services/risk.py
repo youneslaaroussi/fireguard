@@ -43,7 +43,15 @@ def compute_zone_risk(zone: dict, context: dict) -> ZoneRisk:
     wind_score = _wind_alignment_score(zone, fires, wind)
     road_exit_risk_score = 0.9 if road_events and zone["zone_id"] in {"ZONE_A", "ZONE_C"} else 0.45
     population_vulnerability_score = _clamp(zone["vulnerable_count"] / max(zone["population"], 1) * 2.2)
-    shelter_constraint_score = 0.75 if any(shelter["capacity_available"] < zone["population"] for shelter in shelters) else 0.2
+    confirmed_shelters = [shelter for shelter in shelters if shelter.get("capacity_operator_confirmed")]
+    if confirmed_shelters:
+        shelter_constraint_score = (
+            0.75
+            if any(shelter.get("capacity_available", 0) < zone["population"] for shelter in confirmed_shelters)
+            else 0.2
+        )
+    else:
+        shelter_constraint_score = 0.45
     data_staleness_score = 0.75 if any(item.get("stale") for item in freshness) else 0.1
 
     score = (
@@ -64,8 +72,10 @@ def compute_zone_risk(zone: dict, context: dict) -> ZoneRisk:
         "Primary local access route has an active DriveBC closure." if road_exit_risk_score > 0.8 else "No primary exit closure is known for this zone.",
         f"{zone['vulnerable_count']} vulnerable-population proxy count and evacuation access score {zone['vehicle_access_score']:.2f}.",
     ]
-    if shelter_constraint_score > 0.5:
-        factors.append("Nearest shelter capacity is insufficient for a full-zone movement.")
+    if confirmed_shelters and shelter_constraint_score > 0.5:
+        factors.append("Operator-confirmed shelter capacity is insufficient for a full-zone movement.")
+    elif not confirmed_shelters:
+        factors.append("Public BC ESS data does not expose live shelter capacity; intake capacity requires operator confirmation.")
 
     evidence_ids = [fire["external_id"] for fire in fires[:2]] + [event["external_id"] for event in road_events[:1]]
     return ZoneRisk(

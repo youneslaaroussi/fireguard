@@ -177,24 +177,17 @@ def _safety_flags(
         if shelter.get("source_record_id"):
             evidence_ids.append(shelter["source_record_id"])
         blocking = True
-    elif zone.get("population", 0) > shelter.get("capacity_available", 0):
-        if shelter.get("capacity_operator_confirmed"):
+    else:
+        capacity_id = _shelter_capacity_tracking_id(shelter)
+        if capacity_id:
+            assumption_ids.append(capacity_id)
+        if shelter.get("capacity_operator_confirmed") and zone.get("population", 0) > shelter.get("capacity_available", 0):
             flags.append(
                 "Operator-confirmed capacity report: "
                 f"{shelter_label} has {shelter.get('capacity_available', 0)} available places "
                 f"for {zone.get('population', 0)} people in {zone['zone_id']}."
             )
-            assumption_ids.append(f"INPUT_{shelter['shelter_id']}_CAPACITY_OPERATOR_CONFIRMED")
-        elif shelter.get("capacity_is_operator_assumption"):
-            flags.append(
-                "Operator-entered capacity assumption: "
-                f"{shelter_label} has {shelter.get('capacity_available', 0)} available places "
-                f"for {zone.get('population', 0)} people in {zone['zone_id']}."
-            )
-            assumption_ids.append(f"ASSUMPTION_{shelter['shelter_id']}_CAPACITY")
-        else:
-            flags.append(f"{shelter_label} has insufficient sourced capacity for {zone['zone_id']}.")
-        blocking = True
+            blocking = True
 
     for event in context.get("road_events", []):
         if not _is_closure_event(event):
@@ -236,6 +229,17 @@ def _blocking_shelter_status(shelter: dict[str, Any]) -> str | None:
     normalized = status.lower()
     if normalized in {"closed", "inactive", "unavailable"} or "closed" in normalized:
         return status
+    return None
+
+
+def _shelter_capacity_tracking_id(shelter: dict[str, Any]) -> str | None:
+    shelter_id = shelter.get("shelter_id")
+    if not shelter_id:
+        return None
+    if shelter.get("capacity_operator_confirmed"):
+        return f"INPUT_{shelter_id}_CAPACITY_OPERATOR_CONFIRMED"
+    if shelter.get("capacity_is_operator_assumption"):
+        return f"ASSUMPTION_{shelter_id}_CAPACITY"
     return None
 
 
@@ -339,6 +343,9 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
         ]
         evidence_ids = [closure_id] if closure_id else []
         assumption_ids: list[str] = []
+        capacity_id = _shelter_capacity_tracking_id(shelter)
+        if capacity_id and not official_status:
+            assumption_ids.append(capacity_id)
         if fire_ids:
             flags.insert(1, "Route crosses active fire-risk buffer.")
             evidence_ids.extend(fire_ids)
@@ -349,9 +356,8 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
             )
             if shelter.get("source_record_id"):
                 evidence_ids.append(shelter["source_record_id"])
-        else:
-            flags.append("Operator-entered capacity assumption: Shelter A has insufficient capacity for Zone A.")
-            assumption_ids.append("ASSUMPTION_SHELTER_A_CAPACITY")
+        elif shelter.get("capacity_operator_confirmed") and zone.get("population", 0) > shelter.get("capacity_available", 0):
+            flags.append("Operator-confirmed capacity report: Shelter A has insufficient capacity for Zone A.")
         return _route(
             zone_id,
             shelter_id,
@@ -365,23 +371,61 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
         )
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_B":
         points = [origin, dest]
-        return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), True, [], points, [])
+        return _route(
+            zone_id,
+            shelter_id,
+            _duration_from_points(points),
+            _polyline_distance_km(points),
+            True,
+            [],
+            points,
+            [],
+            [_shelter_capacity_tracking_id(shelter)] if _shelter_capacity_tracking_id(shelter) else [],
+        )
     if zone_id == "ZONE_A" and shelter_id == "SHELTER_C":
         points = [origin, dest]
+        official_status = _blocking_shelter_status(shelter)
+        flags = []
+        evidence_ids = []
+        assumption_ids = []
+        if official_status:
+            flags.append(
+                "Official BC ESS facility status is "
+                f"{official_status}: {shelter.get('name', 'Shelter C')} is not available for evacuee intake."
+            )
+            if shelter.get("source_record_id"):
+                evidence_ids.append(shelter["source_record_id"])
+        else:
+            capacity_id = _shelter_capacity_tracking_id(shelter)
+            if capacity_id:
+                assumption_ids.append(capacity_id)
+            if shelter.get("capacity_operator_confirmed") and zone.get("population", 0) > shelter.get("capacity_available", 0):
+                flags.append("Operator-confirmed capacity report: Shelter C has insufficient capacity for Zone A.")
         return _route(
             zone_id,
             shelter_id,
             _duration_from_points(points),
             _polyline_distance_km(points),
             False,
-            ["Operator-entered capacity assumption: Shelter C has insufficient capacity for Zone A."],
+            flags or ["Shelter C is not selected for Zone A."],
             points,
-            [],
-            ["ASSUMPTION_SHELTER_C_CAPACITY"],
+            evidence_ids,
+            assumption_ids,
         )
     if zone_id == "ZONE_B" and shelter_id == "SHELTER_B":
         points = [origin, dest]
-        return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), True, ["Shared rural corridor with Zone A creates congestion risk if simultaneous."], points, [])
+        capacity_id = _shelter_capacity_tracking_id(shelter)
+        return _route(
+            zone_id,
+            shelter_id,
+            _duration_from_points(points),
+            _polyline_distance_km(points),
+            True,
+            ["Shared rural corridor with Zone A creates congestion risk if simultaneous."],
+            points,
+            [],
+            [capacity_id] if capacity_id else [],
+        )
     if zone_id == "ZONE_C":
         points = [origin, closure_point or origin, dest]
         flags = [

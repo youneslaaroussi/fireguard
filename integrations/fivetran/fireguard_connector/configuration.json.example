@@ -1,7 +1,8 @@
 {
   "nasa_firms_map_key": "",
   "nasa_firms_source": "VIIRS_SNPP_NRT",
-  "nasa_firms_bbox": "-122.2,52.0,-121.3,52.9",
+  "nasa_firms_bbox": "-139.2,48.2,-114.0,60.1",
+  "nasa_firms_day_range": "2",
   "weather_latitude": "52.622",
   "weather_longitude": "-121.660"
 }

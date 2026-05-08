@@ -302,7 +302,7 @@ def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
     counts: dict[str, int] = {}
     for stream, docs in streams.items():
         id_field = STREAMS[stream]
-        store.bulk_upsert(stream, docs, id_field)
+        store.replace_index(stream, docs, id_field)
         counts[stream] = len(docs)
 
     run_id = f"FIVETRAN_SYNC_{now_iso()}"

@@ -244,7 +244,10 @@ def _source_backed_shelter(
         "capacity_total": capacity_total,
         "capacity_available": capacity_available,
         "capacity_is_operator_assumption": True,
-        "capacity_source_label": "Operator-entered demo capacity; the public BC ESS facility layer does not expose capacity.",
+        "capacity_source_label": (
+            "Unconfirmed capacity placeholder; the public BC ESS facility layer does not expose live capacity. "
+            "FireGuard treats this as a confirmation gate until an operator update is synced."
+        ),
         "pet_friendly": pet_friendly,
         "medical_support": medical_support,
         "accessible": accessible,
@@ -436,7 +439,7 @@ def operational_assumptions(
                 "assumption_id": f"ASSUMPTION_{shelter['shelter_id']}_CAPACITY",
                 "component": "shelter_capacity",
                 "target": shelter["shelter_id"],
-                "label": f"{shelter['name']} capacity is operator-entered",
+                "label": f"{shelter['name']} capacity requires confirmation",
                 "detail": shelter.get("capacity_source_label", "Capacity source is not official."),
                 "affects_decision": True,
                 "current_value": {
@@ -616,7 +619,7 @@ def demo_disclosures() -> list[dict[str, Any]]:
         {
             "scope": "shelters_residents_dispatch",
             "label": SYNTHETIC_MUNICIPAL_LABEL,
-            "detail": "Shelter A/B/C facility identities and locations come from the official BC ESS layer. Official CLOSED facility status blocks routing to closed facilities; all shelter capacity numbers are operator-entered demo assumptions. Dispatch vehicle availability is not claimed; FireGuard creates a task request for a dispatcher to assign real resources. Zone resident contacts are placeholders until an operator-provided Twilio test contact is configured or checked in.",
+            "detail": "Shelter A/B/C facility identities and locations come from the official BC ESS layer. Official CLOSED facility status blocks routing to closed facilities; public ESS data does not expose live capacity, so unconfirmed capacity values are treated as operator-confirmation gates until a named check-in or authorized feed is synced. Dispatch vehicle availability is not claimed; FireGuard creates a task request for a dispatcher to assign real resources. Zone resident contacts are placeholders until an operator-provided Twilio test contact is configured or checked in.",
             "synthetic": True,
         },
         {

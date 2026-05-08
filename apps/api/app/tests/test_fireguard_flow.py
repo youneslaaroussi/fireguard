@@ -927,6 +927,27 @@ def test_fivetran_sync_indexes_provider_lineage() -> None:
     assert all(doc["ingestion_provider"] == "fivetran" for doc in store.list("fire_hotspots"))
 
 
+def test_fivetran_sync_replaces_stale_stream_records() -> None:
+    store = seeded_store()
+    store.upsert(
+        "fire_hotspots",
+        "STALE_REPLAY_FIRE",
+        {
+            "external_id": "STALE_REPLAY_FIRE",
+            "source": "NASA_FIRMS_HISTORICAL_SNAPSHOT",
+            "location": {"lat": 52.0, "lon": -121.0},
+            "acquired_at": "2024-07-10T09:57:00Z",
+        },
+    )
+
+    result = sync_fivetran_to_elastic(store)
+    ids = {doc["external_id"] for doc in store.list("fire_hotspots")}
+
+    assert result["provider"] == "fivetran"
+    assert "STALE_REPLAY_FIRE" not in ids
+    assert all(doc["ingestion_provider"] == "fivetran" for doc in store.list("fire_hotspots"))
+
+
 def test_fivetran_status_exposes_latest_run() -> None:
     store = seeded_store()
     sync_fivetran_to_elastic(store)

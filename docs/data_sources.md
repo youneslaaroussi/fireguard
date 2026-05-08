@@ -2,7 +2,7 @@
 
 ## Live/Open Sources Through Fivetran
 
-- NASA FIRMS area CSV API for active hotspots. Replay mode stores a real historical `VIIRS_NOAA20_SP` CSV snapshot in `data/replay/bc_demo/firms_snapshot.csv` with the MAP_KEY redacted from provenance.
+- NASA FIRMS area CSV API for active hotspots. The default BC query uses bbox `-139.2,48.2,-114.0,60.1` with a 2-day lookback so UTC-day quiet periods do not force replay when recent live FIRMS rows exist. Replay mode stores a real historical `VIIRS_NOAA20_SP` CSV snapshot in `data/replay/bc_demo/firms_snapshot.csv` with the MAP_KEY redacted from provenance.
 - BC Wildfire current fire perimeters from ArcGIS REST GeoJSON.
 - DriveBC/Open511 road events.
 - Open-Meteo wind forecasts.
@@ -19,7 +19,7 @@ Supplemental BC public emergency context can also be refreshed directly with `PO
 
 ## Synthetic Or Derived Sources
 
-- shelter capacities;
+- unconfirmed shelter capacities; public BC ESS facility data exposes status/location, not live capacity;
 - resident-contact placeholders, except configured, operator-checked-in, or Twilio inbound opt-in test recipients;
 - dispatch asset availability is not claimed; FireGuard creates an operator task request for dispatch assignment;
 - municipal webhook endpoints;
@@ -28,7 +28,7 @@ Supplemental BC public emergency context can also be refreshed directly with `PO
 Synthetic action endpoints are clearly labeled in the UI and logs. Fire, road, and weather records used in the judged reasoning path must cite a source record or stored replay source snapshot.
 Every non-authoritative operational input is also emitted as an `operational_assumptions` record with a fix path, then attached to affected route, plan, action, trace, and Phoenix span records through `assumption_ids`.
 
-Shelter capacity can be updated by a named operator through `POST /shelters/{shelter_id}/capacity-check-in` or the UI `Confirm Capacity` action. It can also be synced from an operator-maintained Google Sheet through `POST /sync/google-sheets-shelter-capacity`. Both paths create auditable `capacity_updates` records and change downstream tracking to an operator-confirmed input. They remain distinct from an official ESS capacity feed unless the operator-maintained sheet is explicitly authorized as that feed.
+Shelter capacity can be updated by a named operator through `POST /shelters/{shelter_id}/capacity-check-in` or the UI `Confirm Capacity` action. It can also be synced from an operator-maintained Google Sheet through `POST /sync/google-sheets-shelter-capacity`. Both paths create auditable `capacity_updates` records and change downstream tracking to an operator-confirmed input. They remain distinct from an official ESS capacity feed unless the operator-maintained sheet is explicitly authorized as that feed. Unconfirmed capacity values are shown as confirmation gates and are not treated as official numeric evidence.
 
 Zone vulnerable/access context can be updated through `POST /sync/source-backed-zone-context`. This creates auditable `zone_updates` records from Statistics Canada Census Profile age structure and BC Digital Road Atlas road-network samples. The output is source-backed and testable, but it remains a public proxy, not an official vulnerable-person registry or household vehicle-access feed.
 

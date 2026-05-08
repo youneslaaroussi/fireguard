@@ -14,7 +14,17 @@ from fivetran_connector_sdk import Connector, Logging as log, Operations as op
 BC_PERIMETERS_URL = "https://delivery.maps.gov.bc.ca/arcgis/rest/services/mpcm/bcgwpub/MapServer/624/query"
 DRIVEBC_EVENTS_URL = "https://api.open511.gov.bc.ca/events"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
-REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+def _repo_root() -> Path:
+    connector_file = Path(__file__).resolve()
+    for parent in (connector_file.parent, *connector_file.parents):
+        if (parent / "data" / "replay" / "bc_demo" / "firms_snapshot.csv").exists():
+            return parent
+    return connector_file.parent
+
+
+REPO_ROOT = _repo_root()
 FIRMS_SNAPSHOT_CSV = REPO_ROOT / "data" / "replay" / "bc_demo" / "firms_snapshot.csv"
 FIRMS_SNAPSHOT_URL = (
     "https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
@@ -205,8 +215,12 @@ def _firms_rows(configuration: dict[str, Any]) -> Iterable[dict[str, Any]]:
         return
 
     source = configuration.get("nasa_firms_source", "VIIRS_SNPP_NRT")
-    bbox = configuration.get("nasa_firms_bbox", "-122.2,52.0,-121.3,52.9")
-    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{map_key}/{source}/{bbox}/1"
+    bbox = configuration.get("nasa_firms_bbox", "-139.2,48.2,-114.0,60.1")
+    try:
+        day_range = max(1, min(int(configuration.get("nasa_firms_day_range", "2")), 5))
+    except (TypeError, ValueError):
+        day_range = 2
+    url = f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/{map_key}/{source}/{bbox}/{day_range}"
     ingested_at = now_iso()
     try:
         text = _request_text(url)
@@ -216,8 +230,8 @@ def _firms_rows(configuration: dict[str, Any]) -> Iterable[dict[str, Any]]:
         return
     rows = list(csv.DictReader(StringIO(text)))
     if not rows:
-        log.warning("NASA FIRMS returned zero current rows for configured bbox; emitting stored historical FIRMS snapshot.")
-        yield from _replay_fire_hotspots("live FIRMS returned zero rows for configured bbox")
+        log.warning("NASA FIRMS returned zero rows for configured bbox/lookback; emitting stored historical FIRMS snapshot.")
+        yield from _replay_fire_hotspots("live FIRMS returned zero rows for configured bbox/lookback")
         return
     for row in rows:
         yield _firms_stream_row(row, "NASA_FIRMS", ingested_at)

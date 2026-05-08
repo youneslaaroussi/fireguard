@@ -22,6 +22,27 @@ def _shelter_name(shelters: dict[str, dict], shelter_id: str | None) -> str:
     return shelters.get(shelter_id, {}).get("name", shelter_id)
 
 
+def _shelter_capacity_statement(shelter: dict, shelter_name: str) -> str:
+    if shelter.get("capacity_operator_confirmed"):
+        return f"Operator-confirmed capacity for {shelter_name} is available as an auditable input for this plan."
+    return (
+        f"{shelter_name} capacity is not exposed by the public BC ESS feed; treat the intake assignment "
+        "as pending operator confirmation before real-world release."
+    )
+
+
+def _shelter_capacity_action_reason(shelter: dict, shelter_name: str) -> str:
+    if shelter.get("capacity_operator_confirmed"):
+        return (
+            f"{shelter_name} is selected using an auditable operator-confirmed capacity update; "
+            "replace with an authorized ESS capacity feed before real-world use."
+        )
+    return (
+        f"{shelter_name} is selected as an open ESS facility, but public ESS data has no capacity field; "
+        "this notification is a capacity-confirmation gate, not proof of authoritative intake availability."
+    )
+
+
 def _route_assumption_ids(route) -> list[str]:
     return list(getattr(route, "assumption_ids", []) or [])
 
@@ -63,6 +84,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     zone_c_name = _zone_name(zones_by_id, "ZONE_C")
     zone_a_destination_name = _shelter_name(shelters_by_id, route_a.destination_id if route_a else None)
     zone_b_destination_name = _shelter_name(shelters_by_id, route_b.destination_id if route_b else None)
+    zone_b_shelter = shelters_by_id.get(route_b.destination_id, {}) if route_b else {}
     zone_a_strategy = "evacuate_now" if route_a else "shelter_in_place_dispatch_assisted"
     zone_a_destination = route_a.destination_id if route_a else None
     zone_a_message = (
@@ -88,7 +110,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     zone_b_rationale = (
         [
             "High risk, but immediate simultaneous departure would overload the shared rural corridor.",
-            f"Operator-entered shelter capacity for {zone_b_destination_name} leaves room for Zone B after Zone A is staged.",
+            _shelter_capacity_statement(zone_b_shelter, zone_b_destination_name),
         ]
         if route_b
         else ["Google Routes-backed route checks did not find a currently safe self-evacuation path.", "Holding avoids routing residents through a closure while road ops verifies release timing."]
@@ -151,7 +173,7 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
         data_freshness=context.get("data_freshness", []),
         risks_if_wrong=[
             f"If wind shifts north, {zone_b_name} may need immediate evacuation instead of staged release.",
-            "Shelter capacity numbers are operator-entered demo assumptions; confirm with the ESS coordinator before treating them as authoritative.",
+            "Public BC ESS data does not expose live shelter capacity; any unconfirmed intake assignment must be verified by an authorized shelter/operator feed.",
             "Dispatch resource availability is not asserted by FireGuard; the dispatch task requires operator assignment.",
             "If road closure data is stale, road ops must verify before releasing traffic.",
         ],
@@ -214,7 +236,7 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
                 "capacity_confirmed_by": primary_shelter.get("capacity_confirmed_by"),
                 "capacity_update_id": primary_shelter.get("capacity_update_id"),
             },
-            f"{primary_shelter_name} is selected using operator-provided capacity data that must be confirmed against an authoritative ESS feed before real-world use.",
+            _shelter_capacity_action_reason(primary_shelter, primary_shelter_name),
             [primary_shelter_id],
             plan.confidence,
             settings=settings,
