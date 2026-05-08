@@ -11,6 +11,20 @@ from typing import Any, Iterable
 import requests
 from fivetran_connector_sdk import Connector, Logging as log, Operations as op
 
+BC_BOUNDARY_WFS_URL = "https://openmaps.gov.bc.ca/geo/pub/WHSE_LEGAL_ADMIN_BOUNDARIES.ABMS_PROVINCE_SP/ows"
+BC_BOUNDARY_WFS_PARAMS = {
+    "service": "WFS",
+    "version": "2.0.0",
+    "request": "GetFeature",
+    "typeNames": "pub:WHSE_LEGAL_ADMIN_BOUNDARIES.ABMS_PROVINCE_SP",
+    "outputFormat": "json",
+    "srsName": "EPSG:4326",
+}
+BC_BOUNDARY_SOURCE_URL = (
+    f"{BC_BOUNDARY_WFS_URL}?service=WFS&version=2.0.0&request=GetFeature"
+    "&typeNames=pub:WHSE_LEGAL_ADMIN_BOUNDARIES.ABMS_PROVINCE_SP"
+    "&outputFormat=json&srsName=EPSG:4326"
+)
 BC_PERIMETERS_URL = "https://delivery.maps.gov.bc.ca/arcgis/rest/services/mpcm/bcgwpub/MapServer/624/query"
 DRIVEBC_EVENTS_URL = "https://api.open511.gov.bc.ca/events"
 OPEN_METEO_URL = "https://api.open-meteo.com/v1/forecast"
@@ -82,6 +96,78 @@ def first_lon_lat(value: Any) -> tuple[float | None, float | None]:
             if lon is not None and lat is not None:
                 return lon, lat
     return None, None
+
+
+def _rings_from_geometry(geometry: dict[str, Any]) -> list[list[list[float]]]:
+    coordinates = geometry.get("coordinates") or []
+    if geometry.get("type") == "Polygon":
+        return [ring for ring in coordinates if ring]
+    if geometry.get("type") == "MultiPolygon":
+        rings: list[list[list[float]]] = []
+        for polygon in coordinates:
+            rings.extend(ring for ring in polygon if ring)
+        return rings
+    return []
+
+
+_BC_BOUNDARY_RINGS: list[list[list[float]]] | None = None
+
+
+def _bc_boundary_rings() -> list[list[list[float]]]:
+    global _BC_BOUNDARY_RINGS
+    if _BC_BOUNDARY_RINGS is not None:
+        return _BC_BOUNDARY_RINGS
+    payload = _request_json(BC_BOUNDARY_WFS_URL, BC_BOUNDARY_WFS_PARAMS)
+    rings: list[list[list[float]]] = []
+    for feature in payload.get("features", []):
+        rings.extend(_rings_from_geometry(feature.get("geometry") or {}))
+    if not rings:
+        raise RuntimeError("BC boundary WFS returned no polygon rings.")
+    _BC_BOUNDARY_RINGS = rings
+    return rings
+
+
+def _point_in_ring(lon: float, lat: float, ring: list[list[float]]) -> bool:
+    inside = False
+    if len(ring) < 3:
+        return False
+    j = len(ring) - 1
+    for i, point in enumerate(ring):
+        lon_i, lat_i = float(point[0]), float(point[1])
+        lon_j, lat_j = float(ring[j][0]), float(ring[j][1])
+        crosses = (lat_i > lat) != (lat_j > lat)
+        if crosses:
+            denominator = lat_j - lat_i
+            if denominator:
+                intersect_lon = (lon_j - lon_i) * (lat - lat_i) / denominator + lon_i
+                if lon < intersect_lon:
+                    inside = not inside
+        j = i
+    return inside
+
+
+def _southern_bc_bbox_fallback(lat: float, lon: float) -> bool:
+    if not (-139.2 <= lon <= -114.0 and 48.2 <= lat <= 60.1):
+        return False
+    if lat >= 49.0:
+        return True
+    return lon <= -123.0
+
+
+def _classify_bc_location(lat: float, lon: float) -> dict[str, Any]:
+    try:
+        return {
+            "inside": any(_point_in_ring(lon, lat, ring) for ring in _bc_boundary_rings()),
+            "method": "official_bc_boundary_wfs",
+            "source_url": BC_BOUNDARY_SOURCE_URL,
+        }
+    except Exception as exc:
+        return {
+            "inside": _southern_bc_bbox_fallback(lat, lon),
+            "method": "southern_bc_bbox_fallback",
+            "source_url": BC_BOUNDARY_SOURCE_URL,
+            "warning": f"Official BC boundary fetch failed; used conservative bbox fallback: {str(exc)[:300]}",
+        }
 
 
 def schema(configuration: dict[str, Any]) -> list[dict[str, Any]]:
@@ -233,8 +319,31 @@ def _firms_rows(configuration: dict[str, Any]) -> Iterable[dict[str, Any]]:
         log.warning("NASA FIRMS returned zero rows for configured bbox/lookback; emitting stored historical FIRMS snapshot.")
         yield from _replay_fire_hotspots("live FIRMS returned zero rows for configured bbox/lookback")
         return
+    filtered_out = 0
+    filter_warnings: set[str] = set()
     for row in rows:
-        yield _firms_stream_row(row, "NASA_FIRMS", ingested_at)
+        lat = float_value(row.get("latitude"))
+        lon = float_value(row.get("longitude"))
+        classification = _classify_bc_location(lat, lon)
+        if classification.get("warning"):
+            filter_warnings.add(classification["warning"])
+        if not classification["inside"]:
+            filtered_out += 1
+            continue
+        yield _firms_stream_row(
+            row,
+            "NASA_FIRMS",
+            ingested_at,
+            {
+                "bc_region_filter": classification["method"],
+                "bc_region_filter_source_url": classification["source_url"],
+                **({"bc_region_filter_warning": classification["warning"]} if classification.get("warning") else {}),
+            },
+        )
+    if filtered_out:
+        log.info(f"Filtered {filtered_out} NASA FIRMS rows outside the official BC boundary before Fivetran upsert.")
+    for warning in sorted(filter_warnings):
+        log.warning(warning)
 
 
 def _bc_perimeter_rows() -> Iterable[dict[str, Any]]:
@@ -427,6 +536,8 @@ def _fallback_warning_from_rows(table: str, rows: list[dict[str, Any]]) -> dict[
             reasons.add(str(raw["fallback_reason"]))
         elif raw.get("source_error"):
             reasons.add(f"Source fetch failed: {raw['source_error']}")
+        elif raw.get("bc_region_filter_warning"):
+            reasons.add(str(raw["bc_region_filter_warning"]))
         elif raw.get("historical_replay") or raw.get("source_snapshot") or raw.get("replay"):
             reasons.add("Stored source snapshot or replay row emitted by connector.")
         elif "REPLAY" in source or "SNAPSHOT" in source:

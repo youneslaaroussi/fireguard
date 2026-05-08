@@ -8,6 +8,6 @@ steps:
       - NEXT_PUBLIC_API_BASE_URL=${_API_URL}
       - -t
       - ${_IMAGE}
-      - apps/web
+      - .
 images:
   - ${_IMAGE}

@@ -7,6 +7,15 @@ from app.services.store import FireGuardStore
 from app.services.time import now_iso
 
 
+PUBLIC_ACTION_TYPES = {"resident_sms", "shelter_notify", "road_ops_task", "dispatch_task"}
+EVACUATION_STRATEGIES = {
+    "evacuate_now",
+    "staged_evacuation",
+    "shelter_in_place_dispatch_assisted",
+    "hold_for_route_confirmation",
+}
+
+
 def evaluate_incident(store: FireGuardStore, incident_id: str) -> dict[str, Any]:
     plans = [plan for plan in store.list("plans") if plan["incident_id"] == incident_id]
     traces = [trace for trace in store.list("traces") if trace["incident_id"] == incident_id]
@@ -19,12 +28,22 @@ def evaluate_incident(store: FireGuardStore, incident_id: str) -> dict[str, Any]
     trace_events = latest_trace.get("events", [])
     rejected_text = " ".join(str(item.get("reason", "")) for item in plan.get("rejected_alternatives", []))
     freshness = plan.get("data_freshness", [])
+    public_actions = [action for action in actions if action.get("action_type") in PUBLIC_ACTION_TYPES]
+    evacuation_steps = [
+        step
+        for step in plan.get("steps", [])
+        if step.get("strategy") in EVACUATION_STRATEGIES
+    ]
+    if plan.get("recommended_strategy") == "monitor":
+        route_safety = not evacuation_steps and "evacuation action rejected" in rejected_text.lower()
+    else:
+        route_safety = "closure" in rejected_text.lower() and "fire-risk" in rejected_text.lower()
 
     checks = {
         "grounding": all(step.get("evidence_ids") for step in plan.get("steps", [])),
-        "route_safety": "closure" in rejected_text.lower() and "fire-risk" in rejected_text.lower(),
+        "route_safety": route_safety,
         "freshness_handling": bool(freshness) and all("status" in item for item in freshness),
-        "approval_enforcement": bool(actions) and all(action.get("requires_human_approval", True) for action in actions),
+        "approval_enforcement": all(action.get("requires_human_approval", True) for action in public_actions),
         "tool_trace_complete": {"get_incident_context", "compute_zone_risk", "compute_routes", "draft_evacuation_plan"}.issubset({event.get("tool") for event in trace_events}),
         "clarity": len(plan.get("summary", "")) > 80 and bool(plan.get("fallback_plan")),
     }

@@ -532,13 +532,17 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
   const fivetranConnection = fivetranManaged?.connection as Record<string, unknown> | null | undefined;
   const fivetranDestination = fivetranManaged?.destination as Record<string, unknown> | null | undefined;
   const fivetranWarnings = asRecordArray(fivetranRun?.warnings ?? status?.fivetran?.warnings);
+  const fivetranQualityWarnings = asRecordArray(fivetranRun?.data_quality_warnings);
   const fivetranFallbackActive = status?.fivetran?.fallback_active === true || fivetranRun?.fallback_active === true || fivetranWarnings.length > 0;
   const firstFivetranWarning = fivetranWarnings[0];
+  const firstQualityWarning = fivetranQualityWarnings[0];
   const fivetranStreams = fivetranRun?.streams as Record<string, unknown> | undefined;
   const fivetranRowCount = Object.values(fivetranStreams || {}).reduce<number>((total, value) => total + (typeof value === "number" ? value : 0), 0);
   const fivetranManagedOk = fivetranManaged?.status === "ok";
   const fivetranDetail = fivetranFallbackActive
     ? `${fivetranWarnings.length || 1} fallback warning: ${shortText(`${String(firstFivetranWarning?.stream || "stream")} - ${String(firstFivetranWarning?.reason || "replay/snapshot records in use")}`, 86)}`
+    : fivetranQualityWarnings.length
+      ? `${fivetranRowCount || "loaded"} rows; ${String(firstQualityWarning?.count_removed || 0)} FIRMS rows boundary-filtered`
     : fivetranManagedOk
       ? `${String(fivetranConnection?.service || "connector")} ${String(fivetranConnection?.setup_state || "connected")}; ${String(fivetranDestination?.service || "warehouse")} ${String(fivetranDestination?.setup_status || "ready")}; ${fivetranRowCount || "loaded"} rows`
       : `dataset ${String(status?.fivetran?.bigquery_dataset || status?.fivetran?.dataset || "fireguard_ingestion")}`;
@@ -569,7 +573,7 @@ function ProviderStrip({ status, evalResult }: { status: IntegrationStatus | nul
       <ProviderCard
         title="Fivetran"
         icon={<Database size={16} />}
-        value={fivetranFallbackActive ? "fallback active" : fivetranManagedOk ? String(fivetranConnection?.sync_state || "managed ok") : fivetranRun ? String(fivetranRun.status) : "waiting"}
+        value={fivetranFallbackActive ? "fallback active" : fivetranQualityWarnings.length ? "BC filtered" : fivetranManagedOk ? String(fivetranConnection?.sync_state || "managed ok") : fivetranRun ? String(fivetranRun.status) : "waiting"}
         detail={fivetranDetail}
         tone={status?.fivetran?.configured && fivetranManagedOk && !fivetranFallbackActive ? "ok" : "warn"}
       />

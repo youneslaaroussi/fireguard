@@ -429,7 +429,6 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
     if zone_id == "ZONE_C":
         points = [origin, closure_point or origin, dest]
         flags = [
-            "Self-evacuation route crosses fire-risk buffer.",
             "Source-backed road-access score is low; unsupported self-evacuation requires dispatcher review.",
         ]
         if closure_id:
@@ -439,6 +438,10 @@ def _deterministic_route(context: dict, zone: dict[str, Any], shelter: dict[str,
             for fire in context.get("fires", [])
             if _route_crosses_fire_buffer(points, fire["location"], FIRE_ROUTE_BUFFER_KM, 2.0)
         ]
+        if fire_ids:
+            flags.insert(1 if closure_id else 0, "Self-evacuation route crosses fire-risk buffer.")
+        else:
+            flags.append("No safe self-evacuation route is verified for this low-access zone.")
         return _route(zone_id, shelter_id, _duration_from_points(points), _polyline_distance_km(points), False, flags, points, [item for item in [closure_id, *fire_ids] if item])
 
     points = [origin, dest]

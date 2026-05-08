@@ -15,7 +15,7 @@ from app.routers.shelters import CapacityCheckIn, capacity_check_in
 from app.services.actions import approve_actions, execute_action
 from app.services.agent import run_assessment
 from app.services.evals import evaluate_incident
-from app.services.fivetran import fivetran_status, sync_fivetran_to_elastic
+from app.services.fivetran import _filter_fire_hotspots_to_bc, fivetran_status, sync_fivetran_to_elastic
 from app.services.ingest import _normalize_public_ess_facility, _normalize_public_evacuation_order
 from app.services.risk import compute_all_zone_risks
 from app.services.routes import best_safe_route, compute_routes
@@ -165,6 +165,40 @@ def test_full_assessment_creates_auditable_action_bundle() -> None:
     assert len(assessment.actions) >= 6
     assert any(event["tool"] == "search_operational_memory" for event in assessment.trace)
     assert any("closure" in alt["reason"].lower() for alt in assessment.plan.rejected_alternatives)
+
+
+def test_live_low_risk_context_creates_monitor_plan_not_public_actions() -> None:
+    store = seeded_store()
+    store.replace_index(
+        "fire_hotspots",
+        [{
+            "source": "NASA_FIRMS",
+            "external_id": "FIRMS_LIVE_FAR_TEST",
+            "location": {"lat": 49.12904, "lon": -117.21087},
+            "brightness": 330.1,
+            "confidence": "nominal",
+            "frp": 12.0,
+            "acquired_at": "2026-05-07T21:25:00Z",
+            "updated_at": "2026-05-07T21:25:00Z",
+            "ingested_at": "2026-05-08T11:44:56Z",
+            "raw": {"test_fixture": "current-firms-far-from-demo-zones"},
+        }],
+        "external_id",
+    )
+
+    assessment = run_assessment(store)
+
+    assert assessment.plan.recommended_strategy == "monitor"
+    assert assessment.plan.requires_approval is False
+    assert all(step.strategy == "monitor" for step in assessment.plan.steps)
+    assert assessment.approval.status == "approved"
+    assert [action.action_type for action in assessment.actions] == ["incident_timeline_update"]
+    assert assessment.actions[0].requires_human_approval is False
+    assert not any(
+        action.action_type in {"resident_sms", "shelter_notify", "road_ops_task", "dispatch_task"}
+        for action in assessment.actions
+    )
+    assert "Evacuation action rejected" in assessment.plan.rejected_alternatives[-1]["reason"]
 
 
 def test_assessment_response_includes_phoenix_and_arize_trace_ids(monkeypatch) -> None:
@@ -946,6 +980,69 @@ def test_fivetran_sync_replaces_stale_stream_records() -> None:
     assert result["provider"] == "fivetran"
     assert "STALE_REPLAY_FIRE" not in ids
     assert all(doc["ingestion_provider"] == "fivetran" for doc in store.list("fire_hotspots"))
+
+
+def test_fivetran_fire_hotspots_are_filtered_to_bc_boundary(monkeypatch) -> None:
+    def fake_classify(location: dict) -> dict:
+        inside = location["lat"] >= 49.0
+        return {
+            "inside": inside,
+            "method": "official_bc_boundary_wfs",
+            "source_url": "https://openmaps.gov.bc.ca/geo/pub/WHSE_LEGAL_ADMIN_BOUNDARIES.ABMS_PROVINCE_SP/ows",
+        }
+
+    monkeypatch.setattr("app.services.fivetran.classify_bc_location", fake_classify)
+    streams = {
+        "fire_hotspots": [
+            {"external_id": "BC_FIRE", "location": {"lat": 49.12904, "lon": -117.21087}, "raw": {}},
+            {"external_id": "WA_FIRE", "location": {"lat": 48.28, "lon": -120.18}, "raw": {}},
+        ],
+    }
+
+    warnings = _filter_fire_hotspots_to_bc(streams)
+
+    assert [doc["external_id"] for doc in streams["fire_hotspots"]] == ["BC_FIRE"]
+    assert streams["fire_hotspots"][0]["raw"]["bc_region_filter"] == "official_bc_boundary_wfs"
+    assert warnings[0]["status"] == "region_filtered"
+    assert warnings[0]["count_removed"] == 1
+
+
+def test_fivetran_bigquery_non_empty_firms_path_does_not_force_replay(monkeypatch) -> None:
+    store = seeded_store()
+    monkeypatch.setattr(
+        "app.services.fivetran._query_bigquery",
+        lambda _settings: {
+            "fire_hotspots": [{
+                "source": "NASA_FIRMS",
+                "external_id": "LIVE_BC_FIRE",
+                "location": {"lat": 49.12904, "lon": -117.21087},
+                "updated_at": "2026-05-07T21:25:00Z",
+                "ingested_at": "2026-05-08T12:00:00Z",
+                "raw": {},
+                "ingestion_provider": "fivetran",
+                "ingestion_mode": "bigquery",
+                "fivetran_stream": "fire_hotspots",
+            }],
+            "fire_perimeters": [],
+            "road_events": [],
+            "weather_observations": [],
+        },
+    )
+    monkeypatch.setattr(
+        "app.services.fivetran.classify_bc_location",
+        lambda _location: {
+            "inside": True,
+            "method": "official_bc_boundary_wfs",
+            "source_url": "https://openmaps.gov.bc.ca/geo/pub/WHSE_LEGAL_ADMIN_BOUNDARIES.ABMS_PROVINCE_SP/ows",
+        },
+    )
+
+    result = sync_fivetran_to_elastic(store)
+
+    assert result["mode"] == "bigquery"
+    assert result["fallback_active"] is False
+    assert result["streams"]["fire_hotspots"] == 1
+    assert store.list("fire_hotspots")[0]["external_id"] == "LIVE_BC_FIRE"
 
 
 def test_fivetran_status_exposes_latest_run() -> None:

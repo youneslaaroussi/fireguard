@@ -7,6 +7,7 @@ import httpx
 
 from app.config import Settings
 from app.services import demo_data
+from app.services.bc_boundary import classify_bc_location
 from app.services.store import FireGuardStore
 from app.services.time import now_iso
 
@@ -280,6 +281,43 @@ def _query_bigquery(settings: Settings) -> dict[str, list[dict[str, Any]]]:
     return streams
 
 
+def _filter_fire_hotspots_to_bc(streams: dict[str, list[dict[str, Any]]]) -> list[dict[str, Any]]:
+    docs = streams.get("fire_hotspots", [])
+    if not docs:
+        return []
+
+    kept = []
+    removed = []
+    methods = set()
+    warnings = set()
+    for doc in docs:
+        classification = classify_bc_location(doc["location"])
+        methods.add(classification["method"])
+        if classification.get("warning"):
+            warnings.add(classification["warning"])
+        doc["raw"] = {
+            **(doc.get("raw") if isinstance(doc.get("raw"), dict) else {}),
+            "bc_region_filter": classification["method"],
+            "bc_region_filter_source_url": classification["source_url"],
+        }
+        if classification["inside"]:
+            kept.append(doc)
+        else:
+            removed.append(doc)
+    streams["fire_hotspots"] = kept
+    if not removed and not warnings:
+        return []
+    return [{
+        "stream": "fire_hotspots",
+        "status": "region_filtered",
+        "count_removed": len(removed),
+        "count_kept": len(kept),
+        "method": sorted(methods),
+        "warnings": sorted(warnings),
+        "reason": "FIRMS Area API is rectangular; rows outside the BC provincial boundary are excluded before Elastic indexing.",
+    }]
+
+
 def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
     settings = store.settings
     mode = "bigquery"
@@ -295,6 +333,7 @@ def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
             reason = "Fivetran BigQuery FIRMS stream returned zero current hotspot rows for the configured BC bbox."
             streams["fire_hotspots"] = _replay_fallback_docs("fire_hotspots", reason)
             mode = "bigquery_with_replay_fallback"
+    data_quality_warnings = _filter_fire_hotspots_to_bc(streams)
 
     fallbacks = _fallbacks_from_streams(streams, source_error)
     warnings = list(fallbacks.values())
@@ -315,6 +354,7 @@ def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
         "fallbacks": fallbacks,
         "fallback_active": bool(warnings),
         "warnings": warnings,
+        "data_quality_warnings": data_quality_warnings,
         "source_error": source_error,
         "destination": settings.fivetran_destination_name,
         "dataset": settings.fivetran_bigquery_dataset,

@@ -5,7 +5,12 @@ import uuid
 from app.config import Settings
 from app.models.schemas import EvacuationPlan, PlanStep, ZoneRisk
 from app.services.actions import create_action, create_approval
+from app.services.geo import haversine_km
 from app.services.routes import best_safe_route, rejected_routes
+from app.services.time import now_iso
+
+
+ACTIVE_FIRE_TRIGGER_KM = 50.0
 
 
 def _by_id(items: list[dict], id_field: str) -> dict[str, dict]:
@@ -70,7 +75,129 @@ def _zone_decision_tracking_ids(context: dict, zone_id: str) -> list[str]:
     ]
 
 
+def _nearest_fire_distance_km(context: dict, zone: dict) -> float | None:
+    fires = context.get("fires", [])
+    if not fires:
+        return None
+    return min(haversine_km(zone["centroid"], fire["location"]) for fire in fires)
+
+
+def _route_has_fire_risk(routes: list) -> bool:
+    return any(
+        any("fire-risk" in flag.lower() or "active fire" in flag.lower() for flag in route.risk_flags)
+        for route in routes
+    )
+
+
+def _has_current_wildfire_evacuation_trigger(
+    context: dict,
+    zone_risks: list[ZoneRisk],
+    routes: list,
+) -> bool:
+    if _route_has_fire_risk(routes):
+        return True
+
+    risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
+    for zone in context.get("zones", []):
+        nearest = _nearest_fire_distance_km(context, zone)
+        risk = risk_by_zone.get(zone["zone_id"])
+        if nearest is not None and nearest <= ACTIVE_FIRE_TRIGGER_KM and risk and risk.score >= 0.4:
+            return True
+    return False
+
+
+def _monitor_plan(
+    incident_id: str,
+    context: dict,
+    zone_risks: list[ZoneRisk],
+    routes: list,
+) -> EvacuationPlan:
+    zones_by_id = _by_id(context.get("zones", []), "zone_id")
+    risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
+    nearest_distances = [
+        distance
+        for zone in context.get("zones", [])
+        if (distance := _nearest_fire_distance_km(context, zone)) is not None
+    ]
+    nearest_statement = (
+        f"nearest active hotspot is {min(nearest_distances):.1f} km from the monitored zones"
+        if nearest_distances
+        else "no active hotspot records are available"
+    )
+    steps: list[PlanStep] = []
+    for zone in context.get("zones", []):
+        risk = risk_by_zone[zone["zone_id"]]
+        zone_name = _zone_name(zones_by_id, zone["zone_id"])
+        steps.append(PlanStep(
+            step_id=f"STEP_{zone['zone_id']}_MONITOR",
+            zone_id=zone["zone_id"],
+            strategy="monitor",
+            destination_id=None,
+            start_after_minutes=0,
+            message=(
+                f"[DEMO - FireGuard] No public evacuation instruction drafted for {zone_name}. "
+                "Continue monitoring and rerun assessment if fire, road, wind, or ESS state changes."
+            ),
+            rationale=[
+                f"Current wildfire evacuation risk is {risk.risk_level} with score {risk.score}.",
+                "FireGuard found no current wildfire evacuation trigger close enough to justify public action.",
+                "Road and shelter constraints remain visible as context, but they do not create a wildfire evacuation order by themselves.",
+            ],
+            evidence_ids=risk.evidence_ids,
+            assumption_ids=_zone_decision_tracking_ids(context, zone["zone_id"]),
+        ))
+
+    rejected = rejected_routes(routes)
+    rejected.append({
+        "origin_id": "ALL_ZONES",
+        "destination_id": None,
+        "reason": (
+            "Evacuation action rejected for current live state because all zone risks are below "
+            f"evacuation threshold and {nearest_statement}."
+        ),
+        "duration_minutes": None,
+        "evidence_ids": sorted({evidence_id for risk in zone_risks for evidence_id in risk.evidence_ids}),
+        "assumption_ids": [],
+        "route_source": "planner_guardrail",
+    })
+
+    max_score = max((risk.score for risk in zone_risks), default=0.0)
+    min_confidence = min((risk.confidence for risk in zone_risks), default=0.7)
+    plan_id = f"PLAN_{uuid.uuid4().hex[:8].upper()}"
+    return EvacuationPlan(
+        plan_id=plan_id,
+        incident_id=incident_id,
+        summary=(
+            "No evacuation action is recommended from the current source-backed state: "
+            f"all configured zones are below the wildfire evacuation threshold and {nearest_statement}. "
+            "FireGuard is logging an internal monitoring update instead of sending resident, shelter, road-ops, or dispatch actions."
+        ),
+        recommended_strategy="monitor",
+        confidence=round(min(0.9, max(0.62, min_confidence - max_score * 0.05)), 2),
+        zone_risks=zone_risks,
+        routes=routes,
+        steps=steps,
+        rejected_alternatives=rejected,
+        operational_assumptions=[
+            assumption
+            for assumption in context.get("operational_assumptions", [])
+            if assumption.get("affects_decision") or assumption.get("blocks_execution")
+        ],
+        data_freshness=context.get("data_freshness", []),
+        risks_if_wrong=[
+            "If a new hotspot, perimeter, evacuation order, or wind shift appears near the configured zones, rerun assessment immediately.",
+            "Low current wildfire proximity does not mean roads or shelters are generally available for unrelated incidents.",
+            "Public action remains blocked unless a future assessment produces an evacuation trigger and receives human approval.",
+        ],
+        fallback_plan="Continue live feed syncs, watch source freshness, and switch to replay mode only when demonstrating the historical route-rejection scenario.",
+        requires_approval=False,
+    )
+
+
 def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], routes: list) -> EvacuationPlan:
+    if not _has_current_wildfire_evacuation_trigger(context, zone_risks, routes):
+        return _monitor_plan(incident_id, context, zone_risks, routes)
+
     risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
     zones_by_id = _by_id(context.get("zones", []), "zone_id")
     shelters_by_id = _by_id(context.get("shelters", []), "shelter_id")
@@ -185,6 +312,31 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
 def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None = None) -> tuple[str, list, object]:
     bundle_id = f"BUNDLE_{uuid.uuid4().hex[:8].upper()}"
     actions = []
+    if plan.recommended_strategy == "monitor":
+        evidence_ids = sorted({evidence_id for step in plan.steps for evidence_id in step.evidence_ids})
+        actions.append(create_action(
+            bundle_id=bundle_id,
+            action_type="incident_timeline_update",
+            target=plan.incident_id,
+            message=plan.summary,
+            payload={
+                "plan_id": plan.plan_id,
+                "recommended_strategy": plan.recommended_strategy,
+                "public_actions_created": False,
+                "reason": "No current wildfire evacuation trigger reached threshold.",
+            },
+            reason="Internal monitoring update only; no public-facing or dispatch action is justified by current wildfire risk.",
+            evidence_ids=evidence_ids,
+            confidence=plan.confidence,
+            requires_approval=False,
+            settings=settings,
+            assumption_ids=[item["assumption_id"] for item in plan.operational_assumptions],
+        ))
+        approval = create_approval(bundle_id, approver_role="not_required_internal_update")
+        approval.status = "approved"
+        approval.decided_at = now_iso()
+        return bundle_id, actions, approval
+
     zones_by_id = _by_id(context.get("zones", []), "zone_id")
     shelters_by_id = _by_id(context.get("shelters", []), "shelter_id")
     arrivals_by_shelter: dict[str, int] = {}
