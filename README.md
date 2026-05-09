@@ -86,59 +86,15 @@ Key paths:
 
 ## Agent Loop
 
-```mermaid
-sequenceDiagram
-  participant UI as Incident Dashboard
-  participant API as FastAPI Tools
-  participant ES as Elastic
-  participant Gemini as Gemini Agent
-  participant Routes as Routes/Risk Services
-  participant Human as Human Approver
-  participant Actions as SMS/Tasks
-  participant Trace as Phoenix/Arize
+![FireGuard agent loop](docs/assets/fireguard-agent-loop-web.png)
 
-  UI->>API: POST /incidents/assess
-  API->>ES: retrieve fires, roads, shelters, zones, policies
-  API->>Gemini: tool-grounded incident assessment
-  Gemini->>API: call get_incident_context/search/route/risk tools
-  API->>Routes: compute risks, routes, freshness, constraints
-  Routes-->>API: safe routes, rejected alternatives, confidence
-  API->>ES: store plan, evidence, trace events
-  API->>Trace: export spans and eval evidence
-  API-->>UI: recommended plan + action bundle
-  UI->>Human: show evidence and approval gate
-  Human->>API: approve bundle
-  API->>Actions: send allowlisted SMS and create tasks
-  Actions-->>API: delivery/task results
-  API->>ES: append action logs
-  API->>Trace: export execution spans
-```
+The agent loop is intentionally split between Gemini and deterministic services: Gemini composes the operational strategy, while backend tools enforce route safety, evidence, approval, freshness, and action execution rules.
 
 ## Elastic Data Model
 
-```mermaid
-flowchart LR
-  FH["fire_hotspots<br/>geo_point"]
-  FP["fire_perimeters<br/>geo_shape"]
-  RE["road_events<br/>geo_point/geo_shape"]
-  Z["evacuation_zones<br/>geo_shape + centroid"]
-  S["shelters<br/>geo_point + status/capacity"]
-  P["policies<br/>retrieval snippets"]
-  A["action_logs<br/>approval/execution"]
-  T["traces<br/>tool/eval/audit"]
+![FireGuard Elastic data model](docs/assets/fireguard-elastic-data-model-web.png)
 
-  FH --> RISK["zone risk"]
-  FP --> RISK
-  RE --> ROUTE["route rejection"]
-  Z --> RISK
-  Z --> ROUTE
-  S --> ROUTE
-  P --> PLAN["plan rationale"]
-  RISK --> PLAN
-  ROUTE --> PLAN
-  PLAN --> A
-  PLAN --> T
-```
+Elastic stores both operational evidence and audit records. Geospatial indices drive risk and route decisions; action and trace indices preserve the approval and execution history.
 
 ## Provider Integrations
 
