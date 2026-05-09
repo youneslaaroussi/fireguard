@@ -36,6 +36,19 @@ function intentForStatus(status: string): Intent {
   return Intent.NONE;
 }
 
+function planningModeText(mode?: string) {
+  if (mode === "gemini_selected") return "Gemini selected";
+  if (mode === "gemini_repaired") return "Gemini repaired";
+  if (mode === "deterministic_fallback") return "Fallback";
+  return "pending";
+}
+
+function intentForPlanningMode(mode?: string): Intent {
+  if (mode === "gemini_selected" || mode === "gemini_repaired") return Intent.SUCCESS;
+  if (mode === "deterministic_fallback") return Intent.WARNING;
+  return Intent.NONE;
+}
+
 function shortText(value: string, maxLength: number) {
   if (value.length <= maxLength) return value;
   return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
@@ -56,6 +69,26 @@ function operatorText(value: string) {
     .replaceAll("FireGuard is logging an internal monitoring update instead of sending", "The system will record a monitoring update and will not send")
     .replaceAll("public evacuation instruction drafted", "public evacuation instruction recommended")
     .replaceAll("current current", "current");
+}
+
+function publicValidationErrorText(value: string) {
+  const normalized = value.toLowerCase();
+  if (normalized.includes("resource_exhausted") || normalized.includes("429")) {
+    return "Gemini planning is temporarily rate-limited. Backend fallback is active and public actions remain locked.";
+  }
+  if (normalized.includes("cancelled") || normalized.includes("499")) {
+    return "Gemini planning did not complete. Backend fallback is active and public actions remain locked.";
+  }
+  if (normalized.includes("geminiplandecision") || normalized.includes("validation error")) {
+    return "Gemini returned a planning response that failed the contract. The backend rejected it.";
+  }
+  if (normalized.includes("unsafe route")) {
+    return "Gemini selected a route that is not marked safe. The backend rejected it.";
+  }
+  if (normalized.includes("closed shelter")) {
+    return "Gemini selected an unavailable shelter. The backend rejected it.";
+  }
+  return operatorText(value);
 }
 
 export default function Home() {
@@ -478,6 +511,7 @@ function CommandPanel({
   const plan = assessment?.plan;
   const approved = assessment?.approval.status === "approved";
   const blockers = assumptions.filter((item) => item.blocks_execution).length;
+  const validationPassed = assessment?.plan_validation?.valid === true;
   const recordCount = (context?.fires.length || 0) + (context?.road_events.length || 0) + (context?.zones.length || 0) + (context?.shelters.length || 0);
   const workflowSteps = [
     {
@@ -516,9 +550,13 @@ function CommandPanel({
           <section className="fireguard-decision-block">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <Tag intent={plan.recommended_strategy === "monitor" ? Intent.PRIMARY : Intent.WARNING}>
-                  {plan.recommended_strategy.replaceAll("_", " ")}
-                </Tag>
+                <div className="flex flex-wrap gap-2">
+                  <Tag intent={plan.recommended_strategy === "monitor" ? Intent.PRIMARY : Intent.WARNING}>
+                    {plan.recommended_strategy.replaceAll("_", " ")}
+                  </Tag>
+                  <Tag intent={intentForPlanningMode(assessment?.planning_mode)}>{planningModeText(assessment?.planning_mode)}</Tag>
+                  <Tag intent={validationPassed ? Intent.SUCCESS : Intent.WARNING}>{validationPassed ? "validated" : "fallback guarded"}</Tag>
+                </div>
                 <p className="m-0 mt-3 text-base leading-6 text-[#eef3f7]">{shortText(operatorText(plan.summary), 330)}</p>
               </div>
             </div>
@@ -1099,12 +1137,37 @@ function ContextDetails({
 
 function PlanDetails({ assessment }: { assessment: AssessmentResult | null }) {
   if (!assessment) return <PaneBody><NonIdealState icon="timeline-events" title="No plan yet" /></PaneBody>;
+  const validationValid = assessment.plan_validation?.valid === true;
+  const geminiSelected = assessment.planning_mode === "gemini_selected" || assessment.planning_mode === "gemini_repaired";
+  const requestedActions = Array.isArray(assessment.plan.requested_actions) ? assessment.plan.requested_actions.length : 0;
   return (
     <PaneBody>
       <div className="grid gap-4">
         <Callout title={assessment.plan.recommended_strategy.replaceAll("_", " ")} intent={assessment.plan.requires_approval ? Intent.WARNING : Intent.PRIMARY}>
           {operatorText(assessment.plan.summary)}
         </Callout>
+        <section>
+          <H5>Planning Authority</H5>
+          <div className="fireguard-muted-card p-3">
+            <div className="flex flex-wrap gap-2">
+              <Tag intent={intentForPlanningMode(assessment.planning_mode)}>{planningModeText(assessment.planning_mode)}</Tag>
+              <Tag intent={validationValid ? Intent.SUCCESS : Intent.WARNING}>{validationValid ? "backend validation passed" : "backend fallback active"}</Tag>
+              <Tag minimal intent={Intent.PRIMARY}>{requestedActions} Gemini action request{requestedActions === 1 ? "" : "s"}</Tag>
+            </div>
+            <p className="m-0 mt-2 text-sm text-[#d3d8de]">
+              {geminiSelected
+                ? "Gemini selected the operational strategy from route, risk, shelter, freshness, and evidence facts; backend validation controls execution."
+                : "The final plan is not being claimed as Gemini-selected. Backend fallback is active because Gemini was unavailable or failed validation."}
+            </p>
+            {assessment.validation_errors?.length ? (
+              <div className="mt-2 grid gap-1">
+                {assessment.validation_errors.slice(0, 3).map((error) => (
+                  <p key={error} className="m-0 text-xs text-[#f6b26b]">{publicValidationErrorText(error)}</p>
+                ))}
+              </div>
+            ) : null}
+          </div>
+        </section>
         <section>
           <H5>Zone Risk</H5>
           <div className="grid gap-2">
@@ -1190,11 +1253,24 @@ function AuditDetails({ traceEvents, evalResult, assessment }: { traceEvents: Ar
           <H5>Trace Exports</H5>
           <div className="grid gap-2">
             <TraceLine label="Gemini status" value={assessment?.gemini_status || "pending"} />
+            <TraceLine label="Planning mode" value={planningModeText(assessment?.planning_mode)} />
+            <TraceLine label="Plan validation" value={assessment?.plan_validation?.valid === true ? "passed" : assessment ? "fallback or failed" : "pending"} />
             <TraceLine label="Phoenix spans" value={String(assessment?.phoenix_trace_ids?.length || 0)} />
             <TraceLine label="Arize AX spans" value={String(assessment?.arize_ax_trace_ids?.length || 0)} />
             <TraceLine label="Eval score" value={evalResult ? `${Math.round(Number(evalResult.score || 0) * 100)}%` : "pending"} />
           </div>
         </section>
+        {assessment?.candidate_facts_summary ? (
+          <section>
+            <H5>Candidate Facts</H5>
+            <div className="grid grid-cols-2 gap-2">
+              <TraceLine label="Safe routes" value={String(assessment.candidate_facts_summary.safe_route_count ?? 0)} />
+              <TraceLine label="Rejected routes" value={String(assessment.candidate_facts_summary.unsafe_route_count ?? 0)} />
+              <TraceLine label="Evidence records" value={String(assessment.candidate_facts_summary.evidence_count ?? 0)} />
+              <TraceLine label="Fire trigger" value={assessment.candidate_facts_summary.wildfire_evacuation_trigger ? "true" : "false"} />
+            </div>
+          </section>
+        ) : null}
         {evalChecks ? (
           <section>
             <H5>Eval Checks</H5>

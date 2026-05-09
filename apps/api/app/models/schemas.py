@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 
 ActionStatus = Literal["pending", "approved", "rejected", "executed", "failed", "sent", "draft"]
 RiskLevel = Literal["LOW", "MODERATE", "HIGH", "CRITICAL"]
+PlanningMode = Literal["gemini_selected", "gemini_repaired", "deterministic_fallback"]
 
 
 class GeoPoint(BaseModel):
@@ -58,6 +59,46 @@ class PlanStep(BaseModel):
     assumption_ids: list[str] = Field(default_factory=list)
 
 
+class GeminiRequestedAction(BaseModel):
+    action_type: Literal["resident_sms", "shelter_notify", "road_ops_task", "dispatch_task", "incident_timeline_update"]
+    target: str
+    message: str
+    reason: str
+    evidence_ids: list[str]
+    assumption_ids: list[str] = Field(default_factory=list)
+    payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class GeminiPlanStep(BaseModel):
+    zone_id: str
+    strategy: str
+    destination_id: str | None = None
+    start_after_minutes: int = 0
+    message: str
+    rationale: list[str]
+    evidence_ids: list[str]
+    assumption_ids: list[str] = Field(default_factory=list)
+
+
+class GeminiPlanDecision(BaseModel):
+    incident_summary: str
+    selected_strategy: Literal["monitor", "evacuate_now", "staged_evacuation", "shelter_in_place", "dispatch_assisted"]
+    confidence: float
+    steps: list[GeminiPlanStep]
+    rejected_alternatives: list[dict[str, Any]]
+    requested_actions: list[GeminiRequestedAction]
+    data_gaps: list[str] = Field(default_factory=list)
+    risks_if_wrong: list[str]
+    fallback_plan: str
+
+
+class PlanValidation(BaseModel):
+    valid: bool
+    errors: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    repair_attempted: bool = False
+
+
 class ActionItem(BaseModel):
     action_id: str
     bundle_id: str
@@ -94,6 +135,7 @@ class EvacuationPlan(BaseModel):
     risks_if_wrong: list[str]
     fallback_plan: str
     requires_approval: bool = True
+    requested_actions: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class Approval(BaseModel):
@@ -117,6 +159,11 @@ class AssessmentResult(BaseModel):
     agent_review: dict[str, Any] | None = None
     gemini_status: str | None = None
     gemini_tool_calls: list[str] = Field(default_factory=list)
+    planning_mode: PlanningMode = "deterministic_fallback"
+    gemini_decision: dict[str, Any] | None = None
+    plan_validation: dict[str, Any] | None = None
+    validation_errors: list[str] = Field(default_factory=list)
+    candidate_facts_summary: dict[str, Any] = Field(default_factory=dict)
     phoenix_trace_ids: list[str] = Field(default_factory=list)
     arize_ax_trace_ids: list[str] = Field(default_factory=list)
 

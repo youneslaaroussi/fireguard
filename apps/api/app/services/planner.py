@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+import re
 import uuid
 
 from app.config import Settings
-from app.models.schemas import EvacuationPlan, PlanStep, ZoneRisk
+from app.models.schemas import EvacuationPlan, GeminiPlanDecision, PlanStep, PlanValidation, RouteOption, ZoneRisk
 from app.services.actions import create_action, create_approval
 from app.services.geo import haversine_km
 from app.services.routes import best_safe_route, rejected_routes
@@ -25,6 +26,16 @@ def _shelter_name(shelters: dict[str, dict], shelter_id: str | None) -> str:
     if not shelter_id:
         return "a verified reception centre"
     return shelters.get(shelter_id, {}).get("name", shelter_id)
+
+
+def _blocking_shelter_status(shelter: dict) -> str | None:
+    status = str(shelter.get("official_facility_status") or "").strip()
+    if not status:
+        return None
+    normalized = status.lower()
+    if normalized in {"closed", "inactive", "unavailable"} or "closed" in normalized:
+        return status
+    return None
 
 
 def _shelter_capacity_statement(shelter: dict, shelter_name: str) -> str:
@@ -104,6 +115,14 @@ def _has_current_wildfire_evacuation_trigger(
         if nearest is not None and nearest <= ACTIVE_FIRE_TRIGGER_KM and risk and risk.score >= 0.4:
             return True
     return False
+
+
+def has_current_wildfire_evacuation_trigger(
+    context: dict,
+    zone_risks: list[ZoneRisk],
+    routes: list[RouteOption],
+) -> bool:
+    return _has_current_wildfire_evacuation_trigger(context, zone_risks, routes)
 
 
 def _monitor_plan(
@@ -309,6 +328,302 @@ def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], rout
     )
 
 
+def validate_gemini_plan_decision(
+    decision: GeminiPlanDecision,
+    context: dict,
+    zone_risks: list[ZoneRisk],
+    routes: list[RouteOption],
+    repair_attempted: bool = False,
+) -> PlanValidation:
+    errors: list[str] = []
+    warnings: list[str] = []
+    zone_ids = {zone["zone_id"] for zone in context.get("zones", [])}
+    shelters_by_id = _by_id(context.get("shelters", []), "shelter_id")
+    route_by_key = {(route.origin_id, route.destination_id): route for route in routes}
+    public_action_types = {"resident_sms", "shelter_notify", "road_ops_task", "dispatch_task"}
+    valid_evidence_ids = {
+        *[str(fire.get("external_id")) for fire in context.get("fires", []) if fire.get("external_id")],
+        *[str(event.get("external_id")) for event in context.get("road_events", []) if event.get("external_id")],
+        *[str(shelter.get("source_record_id")) for shelter in context.get("shelters", []) if shelter.get("source_record_id")],
+        *[evidence_id for risk in zone_risks for evidence_id in risk.evidence_ids],
+        *[evidence_id for route in routes for evidence_id in route.evidence_ids],
+    }
+
+    public_actions = [action for action in decision.requested_actions if action.action_type in public_action_types]
+    if not has_current_wildfire_evacuation_trigger(context, zone_risks, routes):
+        if decision.selected_strategy != "monitor":
+            errors.append("Gemini selected a public evacuation strategy without a current wildfire evacuation trigger.")
+        if public_actions:
+            errors.append("Gemini requested public actions even though the current wildfire evacuation trigger is false.")
+    elif decision.selected_strategy != "monitor" and not public_actions:
+        errors.append("Gemini selected an active public strategy without requesting any approval-gated public actions.")
+
+    if decision.confidence < 0 or decision.confidence > 1:
+        errors.append("Gemini confidence must be between 0 and 1.")
+    if not decision.steps:
+        errors.append("Gemini decision must include at least one plan step.")
+
+    resident_sms_targets = {
+        action.target for action in decision.requested_actions if action.action_type == "resident_sms"
+    }
+    shelter_notify_targets = {
+        action.target for action in decision.requested_actions if action.action_type == "shelter_notify"
+    }
+    dispatch_task_targets = {
+        action.target for action in decision.requested_actions if action.action_type == "dispatch_task"
+    }
+    road_ops_requested = any(action.action_type == "road_ops_task" for action in decision.requested_actions)
+
+    for index, step in enumerate(decision.steps, start=1):
+        if step.zone_id not in zone_ids:
+            errors.append(f"Step {index} references unknown zone {step.zone_id}.")
+        if not step.evidence_ids:
+            errors.append(f"Step {index} for {step.zone_id} has no evidence_ids.")
+        elif not any(evidence_id in valid_evidence_ids for evidence_id in step.evidence_ids):
+            warnings.append(f"Step {index} for {step.zone_id} uses evidence IDs that are not in the compact evidence bundle.")
+        if step.destination_id:
+            shelter = shelters_by_id.get(step.destination_id)
+            if not shelter:
+                errors.append(f"Step {index} routes {step.zone_id} to unknown shelter {step.destination_id}.")
+            elif _blocking_shelter_status(shelter):
+                errors.append(f"Step {index} routes {step.zone_id} to closed shelter {step.destination_id}.")
+            route = route_by_key.get((step.zone_id, step.destination_id))
+            if not route:
+                errors.append(f"Step {index} uses unavailable route {step.zone_id}->{step.destination_id}.")
+            elif not route.safe:
+                errors.append(f"Step {index} uses unsafe route {step.zone_id}->{step.destination_id}: {'; '.join(route.risk_flags)}")
+        if step.strategy in {"evacuate_now", "staged_evacuation"} and not step.destination_id:
+            errors.append(f"Step {index} uses evacuation strategy {step.strategy} without a destination.")
+        if decision.selected_strategy != "monitor" and step.strategy in {"evacuate_now", "staged_evacuation", "shelter_in_place", "dispatch_assisted"}:
+            if step.zone_id not in resident_sms_targets:
+                errors.append(f"Step {index} for {step.zone_id} lacks a resident_sms requested action.")
+        if step.destination_id and step.strategy in {"evacuate_now", "staged_evacuation"} and step.destination_id not in shelter_notify_targets:
+            errors.append(f"Step {index} destination {step.destination_id} lacks a shelter_notify requested action.")
+        if step.strategy == "dispatch_assisted" and step.zone_id not in dispatch_task_targets:
+            errors.append(f"Step {index} for {step.zone_id} lacks a dispatch_task requested action.")
+        if step.strategy == "shelter_in_place":
+            has_safe_outbound_route = any(route.origin_id == step.zone_id and route.safe for route in routes)
+            if not has_safe_outbound_route and step.zone_id not in dispatch_task_targets:
+                errors.append(f"Step {index} for {step.zone_id} shelters in place with no safe outbound route but lacks a dispatch_task requested action.")
+
+    for index, alternative in enumerate(decision.rejected_alternatives, start=1):
+        evidence_ids = alternative.get("evidence_ids") or []
+        if not evidence_ids:
+            errors.append(f"Rejected alternative {index} has no evidence_ids.")
+        reason = str(alternative.get("reason", "")).lower()
+        if decision.selected_strategy != "monitor" and ("closure" in reason or "road" in reason) and not road_ops_requested:
+            errors.append(f"Rejected alternative {index} is road/closure-related but no road_ops_task was requested.")
+
+    for index, action in enumerate(decision.requested_actions, start=1):
+        if not action.evidence_ids:
+            errors.append(f"Requested action {index} ({action.action_type}) has no evidence_ids.")
+        payload_text = f"{action.message} {action.reason} {action.payload}".lower()
+        if action.action_type == "resident_sms":
+            if action.target not in zone_ids:
+                errors.append(f"Resident SMS action {index} targets unknown zone {action.target}.")
+            if "recipient" in action.payload or "recipients" in action.payload or "phone" in action.payload:
+                errors.append(f"Resident SMS action {index} includes recipients/phone data; Gemini may target zones only.")
+            if re.search(r"\+\d{8,}", payload_text):
+                errors.append(f"Resident SMS action {index} includes a phone number; Gemini may target zones only.")
+        if action.action_type == "shelter_notify":
+            shelter = shelters_by_id.get(action.target)
+            if not shelter:
+                errors.append(f"Shelter notification action {index} targets unknown shelter {action.target}.")
+            elif _blocking_shelter_status(shelter):
+                errors.append(f"Shelter notification action {index} targets closed shelter {action.target}.")
+        if action.payload.get("status") in {"approved", "executed", "sent"}:
+            errors.append(f"Requested action {index} tries to pre-set an execution status.")
+        if action.action_type in {"shelter_notify", "road_ops_task", "dispatch_task"}:
+            official_claim = "official emergency agency" in payload_text or "vehicle assigned" in payload_text
+            if official_claim:
+                errors.append(f"Requested action {index} overclaims official agency or dispatch execution authority.")
+
+    return PlanValidation(
+        valid=not errors,
+        errors=errors,
+        warnings=warnings,
+        repair_attempted=repair_attempted,
+    )
+
+
+def plan_from_gemini_decision(
+    incident_id: str,
+    context: dict,
+    zone_risks: list[ZoneRisk],
+    routes: list[RouteOption],
+    decision: GeminiPlanDecision,
+) -> EvacuationPlan:
+    plan_id = f"PLAN_{uuid.uuid4().hex[:8].upper()}"
+    steps = [
+        PlanStep(
+            step_id=f"STEP_{step.zone_id}_{index}",
+            zone_id=step.zone_id,
+            strategy=step.strategy,
+            destination_id=step.destination_id,
+            start_after_minutes=step.start_after_minutes,
+            message=step.message,
+            rationale=step.rationale,
+            evidence_ids=step.evidence_ids,
+            assumption_ids=step.assumption_ids,
+        )
+        for index, step in enumerate(decision.steps, start=1)
+    ]
+    requested_actions = [action.model_dump() for action in decision.requested_actions]
+    return EvacuationPlan(
+        plan_id=plan_id,
+        incident_id=incident_id,
+        summary=decision.incident_summary,
+        recommended_strategy=decision.selected_strategy,
+        confidence=round(decision.confidence, 2),
+        zone_risks=zone_risks,
+        routes=routes,
+        steps=steps,
+        rejected_alternatives=decision.rejected_alternatives,
+        operational_assumptions=[
+            assumption
+            for assumption in context.get("operational_assumptions", [])
+            if assumption.get("affects_decision") or assumption.get("blocks_execution")
+        ],
+        data_freshness=context.get("data_freshness", []),
+        risks_if_wrong=decision.risks_if_wrong,
+        fallback_plan=decision.fallback_plan,
+        requires_approval=any(action["action_type"] in {"resident_sms", "shelter_notify", "road_ops_task", "dispatch_task"} for action in requested_actions),
+        requested_actions=requested_actions,
+    )
+
+
+def _step_by_zone(plan: EvacuationPlan) -> dict[str, PlanStep]:
+    return {step.zone_id: step for step in plan.steps}
+
+
+def _expected_arrivals_by_shelter(plan: EvacuationPlan, context: dict) -> dict[str, int]:
+    zones_by_id = _by_id(context.get("zones", []), "zone_id")
+    arrivals_by_shelter: dict[str, int] = {}
+    for step in plan.steps:
+        if step.destination_id:
+            arrivals_by_shelter[step.destination_id] = (
+                arrivals_by_shelter.get(step.destination_id, 0)
+                + int(zones_by_id.get(step.zone_id, {}).get("population", 0))
+            )
+    return arrivals_by_shelter
+
+
+def _compile_gemini_requested_actions(
+    bundle_id: str,
+    plan: EvacuationPlan,
+    context: dict,
+    settings: Settings | None,
+) -> list:
+    actions = []
+    steps_by_zone = _step_by_zone(plan)
+    shelters_by_id = _by_id(context.get("shelters", []), "shelter_id")
+    arrivals_by_shelter = _expected_arrivals_by_shelter(plan, context)
+    for request in plan.requested_actions:
+        action_type = request.get("action_type")
+        target = request.get("target")
+        payload = dict(request.get("payload") or {})
+        payload.setdefault("source_plan_id", plan.plan_id)
+
+        if action_type == "incident_timeline_update":
+            actions.append(create_action(
+                bundle_id=bundle_id,
+                action_type=action_type,
+                target=target or plan.incident_id,
+                message=request.get("message") or plan.summary,
+                payload={**payload, "plan_id": plan.plan_id, "recommended_strategy": plan.recommended_strategy},
+                reason=request.get("reason") or "Internal incident timeline update requested by Gemini-selected plan.",
+                evidence_ids=request.get("evidence_ids") or [],
+                confidence=plan.confidence,
+                requires_approval=False,
+                settings=settings,
+                assumption_ids=request.get("assumption_ids") or [],
+            ))
+            continue
+
+        if action_type == "resident_sms":
+            step = steps_by_zone.get(str(target))
+            message = request.get("message") or (step.message if step else "")
+            payload.setdefault("zone_id", target)
+            payload.setdefault("plan_id", plan.plan_id)
+            if step:
+                payload.setdefault("start_after_minutes", step.start_after_minutes)
+            actions.append(create_action(
+                bundle_id=bundle_id,
+                action_type="resident_sms",
+                target=str(target),
+                message=message,
+                payload=payload,
+                reason=request.get("reason") or "Resident instruction from Gemini-selected evacuation plan.",
+                evidence_ids=request.get("evidence_ids") or (step.evidence_ids if step else []),
+                confidence=plan.confidence,
+                settings=settings,
+                assumption_ids=(request.get("assumption_ids") or []) + _resident_contact_tracking_ids(context, str(target)),
+            ))
+            continue
+
+        if action_type == "shelter_notify":
+            shelter = shelters_by_id.get(str(target), {})
+            payload.setdefault("shelter_id", target)
+            payload.setdefault("expected_arrivals", arrivals_by_shelter.get(str(target), 0))
+            payload.setdefault("eta_minutes", max((step.start_after_minutes for step in plan.steps if step.destination_id == target), default=0) + 60)
+            payload.setdefault("needs", ["accessible_cots", "pet_area"])
+            payload.setdefault("capacity_available", shelter.get("capacity_available"))
+            payload.setdefault("capacity_total", shelter.get("capacity_total"))
+            payload.setdefault("capacity_source_type", shelter.get("capacity_source_type"))
+            payload.setdefault("capacity_source_label", shelter.get("capacity_source_label"))
+            capacity_id = _shelter_capacity_tracking_id(str(target), shelter) if shelter else None
+            actions.append(create_action(
+                bundle_id=bundle_id,
+                action_type="shelter_notify",
+                target=str(target),
+                message=request.get("message") or f"Prepare for staged arrivals from approved FireGuard steps at {_shelter_name(shelters_by_id, str(target))}.",
+                payload=payload,
+                reason=request.get("reason") or _shelter_capacity_action_reason(shelter, _shelter_name(shelters_by_id, str(target))),
+                evidence_ids=request.get("evidence_ids") or [str(target)],
+                confidence=plan.confidence,
+                settings=settings,
+                assumption_ids=[item for item in [capacity_id, *(request.get("assumption_ids") or [])] if item],
+            ))
+            continue
+
+        if action_type == "road_ops_task":
+            payload.setdefault("task_type", "close_or_control_road")
+            payload.setdefault("priority", "high")
+            actions.append(create_action(
+                bundle_id,
+                "road_ops_task",
+                str(target),
+                request.get("message") or "Create road-operations task from Gemini-selected evacuation plan.",
+                payload,
+                request.get("reason") or "Gemini-selected plan requires road operations confirmation/control before movement.",
+                request.get("evidence_ids") or [],
+                plan.confidence,
+                settings=settings,
+                assumption_ids=request.get("assumption_ids") or [],
+            ))
+            continue
+
+        if action_type == "dispatch_task":
+            payload.setdefault("task_type", "assist_evacuation")
+            payload.setdefault("zone_id", target)
+            payload.setdefault("vehicle_availability_claimed", False)
+            payload.setdefault("assignment_owner", "dispatch_coordinator")
+            payload.setdefault("priority", "critical")
+            actions.append(create_action(
+                bundle_id,
+                "dispatch_task",
+                str(target),
+                request.get("message") or f"Create dispatch task requesting support to {target}.",
+                payload,
+                request.get("reason") or "Gemini-selected plan requires human dispatch assignment.",
+                request.get("evidence_ids") or [str(target)],
+                plan.confidence,
+                settings=settings,
+                assumption_ids=(request.get("assumption_ids") or []) + _zone_decision_tracking_ids(context, str(target)),
+            ))
+    return actions
+
+
 def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None = None) -> tuple[str, list, object]:
     bundle_id = f"BUNDLE_{uuid.uuid4().hex[:8].upper()}"
     actions = []
@@ -335,6 +650,11 @@ def create_bundle(plan: EvacuationPlan, context: dict, settings: Settings | None
         approval = create_approval(bundle_id, approver_role="not_required_internal_update")
         approval.status = "approved"
         approval.decided_at = now_iso()
+        return bundle_id, actions, approval
+
+    if plan.requested_actions:
+        actions = _compile_gemini_requested_actions(bundle_id, plan, context, settings)
+        approval = create_approval(bundle_id)
         return bundle_id, actions, approval
 
     zones_by_id = _by_id(context.get("zones", []), "zone_id")

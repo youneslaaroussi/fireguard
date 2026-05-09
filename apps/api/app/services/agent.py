@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.models.schemas import AssessmentResult
+from app.models.schemas import AssessmentResult, GeminiPlanDecision, PlanValidation
 from app.services import demo_data
 from app.services.evals import evaluate_incident
-from app.services.gemini import run_gemini_tool_assessment
-from app.services.planner import create_bundle, draft_plan
+from app.services import gemini
+from app.services.planner import create_bundle, draft_plan, plan_from_gemini_decision, validate_gemini_plan_decision
 from app.services.risk import compute_all_zone_risks
 from app.services.routes import compute_routes
 from app.services.store import FireGuardStore
@@ -60,12 +60,146 @@ def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_
         route_assumption_ids,
     )
 
-    plan = draft_plan(incident_id, context, zone_risks, routes)
+    operational_brief = gemini.build_operational_brief(incident_id, context, zone_risks, routes, memory_hits)
+    candidate_facts_summary = gemini.candidate_facts_summary(operational_brief)
+    trace.add(
+        "brief",
+        "operational_brief",
+        {"incident_id": incident_id},
+        candidate_facts_summary,
+        operational_brief.get("available_evidence_ids", [])[:12],
+    )
+
+    gemini_result = gemini.run_gemini_plan_decision(store.settings, incident_id, operational_brief)
+    gemini_tool_calls = list(gemini_result.get("tool_calls", []))
+    trace.add(
+        "reason",
+        "gemini_plan_decision",
+        {"incident_id": incident_id, "model": store.settings.gemini_model},
+        gemini_result,
+        gemini_tool_calls,
+    )
+
+    planning_mode = "deterministic_fallback"
+    gemini_decision: dict[str, Any] | None = None
+    plan_validation = _validation_for_unavailable_gemini(gemini_result)
+    validation_errors = list(plan_validation.errors)
+    repair_result: dict[str, Any] | None = None
+
+    if gemini_result.get("status") == "completed" and gemini_result.get("decision"):
+        decision = GeminiPlanDecision.model_validate(gemini_result["decision"])
+        plan_validation = validate_gemini_plan_decision(decision, context, zone_risks, routes)
+        validation_errors = list(plan_validation.errors)
+        gemini_decision = decision.model_dump()
+        trace.add(
+            "validate",
+            "plan_validation",
+            {"incident_id": incident_id, "source": "gemini_initial"},
+            plan_validation.model_dump(),
+            [evidence_id for step in decision.steps for evidence_id in step.evidence_ids],
+        )
+        if not plan_validation.valid:
+            repair_result = gemini.run_gemini_plan_decision(
+                store.settings,
+                incident_id,
+                operational_brief,
+                repair_errors=plan_validation.errors,
+                previous_decision=gemini_decision,
+            )
+            gemini_tool_calls.extend(repair_result.get("tool_calls", []))
+            trace.add(
+                "repair",
+                "gemini_repair",
+                {"incident_id": incident_id, "model": store.settings.gemini_model},
+                repair_result,
+                repair_result.get("tool_calls", []),
+            )
+            if repair_result.get("status") == "completed" and repair_result.get("decision"):
+                repaired_decision = GeminiPlanDecision.model_validate(repair_result["decision"])
+                repaired_validation = validate_gemini_plan_decision(
+                    repaired_decision,
+                    context,
+                    zone_risks,
+                    routes,
+                    repair_attempted=True,
+                )
+                trace.add(
+                    "validate",
+                    "plan_validation",
+                    {"incident_id": incident_id, "source": "gemini_repair"},
+                    repaired_validation.model_dump(),
+                    [evidence_id for step in repaired_decision.steps for evidence_id in step.evidence_ids],
+                )
+                plan_validation = repaired_validation
+                validation_errors = list(repaired_validation.errors)
+                if repaired_validation.valid:
+                    decision = repaired_decision
+                    gemini_decision = repaired_decision.model_dump()
+                    planning_mode = "gemini_repaired"
+        if plan_validation.valid and planning_mode != "gemini_repaired":
+            planning_mode = "gemini_selected"
+    elif gemini_result.get("status") == "invalid":
+        repair_result = gemini.run_gemini_plan_decision(
+            store.settings,
+            incident_id,
+            operational_brief,
+            repair_errors=gemini_result.get("validation_errors", ["Gemini returned malformed plan JSON."]),
+            previous_decision=gemini_result.get("raw_decision"),
+        )
+        gemini_tool_calls.extend(repair_result.get("tool_calls", []))
+        trace.add(
+            "repair",
+            "gemini_repair",
+            {"incident_id": incident_id, "model": store.settings.gemini_model},
+            repair_result,
+            repair_result.get("tool_calls", []),
+        )
+        if repair_result.get("status") == "completed" and repair_result.get("decision"):
+            repaired_decision = GeminiPlanDecision.model_validate(repair_result["decision"])
+            plan_validation = validate_gemini_plan_decision(
+                repaired_decision,
+                context,
+                zone_risks,
+                routes,
+                repair_attempted=True,
+            )
+            validation_errors = list(plan_validation.errors)
+            gemini_decision = repaired_decision.model_dump()
+            trace.add(
+                "validate",
+                "plan_validation",
+                {"incident_id": incident_id, "source": "gemini_repair"},
+                plan_validation.model_dump(),
+                [evidence_id for step in repaired_decision.steps for evidence_id in step.evidence_ids],
+            )
+            if plan_validation.valid:
+                planning_mode = "gemini_repaired"
+
+    trace.add(
+        "validate",
+        "plan_validation",
+        {"incident_id": incident_id, "source": "final", "planning_mode": planning_mode},
+        plan_validation.model_dump(),
+        [
+            evidence_id
+            for step in (gemini_decision or {}).get("steps", [])
+            for evidence_id in step.get("evidence_ids", [])
+        ],
+    )
+
+    if plan_validation.valid and gemini_decision:
+        decision = GeminiPlanDecision.model_validate(gemini_decision)
+        plan = plan_from_gemini_decision(incident_id, context, zone_risks, routes, decision)
+    else:
+        plan = draft_plan(incident_id, context, zone_risks, routes)
+        if not validation_errors:
+            validation_errors = ["Gemini did not return a valid plan decision; deterministic fallback was used."]
+
     trace.add(
         "plan",
         "draft_evacuation_plan",
-        {"incident_id": incident_id},
-        plan.model_dump(),
+        {"incident_id": incident_id, "planning_mode": planning_mode},
+        {"planning_mode": planning_mode, "plan": plan.model_dump()},
         [],
         [item["assumption_id"] for item in plan.operational_assumptions],
     )
@@ -81,15 +215,28 @@ def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_
         action_assumption_ids,
     )
     trace.add("approval", "request_human_approval", {"bundle_id": bundle_id}, approval.model_dump(), [])
-
-    agent_review = run_gemini_tool_assessment(store.settings, incident_id, context, plan, actions)
     trace.add(
-        "reason",
-        "gemini_tool_orchestration",
-        {"incident_id": incident_id, "model": store.settings.gemini_model},
-        agent_review,
-        [call for call in agent_review.get("tool_calls", [])],
+        "compile",
+        "action_bundle_compile",
+        {"bundle_id": bundle_id, "planning_mode": planning_mode},
+        {
+            "action_count": len(actions),
+            "requested_action_count": len(plan.requested_actions),
+            "approval_status": approval.status,
+        },
+        [evidence_id for action in actions for evidence_id in action.evidence_ids],
+        action_assumption_ids,
     )
+
+    agent_review = {
+        "status": gemini_result.get("status"),
+        "model": gemini_result.get("model"),
+        "planning_mode": planning_mode,
+        "tool_calls": gemini_tool_calls,
+        "decision": gemini_decision,
+        "repair": repair_result,
+        "validation": plan_validation.model_dump(),
+    }
 
     store.upsert("plans", plan.plan_id, plan.model_dump())
     for action in actions:
@@ -116,9 +263,25 @@ def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_
         trace=trace.events,
         agent_review=agent_review,
         gemini_status=agent_review.get("status"),
-        gemini_tool_calls=agent_review.get("tool_calls", []),
+        gemini_tool_calls=gemini_tool_calls,
+        planning_mode=planning_mode,  # type: ignore[arg-type]
+        gemini_decision=gemini_decision,
+        plan_validation=plan_validation.model_dump(),
+        validation_errors=validation_errors,
+        candidate_facts_summary=candidate_facts_summary,
         phoenix_trace_ids=trace.phoenix_trace_ids,
         arize_ax_trace_ids=trace.arize_ax_trace_ids,
+    )
+
+
+def _validation_for_unavailable_gemini(gemini_result: dict[str, Any]) -> PlanValidation:
+    status = gemini_result.get("status", "unknown")
+    if status == "completed":
+        return PlanValidation(valid=False, errors=["Gemini completed without a valid decision payload."])
+    reason = gemini_result.get("reason") or gemini_result.get("error") or "; ".join(gemini_result.get("validation_errors", []))
+    return PlanValidation(
+        valid=False,
+        errors=[f"Gemini planning unavailable: {status}{f' - {reason}' if reason else ''}"],
     )
 
 
@@ -136,9 +299,12 @@ def tool_response(name: str, payload: dict[str, Any], store: FireGuardStore) -> 
     if name == "compute_routes":
         return {"routes": [route.model_dump() for route in compute_routes(context, google_maps_api_key=store.settings.google_maps_api_key)]}
     if name == "draft_evacuation_plan":
-        risks = compute_all_zone_risks(context)
-        routes = compute_routes(context, google_maps_api_key=store.settings.google_maps_api_key)
-        return draft_plan(context["incident_id"], context, risks, routes).model_dump()
+        assessment = run_assessment(store, context["incident_id"])
+        return {
+            "planning_mode": assessment.planning_mode,
+            "plan_validation": assessment.plan_validation,
+            **assessment.plan.model_dump(),
+        }
     if name == "create_action_bundle":
         assessment = run_assessment(store, context["incident_id"])
         return {"bundle_id": assessment.bundle_id, "actions": [action.model_dump() for action in assessment.actions]}

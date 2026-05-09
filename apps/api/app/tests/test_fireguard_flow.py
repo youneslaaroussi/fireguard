@@ -5,6 +5,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.config import Settings
+from app.models.schemas import GeminiPlanDecision
 from app.routers.actions import execute as execute_bundle
 from app.routers.residents import (
     ResidentTestContactCheckIn,
@@ -18,6 +19,7 @@ from app.services.evals import evaluate_incident
 from app.services.fivetran import _filter_fire_hotspots_to_bc, fivetran_status, sync_fivetran_to_elastic
 from app.services.ingest import _normalize_public_ess_facility, _normalize_public_evacuation_order
 from app.services.risk import compute_all_zone_risks
+from app.services.planner import validate_gemini_plan_decision
 from app.services.routes import best_safe_route, compute_routes
 from app.services.shelter_capacity import (
     google_sheets_capacity_status,
@@ -54,6 +56,129 @@ def seeded_store() -> FireGuardStore:
     store = FireGuardStore(settings)
     store.seed_demo()
     return store
+
+
+def _enable_gemini_for_test(store: FireGuardStore) -> None:
+    store.settings.gemini_assessment_enabled = True
+    store.settings.google_cloud_project = "test-project"
+    store.settings.google_cloud_location = "global"
+
+
+def _valid_gemini_decision(summary: str = "Gemini selected Zone B first to reduce shared-corridor pressure.") -> dict:
+    evidence = ["drivebc.ca/DBC-90684", "BC_ESS_153"]
+    return {
+        "incident_summary": summary,
+        "selected_strategy": "staged_evacuation",
+        "confidence": 0.83,
+        "steps": [
+            {
+                "zone_id": "ZONE_B",
+                "strategy": "staged_evacuation",
+                "destination_id": "SHELTER_B",
+                "start_after_minutes": 0,
+                "message": "[DEMO - FireGuard] Prepare Zone B first toward Railyard Mall using the validated alternate route.",
+                "rationale": ["Gemini chose Zone B first to reduce corridor pressure before Zone A moves."],
+                "evidence_ids": evidence,
+                "assumption_ids": ["ASSUMPTION_SHELTER_B_CAPACITY"],
+            },
+            {
+                "zone_id": "ZONE_A",
+                "strategy": "evacuate_now",
+                "destination_id": "SHELTER_B",
+                "start_after_minutes": 12,
+                "message": "[DEMO - FireGuard] Evacuate Zone A toward Railyard Mall after traffic-control release.",
+                "rationale": ["The nearest route/shelter option is rejected; the alternate route remains available."],
+                "evidence_ids": evidence,
+                "assumption_ids": ["ASSUMPTION_SHELTER_B_CAPACITY"],
+            },
+            {
+                "zone_id": "ZONE_C",
+                "strategy": "shelter_in_place",
+                "destination_id": None,
+                "start_after_minutes": 0,
+                "message": "[DEMO - FireGuard] Zone C should shelter in place while dispatch support is assigned.",
+                "rationale": ["Low access and blocked outbound options make unsupported self-evacuation unsafe."],
+                "evidence_ids": evidence,
+                "assumption_ids": ["INPUT_ZONE_C_SOURCE_BACKED_ZONE_CONTEXT"],
+            },
+        ],
+        "rejected_alternatives": [
+            {
+                "origin_id": "ZONE_A",
+                "destination_id": "SHELTER_A",
+                "reason": "Rejected because the route intersects the DriveBC closure and the ESS facility is closed.",
+                "evidence_ids": ["drivebc.ca/DBC-90684", "BC_ESS_10"],
+            }
+        ],
+        "requested_actions": [
+            {
+                "action_type": "resident_sms",
+                "target": "ZONE_B",
+                "message": "[DEMO - FireGuard] Prepare Zone B first toward Railyard Mall using the validated alternate route.",
+                "reason": "Gemini selected Zone B as the first staged movement.",
+                "evidence_ids": evidence,
+                "assumption_ids": [],
+                "payload": {},
+            },
+            {
+                "action_type": "resident_sms",
+                "target": "ZONE_A",
+                "message": "[DEMO - FireGuard] Evacuate Zone A toward Railyard Mall after traffic-control release.",
+                "reason": "Gemini selected a delayed Zone A movement after route rejection.",
+                "evidence_ids": evidence,
+                "assumption_ids": [],
+                "payload": {},
+            },
+            {
+                "action_type": "shelter_notify",
+                "target": "SHELTER_B",
+                "message": "Prepare for validated staged arrivals at Railyard Mall.",
+                "reason": "Selected destination for the Gemini staged plan.",
+                "evidence_ids": ["BC_ESS_153"],
+                "assumption_ids": ["ASSUMPTION_SHELTER_B_CAPACITY"],
+                "payload": {},
+            },
+            {
+                "action_type": "resident_sms",
+                "target": "ZONE_C",
+                "message": "[DEMO - FireGuard] Shelter in place in Zone C while dispatch support is assigned.",
+                "reason": "Gemini selected shelter-in-place because no safe unsupported route exists.",
+                "evidence_ids": evidence,
+                "assumption_ids": ["INPUT_ZONE_C_SOURCE_BACKED_ZONE_CONTEXT"],
+                "payload": {},
+            },
+            {
+                "action_type": "road_ops_task",
+                "target": "Little Lake Quesnel River Road",
+                "message": "Create traffic-control task for the rejected closure corridor and staged release.",
+                "reason": "Closure evidence affects route sequencing.",
+                "evidence_ids": ["drivebc.ca/DBC-90684"],
+                "assumption_ids": [],
+                "payload": {"road_segment": "Little Lake Quesnel River Road"},
+            },
+            {
+                "action_type": "dispatch_task",
+                "target": "ZONE_C",
+                "message": "Request dispatcher assignment for Zone C shelter-in-place support.",
+                "reason": "Zone C has low road-access context and no safe unsupported self-evacuation step.",
+                "evidence_ids": evidence,
+                "assumption_ids": ["INPUT_ZONE_C_SOURCE_BACKED_ZONE_CONTEXT"],
+                "payload": {"vehicle_availability_claimed": False},
+            },
+        ],
+        "data_gaps": ["Shelter capacity is operator-confirmed or assumed, not an official live ESS capacity feed."],
+        "risks_if_wrong": ["If wind shifts, Zone A may need earlier release."],
+        "fallback_plan": "If the alternate route degrades, hold Zone A/Zone B and expand dispatch-assisted shelter-in-place.",
+    }
+
+
+def _invalid_closed_shelter_decision() -> dict:
+    decision = _valid_gemini_decision("Invalid Gemini plan routes Zone A to a closed shelter.")
+    decision["steps"][0]["zone_id"] = "ZONE_A"
+    decision["steps"][0]["destination_id"] = "SHELTER_A"
+    decision["requested_actions"][0]["target"] = "ZONE_A"
+    decision["requested_actions"][2]["target"] = "SHELTER_A"
+    return decision
 
 
 def test_route_closure_rejects_obvious_route() -> None:
@@ -165,6 +290,158 @@ def test_full_assessment_creates_auditable_action_bundle() -> None:
     assert len(assessment.actions) >= 6
     assert any(event["tool"] == "search_operational_memory" for event in assessment.trace)
     assert any("closure" in alt["reason"].lower() for alt in assessment.plan.rejected_alternatives)
+
+
+def test_gemini_selected_decision_changes_final_plan(monkeypatch) -> None:
+    store = seeded_store()
+    _enable_gemini_for_test(store)
+
+    def fake_gemini(*_args, **_kwargs) -> dict:
+        return {
+            "status": "completed",
+            "model": "test-gemini",
+            "tool_calls": ["get_operational_brief", "inspect_route_options"],
+            "decision": _valid_gemini_decision(),
+        }
+
+    monkeypatch.setattr("app.services.agent.gemini.run_gemini_plan_decision", fake_gemini)
+    assessment = run_assessment(store)
+
+    assert assessment.planning_mode == "gemini_selected"
+    assert assessment.plan_validation and assessment.plan_validation["valid"] is True
+    assert assessment.plan.summary.startswith("Gemini selected Zone B first")
+    assert assessment.plan.steps[0].zone_id == "ZONE_B"
+    assert assessment.plan.steps[0].start_after_minutes == 0
+    assert assessment.plan.steps[1].zone_id == "ZONE_A"
+    assert assessment.plan.steps[1].start_after_minutes == 12
+    assert assessment.plan.requested_actions
+    assert assessment.gemini_decision
+    assert assessment.actions[0].target == "ZONE_B"
+    assert {action.action_type for action in assessment.actions} >= {"resident_sms", "shelter_notify", "road_ops_task", "dispatch_task"}
+    assert assessment.approval.status == "pending"
+    assert any(event["tool"] == "gemini_plan_decision" for event in assessment.trace)
+    assert any(event["tool"] == "plan_validation" for event in assessment.trace)
+
+
+def test_gemini_invalid_decision_is_repaired_once(monkeypatch) -> None:
+    store = seeded_store()
+    _enable_gemini_for_test(store)
+    calls: list[bool] = []
+
+    def fake_gemini(*_args, repair_errors=None, **_kwargs) -> dict:
+        calls.append(bool(repair_errors))
+        return {
+            "status": "completed",
+            "model": "test-gemini",
+            "tool_calls": ["get_operational_brief"],
+            "decision": _valid_gemini_decision("Gemini repaired the invalid closed-shelter plan.")
+            if repair_errors
+            else _invalid_closed_shelter_decision(),
+        }
+
+    monkeypatch.setattr("app.services.agent.gemini.run_gemini_plan_decision", fake_gemini)
+    assessment = run_assessment(store)
+
+    assert calls == [False, True]
+    assert assessment.planning_mode == "gemini_repaired"
+    assert assessment.plan_validation and assessment.plan_validation["valid"] is True
+    assert assessment.plan_validation["repair_attempted"] is True
+    assert assessment.plan.summary.startswith("Gemini repaired")
+    assert all(step.destination_id != "SHELTER_A" for step in assessment.plan.steps)
+
+
+def test_gemini_invalid_after_repair_falls_back_honestly(monkeypatch) -> None:
+    store = seeded_store()
+    _enable_gemini_for_test(store)
+
+    def fake_gemini(*_args, **_kwargs) -> dict:
+        return {
+            "status": "completed",
+            "model": "test-gemini",
+            "tool_calls": ["get_operational_brief"],
+            "decision": _invalid_closed_shelter_decision(),
+        }
+
+    monkeypatch.setattr("app.services.agent.gemini.run_gemini_plan_decision", fake_gemini)
+    assessment = run_assessment(store)
+
+    assert assessment.planning_mode == "deterministic_fallback"
+    assert assessment.plan_validation and assessment.plan_validation["valid"] is False
+    assert any("closed shelter" in error.lower() or "unsafe route" in error.lower() for error in assessment.validation_errors)
+    assert not assessment.plan.summary.startswith("Invalid Gemini")
+    assert assessment.agent_review and assessment.agent_review["planning_mode"] == "deterministic_fallback"
+
+
+def test_live_low_risk_context_vetoes_gemini_public_evacuation(monkeypatch) -> None:
+    store = seeded_store()
+    _enable_gemini_for_test(store)
+    store.replace_index(
+        "fire_hotspots",
+        [{
+            "source": "NASA_FIRMS",
+            "external_id": "FIRMS_LIVE_FAR_GEMINI_TEST",
+            "location": {"lat": 49.12904, "lon": -117.21087},
+            "brightness": 330.1,
+            "confidence": "nominal",
+            "frp": 12.0,
+            "acquired_at": "2026-05-07T21:25:00Z",
+            "updated_at": "2026-05-07T21:25:00Z",
+            "ingested_at": "2026-05-08T11:44:56Z",
+            "raw": {"test_fixture": "current-firms-far-from-demo-zones"},
+        }],
+        "external_id",
+    )
+
+    def fake_gemini(*_args, **_kwargs) -> dict:
+        return {
+            "status": "completed",
+            "model": "test-gemini",
+            "tool_calls": ["get_operational_brief"],
+            "decision": _valid_gemini_decision("Gemini incorrectly tried to evacuate during low live risk."),
+        }
+
+    monkeypatch.setattr("app.services.agent.gemini.run_gemini_plan_decision", fake_gemini)
+    assessment = run_assessment(store)
+
+    assert assessment.planning_mode == "deterministic_fallback"
+    assert assessment.plan.recommended_strategy == "monitor"
+    assert assessment.plan.requires_approval is False
+    assert [action.action_type for action in assessment.actions] == ["incident_timeline_update"]
+    assert any("wildfire evacuation trigger" in error.lower() for error in assessment.validation_errors)
+
+
+def test_gemini_contract_and_validator_reject_bad_output() -> None:
+    store = seeded_store()
+    context = store.incident_context()
+    risks = compute_all_zone_risks(context)
+    routes = compute_routes(context)
+
+    with pytest.raises(Exception):
+        GeminiPlanDecision.model_validate({"selected_strategy": "staged_evacuation"})
+
+    decision = GeminiPlanDecision.model_validate(_invalid_closed_shelter_decision())
+    validation = validate_gemini_plan_decision(decision, context, risks, routes)
+
+    assert validation.valid is False
+    assert any("closed shelter" in error.lower() or "unsafe route" in error.lower() for error in validation.errors)
+
+
+def test_gemini_validator_rejects_under_specified_action_bundle() -> None:
+    store = seeded_store()
+    context = store.incident_context()
+    risks = compute_all_zone_risks(context)
+    routes = compute_routes(context)
+    decision_payload = _valid_gemini_decision("Gemini omitted required action coverage.")
+    decision_payload["requested_actions"] = [decision_payload["requested_actions"][0]]
+
+    decision = GeminiPlanDecision.model_validate(decision_payload)
+    validation = validate_gemini_plan_decision(decision, context, risks, routes)
+
+    assert validation.valid is False
+    assert any("resident_sms" in error for error in validation.errors)
+    assert any("shelter_notify" in error for error in validation.errors)
+    assert any("road_ops_task" in error for error in validation.errors)
+    assert any("dispatch_task" in error for error in validation.errors)
 
 
 def test_live_low_risk_context_creates_monitor_plan_not_public_actions() -> None:

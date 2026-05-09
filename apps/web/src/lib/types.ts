@@ -154,6 +154,7 @@ export type EvacuationPlan = {
   risks_if_wrong: string[];
   fallback_plan: string;
   requires_approval: boolean;
+  requested_actions?: Array<Record<string, unknown>>;
 };
 
 export type ActionItem = {
@@ -191,6 +192,11 @@ export type AssessmentResult = {
   agent_review?: Record<string, unknown> | null;
   gemini_status?: string | null;
   gemini_tool_calls?: string[];
+  planning_mode?: "gemini_selected" | "gemini_repaired" | "deterministic_fallback";
+  gemini_decision?: Record<string, unknown> | null;
+  plan_validation?: Record<string, unknown> | null;
+  validation_errors?: string[];
+  candidate_facts_summary?: Record<string, unknown>;
   phoenix_trace_ids?: string[];
   arize_ax_trace_ids?: string[];
 };
