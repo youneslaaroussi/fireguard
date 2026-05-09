@@ -17,7 +17,7 @@
 The Fivetran Connector SDK project in `integrations/fivetran/fireguard_connector` emits normalized tables for environmental and road data. FireGuard then syncs those tables into Elastic for geospatial retrieval.
 Supplemental BC public emergency context can also be refreshed directly with `POST /ingest/public-bc-context`; this is not a replacement for the Fivetran environmental/road ingestion path.
 
-Hybrid demo mode also exposes `POST /sync/live-overlay`. That endpoint directly queries NASA FIRMS, BC Wildfire, DriveBC/Open511, and Open-Meteo through the backend source adapters and writes them to separate `live_*` Elastic indices. These records are real current source records for situational awareness, but they are marked `decision_eligible=false` and are not temporally merged into the replay evacuation decision.
+Hybrid demo mode also exposes `POST /sync/live-overlay`. That endpoint first reads the Fivetran-loaded BigQuery tables and writes current records to separate `live_*` Elastic indices. If the Fivetran warehouse path is unavailable, it can fall back to direct NASA FIRMS, BC Wildfire, DriveBC/Open511, and Open-Meteo source adapters with an explicit `fallback_active=true` run record. These records are real current source records for situational awareness, but they are marked `decision_eligible=false` and are not temporally merged into the replay evacuation decision.
 
 ## Synthetic Or Derived Sources
 

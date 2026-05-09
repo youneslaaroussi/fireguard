@@ -1240,6 +1240,94 @@ def test_fivetran_sync_indexes_provider_lineage() -> None:
 
 
 @pytest.mark.asyncio
+async def test_live_overlay_prefers_fivetran_bigquery(monkeypatch) -> None:
+    store = seeded_store()
+    replay_fire_ids = {doc["external_id"] for doc in store.list("fire_hotspots")}
+
+    def fake_query_bigquery(_settings: Settings) -> dict:
+        return {
+            "fire_hotspots": [{
+                "source": "NASA_FIRMS",
+                "external_id": "FIVETRAN_LIVE_FIRE_001",
+                "location": {"lat": 53.0, "lon": -122.0},
+                "brightness": 344.0,
+                "confidence": "nominal",
+                "frp": 18.2,
+                "updated_at": "2026-05-08T18:00:00Z",
+                "ingested_at": "2026-05-08T18:01:00Z",
+                "ingestion_provider": "fivetran",
+                "ingestion_mode": "bigquery",
+                "fivetran_stream": "fire_hotspots",
+                "raw": {"live_fixture": True},
+            }],
+            "fire_perimeters": [{
+                "source": "BC_WILDFIRE",
+                "fire_name": "Fivetran live perimeter fixture",
+                "fire_number": "FIVETRAN_LIVE_PERIMETER_001",
+                "status": "Being Held",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[-122.1, 53.0], [-122.0, 53.0], [-122.0, 53.1], [-122.1, 53.0]]],
+                },
+                "area_hectares": 10.0,
+                "updated_at": "2026-05-08T18:00:00Z",
+                "ingested_at": "2026-05-08T18:01:00Z",
+                "ingestion_provider": "fivetran",
+                "ingestion_mode": "bigquery",
+                "fivetran_stream": "fire_perimeters",
+                "raw": {"live_fixture": True},
+            }],
+            "road_events": [{
+                "source": "DRIVEBC_OPEN511",
+                "external_id": "FIVETRAN_LIVE_ROAD_001",
+                "title": "Fivetran DriveBC event fixture",
+                "description": "Fivetran event fixture",
+                "event_type": "INCIDENT",
+                "severity": "MINOR",
+                "road_name": "Highway 97",
+                "location": {"lat": 53.01, "lon": -122.01},
+                "geometry": {"type": "Point", "coordinates": [-122.01, 53.01]},
+                "updated_at": "2026-05-08T18:00:00Z",
+                "ingested_at": "2026-05-08T18:01:00Z",
+                "ingestion_provider": "fivetran",
+                "ingestion_mode": "bigquery",
+                "fivetran_stream": "road_events",
+                "raw": {"live_fixture": True},
+            }],
+            "weather_observations": [{
+                "weather_id": "FIVETRAN_LIVE_WEATHER_001",
+                "source": "OPEN_METEO",
+                "location": {"lat": 53.0, "lon": -122.0},
+                "wind_speed_kph": 11,
+                "wind_direction_degrees": 200,
+                "wind_gusts_kph": 20,
+                "updated_at": "2026-05-08T18:00:00Z",
+                "ingested_at": "2026-05-08T18:01:00Z",
+                "ingestion_provider": "fivetran",
+                "ingestion_mode": "bigquery",
+                "fivetran_stream": "weather_observations",
+                "raw": {"live_fixture": True},
+            }],
+        }
+
+    monkeypatch.setattr("app.services.live_overlay._query_bigquery", fake_query_bigquery)
+    monkeypatch.setattr("app.services.live_overlay._filter_fire_hotspots_to_bc", lambda _streams: [])
+
+    result = await sync_live_overlay(store, store.settings)
+    context = store.incident_context()
+
+    assert result["provider"] == "live_overlay"
+    assert result["source_provider"] == "fivetran"
+    assert result["provider_path"] == "fivetran_bigquery"
+    assert result["fallback_active"] is False
+    assert result["streams"]["fire_hotspots"] == 1
+    assert context["live_context"]["fires"][0]["external_id"] == "FIVETRAN_LIVE_FIRE_001"
+    assert context["live_context"]["fires"][0]["live_overlay_provider"] == "fivetran_bigquery"
+    assert context["live_context"]["fires"][0]["ingestion_provider"] == "fivetran"
+    assert {doc["external_id"] for doc in store.list("fire_hotspots")} == replay_fire_ids
+
+
+@pytest.mark.asyncio
 async def test_hybrid_live_overlay_keeps_replay_decision_context_separate(monkeypatch) -> None:
     store = seeded_store()
     replay_fire_ids = {doc["external_id"] for doc in store.list("fire_hotspots")}

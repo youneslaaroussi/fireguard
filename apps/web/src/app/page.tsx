@@ -1070,7 +1070,7 @@ function ContextDetails({
         <section>
           <H5>Refresh Data</H5>
           <div className="grid gap-2">
-            <Button icon="satellite" text="Refresh current live overlay" loading={busy === "live-overlay"} disabled={busy !== null} onClick={onRefreshLiveOverlay} />
+            <Button icon="satellite" text="Refresh Fivetran live overlay" loading={busy === "live-overlay"} disabled={busy !== null} onClick={onRefreshLiveOverlay} />
             <Button icon="database" text="Sync Fivetran decision feeds" loading={busy === "fivetran"} disabled={busy !== null} onClick={onRefreshFeeds} />
             <Button icon="manual" text="Refresh shelter capacity" loading={busy === "shelter-sheet"} disabled={busy !== null} onClick={onRefreshShelters} />
             <Button icon="map" text="Refresh zone and road context" loading={busy === "source-zone-context"} disabled={busy !== null} onClick={onRefreshZones} />
@@ -1441,8 +1441,16 @@ function providerSummaries(status: IntegrationStatus | null, evalResult: Record<
   const liveOverlayRun = liveOverlay?.latest_run as Record<string, unknown> | null | undefined;
   const liveOverlayCounts = liveOverlay?.record_counts as Record<string, unknown> | undefined;
   const liveOverlayWarnings = asRecordArray(liveOverlay?.warnings);
+  const liveOverlayQualityWarnings = asRecordArray(liveOverlay?.data_quality_warnings ?? liveOverlayRun?.data_quality_warnings);
+  const liveOverlayFallbackActive = liveOverlay?.fallback_active === true || liveOverlayRun?.fallback_active === true;
+  const liveOverlayProvider = String(liveOverlayRun?.provider_path || liveOverlay?.provider || "fivetran_bigquery");
   const liveOverlayCount = Object.values(liveOverlayCounts || {}).reduce<number>((total, value) => total + (typeof value === "number" ? value : 0), 0);
   const liveOverlaySynced = Boolean(liveOverlayRun);
+  const liveOverlayDetail = liveOverlaySynced
+    ? liveOverlayFallbackActive
+      ? "Fivetran warehouse overlay was unavailable, so direct source adapters were used and marked as fallback."
+      : `${liveOverlayCount || "Current"} records loaded through ${liveOverlayProvider}. ${String(liveOverlay?.decision_rule || "Display-only and separate from replay decision evidence.")}`
+    : "Refresh the Fivetran live overlay to show current warehouse records alongside the replay plan.";
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
   const passed = evalChecks ? Object.values(evalChecks).filter(Boolean).length : 0;
   const arizeCheck = status?.arize?.connection_check as Record<string, unknown> | undefined;
@@ -1474,13 +1482,11 @@ function providerSummaries(status: IntegrationStatus | null, evalResult: Record<
       intent: status?.fivetran?.configured && fivetranManagedOk && !fivetranFallbackActive ? Intent.SUCCESS : Intent.WARNING,
     },
     {
-      title: "Live Overlay",
-      state: liveOverlayWarnings.length ? "attention" : liveOverlaySynced ? "active" : "waiting",
+      title: "Fivetran Live Overlay",
+      state: liveOverlayFallbackActive || liveOverlayWarnings.length ? "attention" : liveOverlaySynced ? "active" : "waiting",
       value: liveOverlaySynced ? `${liveOverlayCount} current records` : "not synced",
-      detail: liveOverlaySynced
-        ? String(liveOverlay?.decision_rule || "Current live records are display-only and separate from replay decision evidence.")
-        : "Refresh the live overlay to show current source records alongside the replay plan.",
-      intent: liveOverlaySynced && !liveOverlayWarnings.length ? Intent.SUCCESS : Intent.WARNING,
+      detail: liveOverlayQualityWarnings.length ? `${liveOverlayDetail} ${String(liveOverlayQualityWarnings[0]?.count_removed || 0)} out-of-region fire records filtered.` : liveOverlayDetail,
+      intent: liveOverlaySynced && !liveOverlayFallbackActive && !liveOverlayWarnings.length ? Intent.SUCCESS : Intent.WARNING,
     },
     {
       title: "Elastic",

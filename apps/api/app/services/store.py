@@ -810,10 +810,13 @@ class FireGuardStore:
             },
             "live_overlay": {
                 "configured": True,
-                "provider": "direct_source_adapters",
+                "provider": latest_live_overlay.get("provider_path") if latest_live_overlay else "fivetran_bigquery_preferred",
+                "source_provider": latest_live_overlay.get("source_provider") if latest_live_overlay else "fivetran",
                 "decision_eligible": False,
                 "latest_run": latest_live_overlay,
+                "fallback_active": bool(latest_live_overlay and latest_live_overlay.get("fallback_active")),
                 "warnings": latest_live_overlay.get("warnings", []) if latest_live_overlay else [],
+                "data_quality_warnings": latest_live_overlay.get("data_quality_warnings", []) if latest_live_overlay else [],
                 "record_counts": {
                     "fires": len(self.list("live_fire_hotspots")),
                     "perimeters": len(self.list("live_fire_perimeters")),
