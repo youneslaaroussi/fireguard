@@ -17,6 +17,8 @@
 The Fivetran Connector SDK project in `integrations/fivetran/fireguard_connector` emits normalized tables for environmental and road data. FireGuard then syncs those tables into Elastic for geospatial retrieval.
 Supplemental BC public emergency context can also be refreshed directly with `POST /ingest/public-bc-context`; this is not a replacement for the Fivetran environmental/road ingestion path.
 
+Hybrid demo mode also exposes `POST /sync/live-overlay`. That endpoint directly queries NASA FIRMS, BC Wildfire, DriveBC/Open511, and Open-Meteo through the backend source adapters and writes them to separate `live_*` Elastic indices. These records are real current source records for situational awareness, but they are marked `decision_eligible=false` and are not temporally merged into the replay evacuation decision.
+
 ## Synthetic Or Derived Sources
 
 - unconfirmed shelter capacities; public BC ESS facility data exposes status/location, not live capacity;
@@ -28,7 +30,7 @@ Supplemental BC public emergency context can also be refreshed directly with `PO
 Synthetic action endpoints are clearly labeled in the UI and logs. Fire, road, and weather records used in the judged reasoning path must cite a source record or stored replay source snapshot.
 Every non-authoritative operational input is also emitted as an `operational_assumptions` record with a fix path, then attached to affected route, plan, action, trace, and Phoenix span records through `assumption_ids`.
 
-Current live source data can legitimately produce no evacuation action. If active fires are far from the configured zones and no route crosses an active fire-risk buffer, FireGuard returns a monitor-only internal timeline update instead of drafting public SMS, shelter, road-ops, or dispatch actions. The staged evacuation/route-rejection demo should be described as a labeled replay of real source snapshots unless live data creates the same conditions.
+Current live source data can legitimately produce no evacuation action. If active fires are far from the configured zones and no route crosses an active fire-risk buffer, FireGuard returns a monitor-only internal timeline update instead of drafting public SMS, shelter, road-ops, or dispatch actions. The staged evacuation/route-rejection demo should be described as a labeled replay of real source snapshots unless live data creates the same conditions. Hybrid mode may show current live records beside the replay incident, but the UI and API separate those records from the decision context.
 
 Shelter capacity can be updated by a named operator through `POST /shelters/{shelter_id}/capacity-check-in` or the UI `Confirm Capacity` action. It can also be synced from an operator-maintained Google Sheet through `POST /sync/google-sheets-shelter-capacity`. Both paths create auditable `capacity_updates` records and change downstream tracking to an operator-confirmed input. They remain distinct from an official ESS capacity feed unless the operator-maintained sheet is explicitly authorized as that feed. Unconfirmed capacity values are shown as confirmation gates and are not treated as official numeric evidence.
 

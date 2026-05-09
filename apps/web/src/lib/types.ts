@@ -89,6 +89,7 @@ export type PublicEssFacility = {
 export type IncidentContext = {
   incident_id: string;
   mode: string;
+  decision_context_mode?: string;
   store_backend: string;
   fires: FireHotspot[];
   perimeters: Perimeter[];
@@ -103,6 +104,22 @@ export type IncidentContext = {
   data_freshness: Array<Record<string, unknown>>;
   provider_status: Record<string, Record<string, unknown>>;
   demo_disclosures: Array<Record<string, unknown>>;
+  decision_context?: Record<string, unknown>;
+  live_context?: {
+    mode: string;
+    decision_eligible: boolean;
+    decision_rule: string;
+    fires: FireHotspot[];
+    perimeters: Perimeter[];
+    road_events: RoadEvent[];
+    weather: Record<string, unknown>;
+    record_counts: Record<string, number>;
+    data_freshness: Array<Record<string, unknown>>;
+    source_lineage: Array<Record<string, unknown>>;
+    latest_run?: Record<string, unknown> | null;
+    warnings?: Array<Record<string, unknown>>;
+  };
+  source_lineage?: Record<string, unknown>;
 };
 
 export type ZoneRisk = {
@@ -203,6 +220,7 @@ export type AssessmentResult = {
 
 export type IntegrationStatus = {
   fivetran: Record<string, unknown>;
+  live_overlay?: Record<string, unknown>;
   elastic: Record<string, unknown>;
   gemini: Record<string, unknown>;
   arize: Record<string, unknown>;

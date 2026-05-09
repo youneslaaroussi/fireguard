@@ -213,8 +213,9 @@ async def ingest_road_events() -> dict[str, Any]:
     for event in events or []:
         event_id = event.get("id") or event.get("identifier") or event.get("url") or stable_id(event)
         geography = event.get("geography") or {}
-        coords = geography.get("coordinates") if isinstance(geography, dict) else None
-        lon, lat = (coords[:2] if isinstance(coords, list) and len(coords) >= 2 else (None, None))
+        location = _geometry_location(geography if isinstance(geography, dict) else None)
+        if location == {"lat": 0.0, "lon": 0.0}:
+            location = {"lat": 52.623474, "lon": -121.761311}
         docs.append({
             "source": "DRIVEBC_OPEN511",
             "external_id": str(event_id),
@@ -223,7 +224,7 @@ async def ingest_road_events() -> dict[str, Any]:
             "event_type": event.get("event_type") or "road_event",
             "severity": event.get("severity") or "unknown",
             "road_name": event.get("roads", [{}])[0].get("name") if event.get("roads") else "unknown",
-            "location": {"lat": float(lat), "lon": float(lon)} if lat and lon else {"lat": 52.623474, "lon": -121.761311},
+            "location": location,
             "geometry": geography if geography else None,
             "starts_at": event.get("created") or event.get("start_date"),
             "ends_at": event.get("end_date"),

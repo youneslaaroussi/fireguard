@@ -16,6 +16,10 @@ INDEX_NAMES = [
     "fire_hotspots",
     "fire_perimeters",
     "road_events",
+    "live_fire_hotspots",
+    "live_fire_perimeters",
+    "live_road_events",
+    "live_weather_observations",
     "evacuation_zones",
     "shelters",
     "dispatch_assets",
@@ -69,6 +73,18 @@ INDEX_MAPPINGS: dict[str, dict[str, Any]] = {
             "road_name": {"type": "keyword"},
             "location": {"type": "geo_point"},
             "geometry": {"type": "geo_shape"},
+        }
+    },
+    "weather_observations": {
+        "properties": {
+            "weather_id": {"type": "keyword"},
+            "source": {"type": "keyword"},
+            "location": {"type": "geo_point"},
+            "wind_speed_kph": {"type": "float"},
+            "wind_direction_degrees": {"type": "float"},
+            "wind_gusts_kph": {"type": "float"},
+            "updated_at": {"type": "date"},
+            "ingested_at": {"type": "date"},
         }
     },
     "evacuation_zones": {"properties": {"zone_id": {"type": "keyword"}, "geometry": {"type": "geo_shape"}, "centroid": {"type": "geo_point"}}},
@@ -140,6 +156,11 @@ INDEX_MAPPINGS: dict[str, dict[str, Any]] = {
         }
     },
 }
+
+INDEX_MAPPINGS["live_fire_hotspots"] = INDEX_MAPPINGS["fire_hotspots"]
+INDEX_MAPPINGS["live_fire_perimeters"] = INDEX_MAPPINGS["fire_perimeters"]
+INDEX_MAPPINGS["live_road_events"] = INDEX_MAPPINGS["road_events"]
+INDEX_MAPPINGS["live_weather_observations"] = INDEX_MAPPINGS["weather_observations"]
 
 
 class FireGuardStore:
@@ -361,6 +382,88 @@ class FireGuardStore:
         self.upsert("traces", trace_id, {"trace_id": trace_id, "incident_id": demo_data.INCIDENT_ID, "events": [], "created_at": now_iso()})
         return {"status": "seeded", "incident_id": demo_data.INCIDENT_ID, "backend": self.backend_name()}
 
+    @staticmethod
+    def _record_temporal_scope(doc: dict[str, Any]) -> str:
+        raw = doc.get("raw") if isinstance(doc.get("raw"), dict) else {}
+        source = str(doc.get("source", "")).upper()
+        if doc.get("context_role") == "live_overlay":
+            return "live_current"
+        if doc.get("ingestion_mode") in {"replay", "bigquery_empty_replay_fallback"}:
+            return "replay_snapshot"
+        if raw.get("historical_replay") or raw.get("source_snapshot") or raw.get("replay"):
+            return "replay_snapshot"
+        if "REPLAY" in source or "SNAPSHOT" in source:
+            return "replay_snapshot"
+        if doc.get("capacity_operator_confirmed") or doc.get("contact_confirmed_at") or doc.get("zone_operations_confirmed_at"):
+            return "operator_input"
+        if doc.get("synthetic"):
+            return "synthetic_demo"
+        if doc.get("data_origin") == "bc_emergencymapbc_public_live":
+            return "official_public_live_or_snapshot"
+        return "source_record"
+
+    @staticmethod
+    def _record_counts(records: dict[str, list[dict[str, Any]]]) -> dict[str, int]:
+        return {key: len(value) for key, value in records.items()}
+
+    def _lineage_summary(
+        self,
+        role: str,
+        records: dict[str, list[dict[str, Any]]],
+        *,
+        decision_eligible: bool,
+    ) -> list[dict[str, Any]]:
+        summaries = []
+        for stream, docs in records.items():
+            kinds: dict[str, int] = defaultdict(int)
+            for doc in docs:
+                kinds[self._record_temporal_scope(doc)] += 1
+            summaries.append({
+                "role": role,
+                "stream": stream,
+                "count": len(docs),
+                "decision_eligible": decision_eligible,
+                "temporal_scopes": dict(kinds),
+            })
+        return summaries
+
+    def _latest_ingestion_run(self, provider: str) -> dict[str, Any] | None:
+        runs = [run for run in self.list("ingestion_runs") if run.get("provider") == provider]
+        return sorted(runs, key=lambda run: run.get("created_at", ""))[-1] if runs else None
+
+    def live_overlay_context(self) -> dict[str, Any]:
+        weather = self.list("live_weather_observations")
+        records = {
+            "fires": self.list("live_fire_hotspots"),
+            "perimeters": self.list("live_fire_perimeters"),
+            "road_events": self.list("live_road_events"),
+            "weather_observations": weather,
+        }
+        latest_run = self._latest_ingestion_run("live_overlay")
+        return {
+            "mode": "live_overlay",
+            "decision_eligible": False,
+            "decision_rule": "Displayed as current situational awareness. It is not temporally merged into the replay decision context.",
+            "fires": records["fires"],
+            "perimeters": records["perimeters"],
+            "road_events": records["road_events"],
+            "weather": weather[0] if weather else {},
+            "record_counts": self._record_counts(records),
+            "data_freshness": self.data_freshness([
+                "live_fire_hotspots",
+                "live_fire_perimeters",
+                "live_road_events",
+                "live_weather_observations",
+            ]),
+            "source_lineage": self._lineage_summary(
+                "live_overlay",
+                records,
+                decision_eligible=False,
+            ),
+            "latest_run": latest_run,
+            "warnings": latest_run.get("warnings", []) if latest_run else [],
+        }
+
     def incident_context(self, incident_id: str = demo_data.INCIDENT_ID) -> dict[str, Any]:
         self.ensure_seeded()
         weather = self.list("weather_observations")
@@ -381,13 +484,39 @@ class FireGuardStore:
         zones = self._zones_with_operational_updates()
         dispatch_assets = self.list("dispatch_assets")
         resident_contacts = self.resident_contacts_with_updates()
-        context = {
-            "incident_id": incident_id,
-            "mode": "replay" if self.settings.demo_mode else "live",
-            "store_backend": self.backend_name(),
+        decision_records = {
             "fires": self.list("fire_hotspots"),
             "perimeters": self.list("fire_perimeters"),
             "road_events": self.list("road_events"),
+            "weather_observations": weather,
+        }
+        live_context = self.live_overlay_context()
+        decision_context = {
+            "mode": "replay_snapshot" if self.settings.demo_mode else "live_decision_context",
+            "decision_eligible": True,
+            "decision_rule": (
+                "Gemini and deterministic validators use this evidence for the evacuation plan. "
+                "Live overlay records are shown separately and are not temporally merged into this plan."
+            ),
+            "fires": decision_records["fires"],
+            "perimeters": decision_records["perimeters"],
+            "road_events": decision_records["road_events"],
+            "weather": weather[0] if weather else {},
+            "record_counts": self._record_counts(decision_records),
+            "source_lineage": self._lineage_summary(
+                "decision_context",
+                decision_records,
+                decision_eligible=True,
+            ),
+        }
+        context = {
+            "incident_id": incident_id,
+            "mode": "hybrid" if self.settings.demo_mode else "live",
+            "decision_context_mode": decision_context["mode"],
+            "store_backend": self.backend_name(),
+            "fires": decision_records["fires"],
+            "perimeters": decision_records["perimeters"],
+            "road_events": decision_records["road_events"],
             "weather": weather[0] if weather else {},
             "zones": zones,
             "shelters": shelters,
@@ -405,6 +534,14 @@ class FireGuardStore:
             "data_freshness": self.data_freshness(),
             "provider_status": self.provider_status(),
             "demo_disclosures": disclosures,
+            "decision_context": decision_context,
+            "live_context": live_context,
+            "source_lineage": {
+                "mode": "hybrid" if self.settings.demo_mode else "live",
+                "rule": "Replay decision evidence and live overlay evidence are visible together, but FireGuard does not claim they occurred in the same incident window.",
+                "decision_context": decision_context["source_lineage"],
+                "live_context": live_context["source_lineage"],
+            },
         }
         return context
 
@@ -650,8 +787,8 @@ class FireGuardStore:
         }
 
     def provider_status(self) -> dict[str, Any]:
-        ingestion_runs = sorted(self.list("ingestion_runs"), key=lambda run: run.get("created_at", ""))
-        latest_ingestion = ingestion_runs[-1] if ingestion_runs else None
+        latest_ingestion = self._latest_ingestion_run("fivetran")
+        latest_live_overlay = self._latest_ingestion_run("live_overlay")
         phoenix_span_ids = [
             span_id
             for trace in self.list("traces")
@@ -670,6 +807,20 @@ class FireGuardStore:
                 "latest_run": latest_ingestion,
                 "fallback_active": bool(latest_ingestion and latest_ingestion.get("fallback_active")),
                 "warnings": latest_ingestion.get("warnings", []) if latest_ingestion else [],
+            },
+            "live_overlay": {
+                "configured": True,
+                "provider": "direct_source_adapters",
+                "decision_eligible": False,
+                "latest_run": latest_live_overlay,
+                "warnings": latest_live_overlay.get("warnings", []) if latest_live_overlay else [],
+                "record_counts": {
+                    "fires": len(self.list("live_fire_hotspots")),
+                    "perimeters": len(self.list("live_fire_perimeters")),
+                    "road_events": len(self.list("live_road_events")),
+                    "weather_observations": len(self.list("live_weather_observations")),
+                },
+                "decision_rule": "Current live records are shown as situational awareness and are not merged into the replay decision window.",
             },
             "elastic": {
                 "configured": bool(self.settings.elasticsearch_api_key and (self.settings.elasticsearch_url or self.settings.elasticsearch_cloud_id)),
@@ -704,9 +855,9 @@ class FireGuardStore:
             },
         }
 
-    def data_freshness(self) -> list[dict[str, Any]]:
+    def data_freshness(self, indices: list[str] | None = None) -> list[dict[str, Any]]:
         freshness = []
-        for index in [
+        for index in indices or [
             "fire_hotspots",
             "fire_perimeters",
             "road_events",
@@ -725,10 +876,12 @@ class FireGuardStore:
                 for doc in docs
             )
             minutes = freshness_minutes(newest)
-            stale_after = 180 if index == "road_events" else 1440 if index.startswith("public_") else 360
+            stale_after = 180 if index in {"road_events", "live_road_events"} else 1440 if index.startswith("public_") else 360
             status = "stale" if minutes > stale_after else "fresh"
             if index.startswith("public_"):
                 status = "snapshot_stale" if minutes > stale_after else "source_snapshot"
+            if index.startswith("live_"):
+                status = "live_stale" if minutes > stale_after else "live_current"
             freshness.append({
                 "source": index,
                 "freshness_minutes": round(minutes, 1),

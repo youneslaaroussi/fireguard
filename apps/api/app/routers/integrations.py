@@ -17,6 +17,7 @@ router = APIRouter(prefix="/integrations", tags=["integrations"])
 def integration_status(settings: Settings = Depends(get_settings), store: FireGuardStore = Depends(store_dependency)) -> dict:
     return {
         "fivetran": fivetran_status(store),
+        "live_overlay": store.provider_status()["live_overlay"],
         "elastic": store.provider_status()["elastic"],
         "gemini": gemini_status(settings),
         "arize": phoenix_status(settings),

@@ -11,7 +11,7 @@ type Props = {
   assessment: AssessmentResult | null;
 };
 
-type LayerKey = "fires" | "perimeters" | "roads" | "zones" | "shelters" | "routes" | "public";
+type LayerKey = "fires" | "perimeters" | "roads" | "zones" | "shelters" | "routes" | "public" | "liveFires" | "livePerimeters" | "liveRoads";
 type BasemapKey = "dark" | "satellite" | "streets" | "outdoors";
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
@@ -31,6 +31,9 @@ const LAYER_IDS: Record<LayerKey, string[]> = {
   shelters: ["shelters"],
   routes: ["routes"],
   public: ["public-orders", "public-ess"],
+  liveFires: ["live-fires"],
+  livePerimeters: ["live-perimeters-fill", "live-perimeters-line"],
+  liveRoads: ["live-roads"],
 };
 
 function styleUrlForBasemap(key: BasemapKey) {
@@ -86,7 +89,8 @@ function collectBounds(collections: ReturnType<typeof buildCollections>) {
     }
     coordinates.forEach(visit);
   };
-  for (const collection of Object.values(collections)) {
+  for (const [key, collection] of Object.entries(collections)) {
+    if (key.startsWith("live")) continue;
     collection.features.forEach((feature) => visit(feature.geometry.coordinates));
   }
   return count ? bounds : null;
@@ -95,7 +99,7 @@ function collectBounds(collections: ReturnType<typeof buildCollections>) {
 function buildCollections(context: IncidentContext | null, assessment: AssessmentResult | null) {
   const empty = { type: "FeatureCollection" as const, features: [] };
   if (!context) {
-    return { zones: empty, shelters: empty, fires: empty, roads: empty, perimeters: empty, publicOrders: empty, publicEss: empty, routes: empty };
+    return { zones: empty, shelters: empty, fires: empty, roads: empty, perimeters: empty, publicOrders: empty, publicEss: empty, routes: empty, liveFires: empty, liveRoads: empty, livePerimeters: empty };
   }
 
   return {
@@ -132,6 +136,8 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           confidence: fire.confidence,
           frp: fire.frp,
           source: fire.source,
+          scope: "REPLAY DECISION",
+          decision_eligible: "yes",
         }),
       ),
     },
@@ -145,6 +151,8 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           severity: event.severity,
           road: event.road_name,
           id: event.external_id,
+          scope: "REPLAY DECISION",
+          decision_eligible: "yes",
         },
         geometry:
           event.geometry ||
@@ -163,6 +171,57 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           label: perimeter.fire_name,
           status: perimeter.status,
           id: perimeter.fire_number,
+          scope: "REPLAY DECISION",
+          decision_eligible: "yes",
+        },
+        geometry: perimeter.geometry,
+      })),
+    },
+    liveFires: {
+      type: "FeatureCollection" as const,
+      features: (context.live_context?.fires || []).map((fire) =>
+        pointFeature(fire.external_id, [fire.location.lon, fire.location.lat], {
+          label: fire.external_id,
+          confidence: fire.confidence,
+          frp: fire.frp,
+          source: fire.source,
+          scope: "LIVE CURRENT",
+          decision_eligible: "no",
+        }),
+      ),
+    },
+    liveRoads: {
+      type: "FeatureCollection" as const,
+      features: (context.live_context?.road_events || []).map((event) => ({
+        type: "Feature" as const,
+        id: event.external_id,
+        properties: {
+          label: event.title,
+          severity: event.severity,
+          road: event.road_name,
+          id: event.external_id,
+          scope: "LIVE CURRENT",
+          decision_eligible: "no",
+        },
+        geometry:
+          event.geometry ||
+          ({
+            type: "Point" as const,
+            coordinates: [event.location.lon, event.location.lat],
+          }),
+      })),
+    },
+    livePerimeters: {
+      type: "FeatureCollection" as const,
+      features: (context.live_context?.perimeters || []).map((perimeter) => ({
+        type: "Feature" as const,
+        id: perimeter.fire_number,
+        properties: {
+          label: perimeter.fire_name,
+          status: perimeter.status,
+          id: perimeter.fire_number,
+          scope: "LIVE CURRENT",
+          decision_eligible: "no",
         },
         geometry: perimeter.geometry,
       })),
@@ -195,7 +254,7 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
 }
 
 function addSourcesAndLayers(map: Map) {
-  for (const sourceId of ["perimeters", "zones", "roads", "routes", "fires", "shelters", "public-orders", "public-ess"]) {
+  for (const sourceId of ["perimeters", "zones", "roads", "routes", "fires", "shelters", "public-orders", "public-ess", "live-fires", "live-roads", "live-perimeters"]) {
     if (!map.getSource(sourceId)) {
       map.addSource(sourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     }
@@ -255,6 +314,36 @@ function addSourcesAndLayers(map: Map) {
       },
     });
     map.addLayer({
+      id: "live-perimeters-fill",
+      type: "fill",
+      source: "live-perimeters",
+      paint: { "fill-color": "#48aff0", "fill-opacity": 0.12 },
+    });
+    map.addLayer({
+      id: "live-perimeters-line",
+      type: "line",
+      source: "live-perimeters",
+      paint: { "line-color": "#48aff0", "line-width": 2, "line-dasharray": [2, 1] },
+    });
+    map.addLayer({
+      id: "live-roads",
+      type: "line",
+      source: "live-roads",
+      paint: { "line-color": "#72cae8", "line-width": 4, "line-dasharray": [0.4, 1.2], "line-opacity": 0.9 },
+    });
+    map.addLayer({
+      id: "live-fires",
+      type: "circle",
+      source: "live-fires",
+      paint: {
+        "circle-color": "#ff6e4a",
+        "circle-radius": 5,
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 1.5,
+        "circle-opacity": 0.85,
+      },
+    });
+    map.addLayer({
       id: "shelters",
       type: "circle",
       source: "shelters",
@@ -307,6 +396,9 @@ function setOperationalData(map: Map, collections: ReturnType<typeof buildCollec
   setSourceData(map, "public-orders", collections.publicOrders);
   setSourceData(map, "public-ess", collections.publicEss);
   setSourceData(map, "routes", collections.routes);
+  setSourceData(map, "live-fires", collections.liveFires);
+  setSourceData(map, "live-roads", collections.liveRoads);
+  setSourceData(map, "live-perimeters", collections.livePerimeters);
 }
 
 function applyLayerVisibility(map: Map, visible: Record<LayerKey, boolean>) {
@@ -350,6 +442,9 @@ export function MapPanel({ context, assessment }: Props) {
     shelters: true,
     routes: true,
     public: true,
+    liveFires: true,
+    livePerimeters: true,
+    liveRoads: true,
   });
 
   const collections = useMemo(() => buildCollections(context, assessment), [context, assessment]);
@@ -385,7 +480,7 @@ export function MapPanel({ context, assessment }: Props) {
     map.on("load", () => {
       applyMapFog(map);
       addSourcesAndLayers(map);
-      for (const layerId of ["fires", "shelters", "public-orders", "public-ess", "routes", "roads"]) {
+      for (const layerId of ["fires", "shelters", "public-orders", "public-ess", "routes", "roads", "live-fires", "live-roads", "live-perimeters-line"]) {
         map.on("click", layerId, (event) => {
           const feature = event.features?.[0];
           if (!feature || !event.lngLat) return;
@@ -471,6 +566,9 @@ export function MapPanel({ context, assessment }: Props) {
                 ["shelters", "Shelters"],
                 ["routes", "Routes"],
                 ["public", "Public"],
+                ["liveFires", "Live fire"],
+                ["livePerimeters", "Live perimeters"],
+                ["liveRoads", "Live roads"],
               ] as Array<[LayerKey, string]>).map(([key, label]) => (
                 <Button
                   key={key}
@@ -489,6 +587,7 @@ export function MapPanel({ context, assessment }: Props) {
         <div className="fireguard-map-legend">
           <MapLegendItem tone="fire" label="Fire" />
           <MapLegendItem tone="road" label="Road event" />
+          <MapLegendItem tone="live" label="Live overlay" />
           <MapLegendItem tone="shelter" label="Shelter" />
           <MapLegendItem tone="zone" label="Zone" />
           {assessment ? (
@@ -503,7 +602,7 @@ export function MapPanel({ context, assessment }: Props) {
   );
 }
 
-function MapLegendItem({ tone, label }: { tone: "fire" | "road" | "shelter" | "zone" | "route-safe" | "route-blocked"; label: string }) {
+function MapLegendItem({ tone, label }: { tone: "fire" | "road" | "live" | "shelter" | "zone" | "route-safe" | "route-blocked"; label: string }) {
   return (
     <div className="fireguard-map-legend-item">
       <span className={`fireguard-map-legend-symbol fireguard-map-legend-${tone}`} />

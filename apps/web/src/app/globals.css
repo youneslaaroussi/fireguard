@@ -856,6 +856,11 @@ button {
   background: repeating-linear-gradient(90deg, #f2b824 0 5px, transparent 5px 8px);
 }
 
+.fireguard-map-legend-live {
+  background: repeating-linear-gradient(90deg, #48aff0 0 4px, transparent 4px 7px);
+  box-shadow: 0 0 0 1px rgba(114, 202, 232, 0.42);
+}
+
 .fireguard-map-legend-shelter {
   height: 9px;
   width: 9px;

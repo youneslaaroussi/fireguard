@@ -10,6 +10,8 @@ Operational loop:
 real/open data -> Fivetran -> BigQuery -> Elastic -> Gemini tools -> approval -> SMS/tasks -> Phoenix/Arize audit
 ```
 
+For the staged evacuation demo, FireGuard now runs in **hybrid mode**: replay source snapshots drive the reproducible evacuation decision, while a separately indexed current live overlay shows fresh FIRMS, BC Wildfire, DriveBC/Open511, and Open-Meteo records without pretending they occurred in the same incident window.
+
 The application retrieves operational context, evaluates conflicting constraints, drafts a staged plan, blocks public actions until human approval, executes test-channel actions, and records the evidence trail.
 
 ## Hosted Services
@@ -56,6 +58,7 @@ FireGuard closes that gap by converting fragmented signals into a coordinated pl
 | Elastic MCP | Official Elastic MCP server has been verified against the same Elasticsearch deployment. |
 | Fivetran | Managed Connector SDK connection syncs source records into BigQuery. |
 | BigQuery bridge | Backend replaces Elastic streams from Fivetran-loaded warehouse tables. |
+| Live overlay | Current live source adapters populate separate `live_*` Elastic indices for situational awareness; these records are visible but not decision-eligible for replay plans. |
 | Gemini | Hosted backend uses Vertex Gemini `gemini-3.1-flash-lite-preview` in `global`; ADK/Agent Engine package is included. |
 | Routes | Google Routes is used when configured, with deterministic fallback for local tests. |
 | Twilio | Outbound SMS works only for allowlisted test recipients; inbound opt-in webhook stores consent metadata. |
@@ -63,7 +66,7 @@ FireGuard closes that gap by converting fragmented signals into a coordinated pl
 | Observability | OpenTelemetry spans export to self-hosted Phoenix and duplicate Arize AX OTLP when configured. |
 | Evals | Deterministic eval checks run after assessment and are exported as trace spans. |
 
-Current live BC FIRMS data may not threaten the configured zones. In that case FireGuard returns a **monitor-only** internal update and creates no public actions. Route-rejection workflows use labeled replay mode unless live conditions genuinely match the scenario.
+Current live BC FIRMS data may not threaten the configured zones. In that case FireGuard returns a **monitor-only** internal update and creates no public actions. Route-rejection workflows use labeled replay evidence unless live conditions genuinely match the scenario; hybrid mode keeps current live overlay records separate from that replay decision context.
 
 ## Architecture
 
@@ -263,13 +266,14 @@ Operator/test paths:
 1. Open the hosted dashboard.
 2. Show provider strip: Fivetran, Elastic, Gemini, Phoenix/Arize.
 3. Click `Sync Fivetran To Elastic`.
-4. Click `Run Agent Assessment`.
-5. In live-low-risk mode, show that FireGuard returns monitor-only and sends no public action.
-6. Click `Reset Demo` to load the replay-ready staged evacuation scenario when current live data is low-risk.
-7. Show route/shelter alternatives rejected with evidence.
-8. Approve the action bundle.
-9. Execute actions: Twilio SMS and GitHub Issues tasks.
-10. Open audit view: source records, freshness, confidence, rejected options, evals, Phoenix/Arize trace IDs.
+4. Click `Refresh current live overlay` to show the latest live source records separately from replay decision evidence.
+5. Click `Run Agent Assessment`.
+6. In live-low-risk mode, show that FireGuard returns monitor-only and sends no public action.
+7. Click `Reset Demo` to load the replay-ready staged evacuation scenario when current live data is low-risk.
+8. Show route/shelter alternatives rejected with evidence.
+9. Approve the action bundle.
+10. Execute actions: Twilio SMS and GitHub Issues tasks.
+11. Open audit view: source records, freshness, confidence, rejected options, evals, Phoenix/Arize trace IDs.
 
 ## Local Setup
 
@@ -348,6 +352,7 @@ curl -X POST http://localhost:8000/sync/fivetran-to-elastic
 ```
 
 Direct `/ingest/*` routes remain as replay/development fallback only.
+`POST /sync/live-overlay` is a separate situational-awareness path that fetches current live source records into `live_*` Elastic indices. It is not used to make the replay evacuation decision and should not be described as the Fivetran path.
 
 ## Google ADK Agent
 

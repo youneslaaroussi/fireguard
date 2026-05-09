@@ -17,7 +17,8 @@ from app.services.actions import approve_actions, execute_action
 from app.services.agent import run_assessment
 from app.services.evals import evaluate_incident
 from app.services.fivetran import _filter_fire_hotspots_to_bc, fivetran_status, sync_fivetran_to_elastic
-from app.services.ingest import _normalize_public_ess_facility, _normalize_public_evacuation_order
+from app.services.ingest import _normalize_public_ess_facility, _normalize_public_evacuation_order, ingest_road_events
+from app.services.live_overlay import sync_live_overlay
 from app.services.risk import compute_all_zone_risks
 from app.services.planner import validate_gemini_plan_decision
 from app.services.routes import best_safe_route, compute_routes
@@ -1238,6 +1239,145 @@ def test_fivetran_sync_indexes_provider_lineage() -> None:
     assert all(doc["ingestion_provider"] == "fivetran" for doc in store.list("fire_hotspots"))
 
 
+@pytest.mark.asyncio
+async def test_hybrid_live_overlay_keeps_replay_decision_context_separate(monkeypatch) -> None:
+    store = seeded_store()
+    replay_fire_ids = {doc["external_id"] for doc in store.list("fire_hotspots")}
+
+    async def fake_firms(_settings: Settings) -> dict:
+        return {
+            "mode": "live",
+            "docs": [{
+                "source": "NASA_FIRMS",
+                "external_id": "LIVE_FIRE_001",
+                "location": {"lat": 53.0, "lon": -122.0},
+                "brightness": 344.0,
+                "confidence": "nominal",
+                "frp": 18.2,
+                "updated_at": "2026-05-08T18:00:00Z",
+                "ingested_at": "2026-05-08T18:01:00Z",
+                "raw": {"live_fixture": True},
+            }],
+            "source_url": "https://firms.modaps.eosdis.nasa.gov/api/area/csv/[MAP_KEY]/VIIRS_SNPP_NRT/example",
+        }
+
+    async def fake_perimeters() -> dict:
+        return {
+            "mode": "live",
+            "docs": [{
+                "source": "BC_WILDFIRE",
+                "fire_name": "Live perimeter fixture",
+                "fire_number": "LIVE_PERIMETER_001",
+                "status": "Being Held",
+                "geometry": {
+                    "type": "Polygon",
+                    "coordinates": [[[-122.1, 53.0], [-122.0, 53.0], [-122.0, 53.1], [-122.1, 53.0]]],
+                },
+                "area_hectares": 10.0,
+                "updated_at": "2026-05-08T18:00:00Z",
+                "ingested_at": "2026-05-08T18:01:00Z",
+                "raw": {"live_fixture": True},
+            }],
+            "source_url": "https://delivery.maps.gov.bc.ca/arcgis/rest/services/mpcm/bcgwpub/MapServer/624/query",
+        }
+
+    async def fake_roads() -> dict:
+        return {
+            "mode": "live",
+            "docs": [{
+                "source": "DRIVEBC_OPEN511",
+                "external_id": "LIVE_ROAD_001",
+                "title": "Live DriveBC event fixture",
+                "description": "Live event fixture",
+                "event_type": "INCIDENT",
+                "severity": "MINOR",
+                "road_name": "Highway 97",
+                "location": {"lat": 53.01, "lon": -122.01},
+                "geometry": {"type": "Point", "coordinates": [-122.01, 53.01]},
+                "updated_at": "2026-05-08T18:00:00Z",
+                "ingested_at": "2026-05-08T18:01:00Z",
+                "raw": {"live_fixture": True},
+            }],
+            "source_url": "https://api.open511.gov.bc.ca/events",
+        }
+
+    async def fake_weather() -> dict:
+        return {
+            "mode": "live",
+            "docs": [{
+                "weather_id": "LIVE_WEATHER_001",
+                "source": "OPEN_METEO",
+                "location": {"lat": 53.0, "lon": -122.0},
+                "wind_speed_kph": 11,
+                "wind_direction_degrees": 200,
+                "wind_gusts_kph": 20,
+                "updated_at": "2026-05-08T18:00:00Z",
+                "ingested_at": "2026-05-08T18:01:00Z",
+                "raw": {"live_fixture": True},
+            }],
+            "source_url": "https://api.open-meteo.com/v1/forecast",
+        }
+
+    monkeypatch.setattr("app.services.live_overlay.ingest_firms", fake_firms)
+    monkeypatch.setattr("app.services.live_overlay.ingest_bc_perimeters", fake_perimeters)
+    monkeypatch.setattr("app.services.live_overlay.ingest_road_events", fake_roads)
+    monkeypatch.setattr("app.services.live_overlay.ingest_weather", fake_weather)
+
+    result = await sync_live_overlay(store, store.settings)
+    context = store.incident_context()
+
+    assert result["provider"] == "live_overlay"
+    assert result["streams"]["fire_hotspots"] == 1
+    assert context["mode"] == "hybrid"
+    assert context["decision_context"]["mode"] == "replay_snapshot"
+    assert context["live_context"]["decision_eligible"] is False
+    assert context["live_context"]["fires"][0]["external_id"] == "LIVE_FIRE_001"
+    assert {doc["external_id"] for doc in store.list("fire_hotspots")} == replay_fire_ids
+    assert context["source_lineage"]["rule"].startswith("Replay decision evidence")
+
+
+@pytest.mark.asyncio
+async def test_live_overlay_source_errors_are_reported_without_500(monkeypatch) -> None:
+    store = seeded_store()
+
+    async def empty_live_docs() -> dict:
+        return {"mode": "live", "docs": [], "source_url": "https://example.test/source"}
+
+    async def broken_roads() -> dict:
+        raise ValueError("DriveBC returned malformed geometry")
+
+    async def fake_weather() -> dict:
+        return {
+            "mode": "live",
+            "docs": [{
+                "weather_id": "OPEN_METEO_TEST",
+                "source": "OPEN_METEO",
+                "location": {"lat": 52.62, "lon": -121.66},
+                "wind_speed_kph": 20,
+                "wind_direction_degrees": 230,
+                "wind_gusts_kph": 31,
+                "updated_at": "2026-05-08T12:00:00Z",
+                "ingested_at": "2026-05-08T12:00:00Z",
+                "raw": {},
+            }],
+            "source_url": "https://api.open-meteo.com/v1/forecast",
+        }
+
+    monkeypatch.setattr("app.services.live_overlay.ingest_firms", lambda _settings: empty_live_docs())
+    monkeypatch.setattr("app.services.live_overlay.ingest_bc_perimeters", empty_live_docs)
+    monkeypatch.setattr("app.services.live_overlay.ingest_road_events", broken_roads)
+    monkeypatch.setattr("app.services.live_overlay.ingest_weather", fake_weather)
+
+    result = await sync_live_overlay(store, store.settings)
+
+    assert result["status"] == "synced"
+    assert any(warning["status"] == "live_overlay_source_error" for warning in result["warnings"])
+    assert result["streams"]["road_events"] == 0
+    assert result["streams"]["weather_observations"] == 1
+    assert store.list("road_events")
+    assert store.list("live_road_events") == []
+
+
 def test_fivetran_sync_replaces_stale_stream_records() -> None:
     store = seeded_store()
     store.upsert(
@@ -1282,6 +1422,51 @@ def test_fivetran_fire_hotspots_are_filtered_to_bc_boundary(monkeypatch) -> None
     assert streams["fire_hotspots"][0]["raw"]["bc_region_filter"] == "official_bc_boundary_wfs"
     assert warnings[0]["status"] == "region_filtered"
     assert warnings[0]["count_removed"] == 1
+
+
+@pytest.mark.asyncio
+async def test_drivebc_nested_route_geometry_normalizes_to_location(monkeypatch) -> None:
+    class FakeResponse:
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict:
+            return {
+                "events": [{
+                    "id": "drivebc.ca/LINE-1",
+                    "headline": "Highway event with line geometry",
+                    "description": "Line geometry should not crash the normalizer.",
+                    "event_type": "INCIDENT",
+                    "severity": "MAJOR",
+                    "roads": [{"name": "Highway 97"}],
+                    "geography": {
+                        "type": "LineString",
+                        "coordinates": [[-121.80, 52.60], [-121.70, 52.70]],
+                    },
+                    "updated": "2026-05-08T12:00:00Z",
+                }]
+            }
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb) -> None:
+            return None
+
+        async def get(self, *args, **kwargs) -> FakeResponse:
+            return FakeResponse()
+
+    monkeypatch.setattr("app.services.ingest.httpx.AsyncClient", FakeClient)
+
+    result = await ingest_road_events()
+
+    assert result["mode"] == "live"
+    assert result["docs"][0]["location"] == {"lat": 52.65, "lon": -121.75}
+    assert result["docs"][0]["geometry"]["type"] == "LineString"
 
 
 def test_fivetran_bigquery_non_empty_firms_path_does_not_force_replay(monkeypatch) -> None:

@@ -365,7 +365,10 @@ def sync_fivetran_to_elastic(store: FireGuardStore) -> dict[str, Any]:
 
 
 def fivetran_status(store: FireGuardStore) -> dict[str, Any]:
-    latest_run = sorted(store.list("ingestion_runs"), key=lambda run: run.get("created_at", ""))[-1:] or [None]
+    fivetran_runs = [
+        run for run in store.list("ingestion_runs") if run.get("provider") == "fivetran"
+    ]
+    latest_run = sorted(fivetran_runs, key=lambda run: run.get("created_at", ""))[-1:] or [None]
     run = latest_run[0]
     warnings = run.get("warnings", []) if isinstance(run, dict) else []
     managed_status = managed_fivetran_status(store.settings)

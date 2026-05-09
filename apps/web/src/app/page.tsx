@@ -18,7 +18,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
 
 import { MapPanel } from "@/components/MapPanel";
-import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, registerResidentTestContact, resetDemo, runAssessment, runEval, syncFivetranToElastic, syncShelterCapacitySheet, syncSourceBackedZoneContext } from "@/lib/api";
+import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentIncident, getIntegrationStatus, getTraces, registerResidentTestContact, resetDemo, runAssessment, runEval, syncFivetranToElastic, syncLiveOverlay, syncShelterCapacitySheet, syncSourceBackedZoneContext } from "@/lib/api";
 import type { ActionItem, AssessmentResult, IncidentContext, IntegrationStatus, Shelter, ZoneRisk } from "@/lib/types";
 
 type ActivePane = "overview" | "sources" | "evidence" | "actions" | "audit" | "diagnostics";
@@ -46,6 +46,20 @@ function planningModeText(mode?: string) {
 function intentForPlanningMode(mode?: string): Intent {
   if (mode === "gemini_selected" || mode === "gemini_repaired") return Intent.SUCCESS;
   if (mode === "deterministic_fallback") return Intent.WARNING;
+  return Intent.NONE;
+}
+
+function incidentModeLabel(mode?: string) {
+  if (mode === "hybrid") return "Hybrid";
+  if (mode === "replay") return "Replay";
+  if (mode === "live") return "Live";
+  return "Pending";
+}
+
+function incidentModeIntent(mode?: string): Intent {
+  if (mode === "hybrid") return Intent.PRIMARY;
+  if (mode === "replay") return Intent.WARNING;
+  if (mode === "live") return Intent.SUCCESS;
   return Intent.NONE;
 }
 
@@ -199,6 +213,14 @@ export default function Home() {
     });
   }
 
+  async function handleLiveOverlaySync() {
+    await runWithBusy("live-overlay", async () => {
+      await syncLiveOverlay();
+      await load();
+      setActivePane("sources");
+    });
+  }
+
   async function handleShelterCapacitySheetSync() {
     await runWithBusy("shelter-sheet", async () => {
       await syncShelterCapacitySheet();
@@ -277,6 +299,7 @@ export default function Home() {
               traceEvents={traceSource}
               onOpenApproval={() => setApprovalOpen(true)}
               onRefreshFeeds={handleFivetranSync}
+              onRefreshLiveOverlay={handleLiveOverlaySync}
               onRefreshShelters={handleShelterCapacitySheetSync}
               onRefreshZones={handleSourceZoneContextSync}
               onContactChange={(zoneId, phone) => setContactInputs((current) => ({ ...current, [zoneId]: phone }))}
@@ -330,7 +353,7 @@ function OpsTopbar({
         <Tag minimal intent={Intent.PRIMARY}>Elastic</Tag>
       </div>
       <div className="ops-status-strip" aria-label="Incident status">
-        <StatusPill label="Incident" value={mode === "replay" ? "Replay" : "Live"} intent={mode === "replay" ? Intent.WARNING : Intent.SUCCESS} />
+        <StatusPill label="Incident" value={incidentModeLabel(mode)} intent={incidentModeIntent(mode)} />
         <StatusPill label="Assessment" value={hasAssessment ? "Ready" : "Pending"} intent={hasAssessment ? Intent.SUCCESS : Intent.NONE} />
         <StatusPill label="Action bundle" value={hasActions ? "Drafted" : "Empty"} intent={hasActions ? Intent.WARNING : Intent.NONE} />
       </div>
@@ -387,6 +410,7 @@ function LeftOpsPanel({
   traceEvents,
   onOpenApproval,
   onRefreshFeeds,
+  onRefreshLiveOverlay,
   onRefreshShelters,
   onRefreshZones,
   onContactChange,
@@ -409,6 +433,7 @@ function LeftOpsPanel({
   traceEvents: Array<Record<string, unknown>>;
   onOpenApproval: () => void;
   onRefreshFeeds: () => void;
+  onRefreshLiveOverlay: () => void;
   onRefreshShelters: () => void;
   onRefreshZones: () => void;
   onContactChange: (zoneId: string, phone: string) => void;
@@ -442,6 +467,7 @@ function LeftOpsPanel({
           contactInputs={contactInputs}
           busy={busy}
           onRefreshFeeds={onRefreshFeeds}
+          onRefreshLiveOverlay={onRefreshLiveOverlay}
           onRefreshShelters={onRefreshShelters}
           onRefreshZones={onRefreshZones}
           onContactChange={onContactChange}
@@ -581,7 +607,7 @@ function CommandPanel({
         <section className="fireguard-command-section">
           <div className="flex items-center justify-between gap-2">
             <H5 className="m-0">Operational Picture</H5>
-            <Tag minimal>{context?.mode === "replay" ? "replay" : "live"}</Tag>
+            <Tag minimal intent={incidentModeIntent(context?.mode)}>{incidentModeLabel(context?.mode).toLowerCase()}</Tag>
           </div>
           <div className="mt-3 grid grid-cols-4 gap-2">
             <MiniMetric label="Fires" value={context?.fires.length ?? 0} intent={Intent.DANGER} />
@@ -655,8 +681,9 @@ function WorkflowStatus({ steps }: { steps: Array<{ label: string; detail: strin
 }
 
 function CenterOpsArea({ context, assessment, actions }: { context: IncidentContext | null; assessment: AssessmentResult | null; actions: ActionItem[] }) {
-  const incidentMode = context?.mode === "replay" ? "Replay window" : "Live window";
-  const signalCount = (context?.fires.length || 0) + (context?.road_events.length || 0) + (context?.shelters.length || 0) + (context?.zones.length || 0);
+  const incidentMode = context?.mode === "hybrid" ? "Replay plan + live overlay" : context?.mode === "replay" ? "Replay window" : "Live window";
+  const decisionSignalCount = (context?.fires.length || 0) + (context?.road_events.length || 0) + (context?.shelters.length || 0) + (context?.zones.length || 0);
+  const liveSignalCount = (context?.live_context?.fires.length || 0) + (context?.live_context?.road_events.length || 0) + (context?.live_context?.perimeters.length || 0);
 
   return (
     <div className="ops-center-stack">
@@ -667,8 +694,9 @@ function CenterOpsArea({ context, assessment, actions }: { context: IncidentCont
             <H5 className="m-0">BC Fire, Roads, Shelters, Routes</H5>
           </div>
           <div className="ops-header-tags">
-            <Tag minimal intent={context?.mode === "replay" ? Intent.WARNING : Intent.SUCCESS}>{incidentMode}</Tag>
-            <Tag minimal>{signalCount} records</Tag>
+            <Tag minimal intent={incidentModeIntent(context?.mode)}>{incidentMode}</Tag>
+            <Tag minimal>{decisionSignalCount} decision records</Tag>
+            {context?.mode === "hybrid" ? <Tag minimal intent={Intent.PRIMARY}>{liveSignalCount} live overlay</Tag> : null}
           </div>
         </div>
         <div className="ops-map-body">
@@ -1016,6 +1044,7 @@ function ContextDetails({
   contactInputs,
   busy,
   onRefreshFeeds,
+  onRefreshLiveOverlay,
   onRefreshShelters,
   onRefreshZones,
   onContactChange,
@@ -1027,6 +1056,7 @@ function ContextDetails({
   contactInputs: Record<string, string>;
   busy: string | null;
   onRefreshFeeds: () => void;
+  onRefreshLiveOverlay: () => void;
   onRefreshShelters: () => void;
   onRefreshZones: () => void;
   onContactChange: (zoneId: string, phone: string) => void;
@@ -1040,20 +1070,42 @@ function ContextDetails({
         <section>
           <H5>Refresh Data</H5>
           <div className="grid gap-2">
-            <Button icon="database" text="Refresh wildfire, road, and weather feeds" loading={busy === "fivetran"} disabled={busy !== null} onClick={onRefreshFeeds} />
+            <Button icon="satellite" text="Refresh current live overlay" loading={busy === "live-overlay"} disabled={busy !== null} onClick={onRefreshLiveOverlay} />
+            <Button icon="database" text="Sync Fivetran decision feeds" loading={busy === "fivetran"} disabled={busy !== null} onClick={onRefreshFeeds} />
             <Button icon="manual" text="Refresh shelter capacity" loading={busy === "shelter-sheet"} disabled={busy !== null} onClick={onRefreshShelters} />
             <Button icon="map" text="Refresh zone and road context" loading={busy === "source-zone-context"} disabled={busy !== null} onClick={onRefreshZones} />
           </div>
         </section>
 
         <section>
-          <H5>Available Records</H5>
+          <H5>Decision Records</H5>
           <div className="grid grid-cols-2 gap-2">
             <Metric label="Fires" value={context.fires.length} />
             <Metric label="Perimeters" value={context.perimeters.length} />
             <Metric label="Roads" value={context.road_events.length} />
             <Metric label="ESS sites" value={context.public_ess_facilities?.length || 0} />
           </div>
+          <p className="m-0 mt-2 text-xs leading-5 text-[#8f99a8]">
+            {String(context.decision_context?.decision_rule || "Decision evidence is kept separate from live overlay records.")}
+          </p>
+        </section>
+
+        <section>
+          <H5>Live Overlay</H5>
+          <div className="grid grid-cols-2 gap-2">
+            <Metric label="Live fires" value={context.live_context?.fires.length ?? 0} />
+            <Metric label="Live perimeters" value={context.live_context?.perimeters.length ?? 0} />
+            <Metric label="Live roads" value={context.live_context?.road_events.length ?? 0} />
+            <Metric label="Live weather" value={context.live_context?.weather && Object.keys(context.live_context.weather).length ? 1 : 0} />
+          </div>
+          <p className="m-0 mt-2 text-xs leading-5 text-[#8f99a8]">
+            {context.live_context?.decision_rule || "Current live records are display-only until explicitly promoted into a matching decision context."}
+          </p>
+          {context.live_context?.warnings?.length ? (
+            <Callout className="mt-3" compact intent={Intent.WARNING} icon="info-sign">
+              {context.live_context.warnings.length} live overlay source warning{context.live_context.warnings.length === 1 ? "" : "s"}.
+            </Callout>
+          ) : null}
         </section>
 
         <section>
@@ -1246,6 +1298,8 @@ function ActionDetails({ actions, assessment, busy, onExecute }: { actions: Acti
 
 function AuditDetails({ traceEvents, evalResult, assessment }: { traceEvents: Array<Record<string, unknown>>; evalResult: Record<string, unknown> | null; assessment: AssessmentResult | null }) {
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
+  const decisionCounts = assessment?.context.decision_context?.record_counts as Record<string, number> | undefined;
+  const liveCounts = assessment?.context.live_context?.record_counts;
   return (
     <PaneBody>
       <div className="grid gap-4">
@@ -1260,6 +1314,17 @@ function AuditDetails({ traceEvents, evalResult, assessment }: { traceEvents: Ar
             <TraceLine label="Eval score" value={evalResult ? `${Math.round(Number(evalResult.score || 0) * 100)}%` : "pending"} />
           </div>
         </section>
+        {assessment?.context.source_lineage ? (
+          <section>
+            <H5>Source Separation</H5>
+            <div className="grid gap-2">
+              <TraceLine label="Decision context" value={assessment.context.decision_context_mode || "unknown"} />
+              <TraceLine label="Decision records" value={String(Object.values(decisionCounts || {}).reduce((total, value) => total + Number(value || 0), 0))} />
+              <TraceLine label="Live overlay records" value={String(Object.values(liveCounts || {}).reduce((total, value) => total + Number(value || 0), 0))} />
+            </div>
+            <p className="m-0 mt-2 text-xs leading-5 text-[#8f99a8]">{String(assessment.context.source_lineage.rule || "")}</p>
+          </section>
+        ) : null}
         {assessment?.candidate_facts_summary ? (
           <section>
             <H5>Candidate Facts</H5>
@@ -1372,6 +1437,12 @@ function providerSummaries(status: IntegrationStatus | null, evalResult: Record<
       : fivetranManagedOk
         ? `${fivetranRowCount || "Loaded"} records synced through the warehouse.`
         : "Source feed sync is waiting for the next run.";
+  const liveOverlay = status?.live_overlay as Record<string, unknown> | undefined;
+  const liveOverlayRun = liveOverlay?.latest_run as Record<string, unknown> | null | undefined;
+  const liveOverlayCounts = liveOverlay?.record_counts as Record<string, unknown> | undefined;
+  const liveOverlayWarnings = asRecordArray(liveOverlay?.warnings);
+  const liveOverlayCount = Object.values(liveOverlayCounts || {}).reduce<number>((total, value) => total + (typeof value === "number" ? value : 0), 0);
+  const liveOverlaySynced = Boolean(liveOverlayRun);
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
   const passed = evalChecks ? Object.values(evalChecks).filter(Boolean).length : 0;
   const arizeCheck = status?.arize?.connection_check as Record<string, unknown> | undefined;
@@ -1401,6 +1472,15 @@ function providerSummaries(status: IntegrationStatus | null, evalResult: Record<
       value: fivetranFallbackActive ? "review needed" : fivetranQualityWarnings.length ? "BC filtered" : fivetranManagedOk ? "connected" : fivetranRun ? String(fivetranRun.status) : "waiting",
       detail: fivetranDetail,
       intent: status?.fivetran?.configured && fivetranManagedOk && !fivetranFallbackActive ? Intent.SUCCESS : Intent.WARNING,
+    },
+    {
+      title: "Live Overlay",
+      state: liveOverlayWarnings.length ? "attention" : liveOverlaySynced ? "active" : "waiting",
+      value: liveOverlaySynced ? `${liveOverlayCount} current records` : "not synced",
+      detail: liveOverlaySynced
+        ? String(liveOverlay?.decision_rule || "Current live records are display-only and separate from replay decision evidence.")
+        : "Refresh the live overlay to show current source records alongside the replay plan.",
+      intent: liveOverlaySynced && !liveOverlayWarnings.length ? Intent.SUCCESS : Intent.WARNING,
     },
     {
       title: "Elastic",
