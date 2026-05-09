@@ -1,5 +1,9 @@
 # FireGuard
 
+<p align="center">
+  <img src="apps/web/public/brand/fireguard-cover-web.png" alt="FireGuard wildfire evacuation command center" width="100%" />
+</p>
+
 FireGuard is an AI evacuation coordinator that turns wildfire, road, weather, shelter, and population-zone data into staged, human-approved evacuation actions.
 
 Elastic is the operational memory and geospatial retrieval layer. Fivetran handles production-style ingestion into BigQuery, and Phoenix/Arize capture trace and evaluation evidence.
@@ -70,81 +74,15 @@ Current live BC FIRMS data may not threaten the configured zones. In that case F
 
 ## Architecture
 
-```mermaid
-flowchart TB
-  subgraph Sources["Live/Open Sources"]
-    FIRMS["NASA FIRMS hotspots"]
-    BCW["BC Wildfire perimeters"]
-    DBC["DriveBC/Open511 road events"]
-    WX["Open-Meteo wind"]
-    EMBC["EmergencyMapBC + BC ESS"]
-    STAT["StatsCan + BC Digital Road Atlas"]
-  end
+![FireGuard architecture](docs/assets/fireguard-architecture-web.png)
 
-  subgraph Ingestion["Ingestion And Normalization"]
-    FIVETRAN["Fivetran Connector SDK"]
-    BQ["BigQuery destination"]
-    SYNC["FastAPI Fivetran-to-Elastic sync"]
-    BCBOUNDARY["Official BC boundary filter"]
-  end
+Key paths:
 
-  subgraph Memory["Elastic Track Core"]
-    ES["Elasticsearch geospatial indices"]
-    MCP["Elastic MCP server"]
-    LOGS["action_logs + traces + evals"]
-  end
-
-  subgraph Agent["Agent And Safety Services"]
-    GEMINI["Vertex Gemini tool orchestration"]
-    RISK["deterministic risk scoring"]
-    ROUTES["Google Routes + route safety"]
-    APPROVAL["approval gate"]
-  end
-
-  subgraph Actions["Approved Action Channels"]
-    SMS["Twilio allowlisted SMS"]
-    ISSUES["GitHub Issues task backend"]
-    TIMELINE["incident timeline update"]
-  end
-
-  subgraph UI["Incident Command Web App"]
-    MAP["Map + provider strip"]
-    PANEL["decision panel"]
-    QUEUE["approval/action queue"]
-    AUDIT["trace/audit view"]
-  end
-
-  subgraph Observability["Observability"]
-    PHOENIX["Arize Phoenix OTLP"]
-    AX["Arize AX OTLP"]
-  end
-
-  FIRMS --> FIVETRAN
-  BCW --> FIVETRAN
-  DBC --> FIVETRAN
-  WX --> FIVETRAN
-  EMBC --> SYNC
-  STAT --> SYNC
-  FIVETRAN --> BQ --> SYNC --> BCBOUNDARY --> ES
-  ES --> MCP
-  ES --> GEMINI
-  ES --> RISK
-  GEMINI --> RISK
-  RISK --> ROUTES --> APPROVAL
-  APPROVAL --> SMS
-  APPROVAL --> ISSUES
-  APPROVAL --> TIMELINE
-  ES --> MAP
-  RISK --> PANEL
-  APPROVAL --> QUEUE
-  LOGS --> AUDIT
-  GEMINI --> PHOENIX
-  RISK --> PHOENIX
-  APPROVAL --> PHOENIX
-  GEMINI --> AX
-  RISK --> AX
-  APPROVAL --> AX
-```
+- Fivetran syncs public wildfire, road, perimeter, and weather feeds into BigQuery.
+- The backend normalizes, filters to BC, and indexes geospatial records into Elastic.
+- Gemini chooses the operational plan from safe route, shelter, risk, freshness, and action primitives.
+- Deterministic services validate safety, evidence, approval, shelter status, route safety, and SMS allowlists.
+- Approved actions execute through Twilio, GitHub Issues, and timeline records, with Phoenix/Arize traces.
 
 ## Agent Loop
 

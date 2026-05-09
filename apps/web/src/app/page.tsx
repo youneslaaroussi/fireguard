@@ -22,6 +22,55 @@ import { approveBundle, confirmShelterCapacity, executeBundle, getCurrentInciden
 import type { ActionItem, AssessmentResult, IncidentContext, IntegrationStatus, Shelter, ZoneRisk } from "@/lib/types";
 
 type ActivePane = "overview" | "sources" | "evidence" | "actions" | "audit" | "diagnostics";
+type DemoStage = "observe" | "collect" | "alert" | "agent" | "approve" | "audit";
+
+const DEMO_STAGES: Array<{ id: DemoStage; label: string; icon: string }> = [
+  { id: "observe", label: "Observe", icon: "eye-open" },
+  { id: "collect", label: "Collect", icon: "satellite" },
+  { id: "alert", label: "Alert", icon: "warning-sign" },
+  { id: "agent", label: "Agent", icon: "predictive-analysis" },
+  { id: "approve", label: "Approve", icon: "confirm" },
+  { id: "audit", label: "Audit", icon: "path-search" },
+];
+
+const STAGE_COPY: Record<DemoStage, { label: string; headline: string; detail: string; intent: Intent }> = {
+  observe: {
+    label: "Observe",
+    headline: "Start with the operational picture",
+    detail: "Map, replay decision context, and live/open overlay records are loaded before the agent runs.",
+    intent: Intent.NONE,
+  },
+  collect: {
+    label: "Collect",
+    headline: "Refresh live operational feeds",
+    detail: "Pull current Fivetran warehouse records into the live overlay without changing the replay decision evidence.",
+    intent: Intent.PRIMARY,
+  },
+  alert: {
+    label: "Alert",
+    headline: "Situation alert active",
+    detail: "Operational conflict detected across fire, route, and shelter-capacity constraints.",
+    intent: Intent.WARNING,
+  },
+  agent: {
+    label: "Agent",
+    headline: "Gemini composes the evacuation strategy",
+    detail: "The backend gives facts, routes, risks, and constraints; Gemini chooses the staged plan; validation guards execution.",
+    intent: Intent.DANGER,
+  },
+  approve: {
+    label: "Approve",
+    headline: "Approval gate is active",
+    detail: "Public-facing and dispatch-like actions are held until the commander approves the bundle.",
+    intent: Intent.WARNING,
+  },
+  audit: {
+    label: "Audit",
+    headline: "Actions and evidence are traceable",
+    detail: "Tool calls, validation, Phoenix/Arize span IDs, eval checks, and action results are available for review.",
+    intent: Intent.SUCCESS,
+  },
+};
 
 function intentForRisk(level: string): Intent {
   if (level === "CRITICAL" || level === "HIGH") return Intent.DANGER;
@@ -40,26 +89,12 @@ function planningModeText(mode?: string) {
   if (mode === "gemini_selected") return "Gemini selected";
   if (mode === "gemini_repaired") return "Gemini repaired";
   if (mode === "deterministic_fallback") return "Fallback";
-  return "pending";
+  return "not run";
 }
 
 function intentForPlanningMode(mode?: string): Intent {
   if (mode === "gemini_selected" || mode === "gemini_repaired") return Intent.SUCCESS;
   if (mode === "deterministic_fallback") return Intent.WARNING;
-  return Intent.NONE;
-}
-
-function incidentModeLabel(mode?: string) {
-  if (mode === "hybrid") return "Hybrid";
-  if (mode === "replay") return "Replay";
-  if (mode === "live") return "Live";
-  return "Pending";
-}
-
-function incidentModeIntent(mode?: string): Intent {
-  if (mode === "hybrid") return Intent.PRIMARY;
-  if (mode === "replay") return Intent.WARNING;
-  if (mode === "live") return Intent.SUCCESS;
   return Intent.NONE;
 }
 
@@ -105,6 +140,41 @@ function publicValidationErrorText(value: string) {
   return operatorText(value);
 }
 
+function decisionRecordCount(context: IncidentContext | null) {
+  if (!context) return 0;
+  return context.fires.length + context.perimeters.length + context.road_events.length + context.zones.length + context.shelters.length;
+}
+
+function liveOverlayRecordCount(context: IncidentContext | null) {
+  if (!context?.live_context) return 0;
+  const counts = context.live_context.record_counts || {};
+  const counted = Object.values(counts).reduce((total, value) => total + Number(value || 0), 0);
+  if (counted) return counted;
+  return context.live_context.fires.length + context.live_context.perimeters.length + context.live_context.road_events.length;
+}
+
+function inferDemoStage({
+  context,
+  assessment,
+  actions,
+  busy,
+  executedCount,
+}: {
+  context: IncidentContext | null;
+  assessment: AssessmentResult | null;
+  actions: ActionItem[];
+  busy: string | null;
+  executedCount: number;
+}): DemoStage {
+  if (executedCount > 0) return "audit";
+  if (assessment?.approval.status === "approved") return "audit";
+  if (assessment || actions.length) return "approve";
+  if (busy === "assessment") return "agent";
+  if (liveOverlayRecordCount(context) > 0) return "alert";
+  if (context) return "collect";
+  return "observe";
+}
+
 export default function Home() {
   const [context, setContext] = useState<IncidentContext | null>(null);
   const [assessment, setAssessment] = useState<AssessmentResult | null>(null);
@@ -115,8 +185,11 @@ export default function Home() {
   const [contactInputs, setContactInputs] = useState<Record<string, string>>({});
   const [activePane, setActivePane] = useState<ActivePane>("overview");
   const [approvalOpen, setApprovalOpen] = useState(false);
+  const [situationOpen, setSituationOpen] = useState(false);
+  const [traceOpen, setTraceOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [initialLoadHold, setInitialLoadHold] = useState(true);
 
   const load = async () => {
     const [nextContext, nextStatus] = await Promise.all([getCurrentIncident(), getIntegrationStatus()]);
@@ -131,6 +204,11 @@ export default function Home() {
     });
   }, []);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setInitialLoadHold(false), 1600);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const rejectedRoute = useMemo(() => {
     return assessment?.plan.rejected_alternatives.find((item) => String(item.reason || "").toLowerCase().includes("closure") || String(item.reason || "").toLowerCase().includes("risk"));
   }, [assessment]);
@@ -142,6 +220,12 @@ export default function Home() {
   const publicActionCount = useMemo(() => actions.filter((action) => action.requires_human_approval).length, [actions]);
   const executedCount = useMemo(() => actions.filter((action) => ["executed", "sent"].includes(action.status)).length, [actions]);
   const traceSource = traceEvents.length ? traceEvents : assessment?.trace || [];
+  const inferredDemoStage = useMemo(
+    () => inferDemoStage({ context, assessment, actions, busy, executedCount }),
+    [context, assessment, actions, busy, executedCount],
+  );
+  const demoStage: DemoStage = busy === "assessment" ? "agent" : situationOpen ? "alert" : inferredDemoStage;
+  const showInitialLoader = !error && (!context || initialLoadHold);
 
   async function runWithBusy(key: string, task: () => Promise<void>) {
     setBusy(key);
@@ -164,6 +248,8 @@ export default function Home() {
       setTraceEvents([]);
       setEvalResult(null);
       setApprovalOpen(false);
+      setSituationOpen(false);
+      setTraceOpen(false);
       await load();
     });
   }
@@ -177,6 +263,8 @@ export default function Home() {
       setTraceEvents(result.trace);
       setEvalResult(await runEval(result.incident_id));
       setIntegrationStatus(await getIntegrationStatus());
+      setSituationOpen(false);
+      setTraceOpen(true);
     });
   }
 
@@ -203,6 +291,7 @@ export default function Home() {
       setEvalResult(await runEval(assessment.incident_id));
       setIntegrationStatus(await getIntegrationStatus());
       setActivePane("audit");
+      setTraceOpen(true);
     });
   }
 
@@ -217,7 +306,7 @@ export default function Home() {
     await runWithBusy("live-overlay", async () => {
       await syncLiveOverlay();
       await load();
-      setActivePane("sources");
+      setSituationOpen(true);
     });
   }
 
@@ -257,12 +346,11 @@ export default function Home() {
   return (
     <main className="fireguard-shell text-[#f5f8fa]">
       <OpsTopbar
-        mode={context?.mode}
+        stage={demoStage}
         hasAssessment={Boolean(assessment)}
-        hasActions={Boolean(actions.length)}
         busy={busy}
         onReset={handleReset}
-        onRunAssessment={handleAssessment}
+        onOpenTrace={() => setTraceOpen(true)}
       />
 
       {error ? (
@@ -276,48 +364,57 @@ export default function Home() {
         </div>
       ) : null}
 
-      <div className="ops-body">
-        <OpsRail
-          activePane={activePane}
-          onSelectPane={setActivePane}
-        />
-        <div className="ops-grid">
-          <div className="ops-left-stack">
-            <LeftOpsPanel
-              activePane={activePane}
+      {showInitialLoader ? (
+        <InitialLoadingScreen />
+      ) : (
+        <div className="ops-body">
+          <OpsRail
+            activePane={activePane}
+            onSelectPane={setActivePane}
+          />
+          <div className="ops-grid">
+            <div className="ops-left-stack">
+              <LeftOpsPanel
+                activePane={activePane}
+                status={integrationStatus}
+                evalResult={evalResult}
+                context={context}
+                assessment={assessment}
+                actions={actions}
+                assumptions={assumptionsToShow}
+                contactInputs={contactInputs}
+                rejectedRoute={rejectedRoute}
+                publicActionCount={publicActionCount}
+                executedCount={executedCount}
+                busy={busy}
+                traceEvents={traceSource}
+                stage={demoStage}
+                onOpenApproval={() => setApprovalOpen(true)}
+                onOpenSituationAlert={() => setSituationOpen(true)}
+                onOpenTrace={() => setTraceOpen(true)}
+                onRunAssessment={handleAssessment}
+                onRefreshFeeds={handleFivetranSync}
+                onRefreshLiveOverlay={handleLiveOverlaySync}
+                onRefreshShelters={handleShelterCapacitySheetSync}
+                onRefreshZones={handleSourceZoneContextSync}
+                onContactChange={(zoneId, phone) => setContactInputs((current) => ({ ...current, [zoneId]: phone }))}
+                onContactCheckIn={handleContactCheckIn}
+                onCapacityConfirm={handleCapacityConfirm}
+                onExecute={handleExecute}
+              />
+            </div>
+            <CenterOpsArea context={context} assessment={assessment} actions={actions} />
+            <RightOpsPanel
               status={integrationStatus}
               evalResult={evalResult}
               context={context}
               assessment={assessment}
               actions={actions}
-              assumptions={assumptionsToShow}
-              contactInputs={contactInputs}
-              rejectedRoute={rejectedRoute}
-              publicActionCount={publicActionCount}
-              executedCount={executedCount}
-              busy={busy}
-              traceEvents={traceSource}
-              onOpenApproval={() => setApprovalOpen(true)}
-              onRefreshFeeds={handleFivetranSync}
-              onRefreshLiveOverlay={handleLiveOverlaySync}
-              onRefreshShelters={handleShelterCapacitySheetSync}
-              onRefreshZones={handleSourceZoneContextSync}
-              onContactChange={(zoneId, phone) => setContactInputs((current) => ({ ...current, [zoneId]: phone }))}
-              onContactCheckIn={handleContactCheckIn}
-              onCapacityConfirm={handleCapacityConfirm}
-              onExecute={handleExecute}
+              stage={demoStage}
             />
           </div>
-          <CenterOpsArea context={context} assessment={assessment} actions={actions} />
-          <RightOpsPanel
-            status={integrationStatus}
-            evalResult={evalResult}
-            context={context}
-            assessment={assessment}
-            actions={actions}
-          />
         </div>
-      </div>
+      )}
 
       <ApprovalDialog
         isOpen={approvalOpen}
@@ -326,50 +423,88 @@ export default function Home() {
         onClose={() => setApprovalOpen(false)}
         onApprove={handleApprove}
       />
+      <SituationAlertDialog
+        isOpen={situationOpen}
+        context={context}
+        assessment={assessment}
+        rejectedRoute={rejectedRoute}
+        busy={busy}
+        onClose={() => setSituationOpen(false)}
+        onRunAssessment={handleAssessment}
+      />
+      <AgentTraceDialog
+        isOpen={traceOpen}
+        assessment={assessment}
+        traceEvents={traceSource}
+        evalResult={evalResult}
+        onClose={() => setTraceOpen(false)}
+      />
     </main>
   );
 }
 
+function InitialLoadingScreen() {
+  return (
+    <section className="fireguard-loading-screen">
+      <div className="fireguard-loading-panel">
+        <p className="ops-section-kicker">Initializing</p>
+        <H4 className="m-0">Loading operational picture</H4>
+        <p className="m-0 text-sm leading-5 text-[#abb3bf]">
+          Preparing the incident view.
+        </p>
+        <ProgressBar className="fireguard-loading-bar" intent={Intent.PRIMARY} />
+      </div>
+    </section>
+  );
+}
+
 function OpsTopbar({
-  mode,
+  stage,
   hasAssessment,
-  hasActions,
   busy,
   onReset,
-  onRunAssessment,
+  onOpenTrace,
 }: {
-  mode?: string;
+  stage: DemoStage;
   hasAssessment: boolean;
-  hasActions: boolean;
   busy: string | null;
   onReset: () => void;
-  onRunAssessment: () => void;
+  onOpenTrace: () => void;
 }) {
   return (
     <header className="ops-topbar">
       <div className="ops-brand">
-        <span className="ops-brand-mark">FG</span>
+        <span className="ops-brand-mark">
+          <img src="/brand/fireguard-logo-web.png" alt="" />
+        </span>
         <span className="font-semibold">FireGuard</span>
-        <Tag minimal intent={Intent.PRIMARY}>Elastic</Tag>
       </div>
-      <div className="ops-status-strip" aria-label="Incident status">
-        <StatusPill label="Incident" value={incidentModeLabel(mode)} intent={incidentModeIntent(mode)} />
-        <StatusPill label="Assessment" value={hasAssessment ? "Ready" : "Pending"} intent={hasAssessment ? Intent.SUCCESS : Intent.NONE} />
-        <StatusPill label="Action bundle" value={hasActions ? "Drafted" : "Empty"} intent={hasActions ? Intent.WARNING : Intent.NONE} />
-      </div>
+      <DemoStepStrip stage={stage} />
       <ButtonGroup minimal className="ops-toolbar-group">
+        <a className="ops-github-link" href="https://github.com/youneslaaroussi/fireguard" target="_blank" rel="noreferrer" aria-label="Open FireGuard on GitHub">
+          <span aria-hidden className="bp6-icon bp6-icon-git-repo" />
+          <span>GitHub</span>
+        </a>
         <Button icon="refresh" text="Reset" loading={busy === "reset"} disabled={busy !== null} onClick={onReset} />
-        <Button icon="play" text={hasAssessment ? "Reassess" : "Run Assessment"} intent={Intent.DANGER} loading={busy === "assessment"} disabled={busy !== null} onClick={onRunAssessment} />
+        <Button icon="path-search" text="Trace" disabled={!hasAssessment} onClick={onOpenTrace} />
       </ButtonGroup>
     </header>
   );
 }
 
-function StatusPill({ label, value, intent }: { label: string; value: string; intent: Intent }) {
+function DemoStepStrip({ stage }: { stage: DemoStage }) {
+  const currentIndex = DEMO_STAGES.findIndex((item) => item.id === stage);
   return (
-    <div className="ops-status-pill">
-      <span>{label}</span>
-      <Tag minimal intent={intent}>{value}</Tag>
+    <div className="ops-status-strip" aria-label="Operational workflow">
+      {DEMO_STAGES.map((item, index) => {
+        const active = item.id === stage;
+        const complete = index < currentIndex;
+        return (
+          <div key={item.id} className={`ops-step-pill ${active ? "ops-step-active" : ""} ${complete ? "ops-step-complete" : ""}`} title={item.label} aria-label={item.label}>
+            <span aria-hidden className={`bp6-icon bp6-icon-${item.icon}`} />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -388,7 +523,6 @@ function OpsRail({
       <Button active={activePane === "evidence"} minimal icon="timeline-events" title="Evidence" onClick={() => onSelectPane("evidence")} />
       <Button active={activePane === "actions"} minimal icon="send-message" title="Actions" onClick={() => onSelectPane("actions")} />
       <Button active={activePane === "audit"} minimal icon="path-search" title="Audit" onClick={() => onSelectPane("audit")} />
-      <div className="ops-rail-spacer" />
       <Button active={activePane === "diagnostics"} minimal icon="layers" title="Diagnostics" onClick={() => onSelectPane("diagnostics")} />
     </nav>
   );
@@ -408,7 +542,11 @@ function LeftOpsPanel({
   executedCount,
   busy,
   traceEvents,
+  stage,
   onOpenApproval,
+  onOpenSituationAlert,
+  onOpenTrace,
+  onRunAssessment,
   onRefreshFeeds,
   onRefreshLiveOverlay,
   onRefreshShelters,
@@ -431,7 +569,11 @@ function LeftOpsPanel({
   executedCount: number;
   busy: string | null;
   traceEvents: Array<Record<string, unknown>>;
+  stage: DemoStage;
   onOpenApproval: () => void;
+  onOpenSituationAlert: () => void;
+  onOpenTrace: () => void;
+  onRunAssessment: () => void;
   onRefreshFeeds: () => void;
   onRefreshLiveOverlay: () => void;
   onRefreshShelters: () => void;
@@ -449,15 +591,6 @@ function LeftOpsPanel({
     audit: "Audit",
     diagnostics: "Diagnostics",
   }[activePane];
-  const paneSubtitle = {
-    overview: "Primary evacuation controls",
-    sources: "Feeds, capacity, and open inputs",
-    evidence: "Risk scores and rejected options",
-    actions: "Approval-gated execution bundle",
-    audit: "Tool calls, traces, and eval checks",
-    diagnostics: "Provider and integration status",
-  }[activePane];
-
   const renderPane = () => {
     if (activePane === "sources") {
       return (
@@ -490,7 +623,13 @@ function LeftOpsPanel({
         publicActionCount={publicActionCount}
         executedCount={executedCount}
         busy={busy}
+        stage={stage}
         onOpenApproval={onOpenApproval}
+        onOpenSituationAlert={onOpenSituationAlert}
+        onOpenTrace={onOpenTrace}
+        onRunAssessment={onRunAssessment}
+        onRefreshLiveOverlay={onRefreshLiveOverlay}
+        onRefreshFeeds={onRefreshFeeds}
         onExecute={onExecute}
       />
     );
@@ -500,11 +639,9 @@ function LeftOpsPanel({
     <aside className="fireguard-command-panel">
       <div className="ops-pane-header">
         <div>
-          <p className="ops-section-kicker">Command workspace</p>
           <H5 className="m-0">{paneTitle}</H5>
-          <p className="ops-pane-subtitle">{paneSubtitle}</p>
         </div>
-        <Tag minimal intent={assessment ? Intent.SUCCESS : Intent.NONE}>{assessment ? "assessed" : "standby"}</Tag>
+        {assessment ? <Tag minimal intent={Intent.SUCCESS}>assessed</Tag> : null}
       </div>
       <div className="ops-pane-content">{renderPane()}</div>
     </aside>
@@ -520,7 +657,13 @@ function CommandPanel({
   publicActionCount,
   executedCount,
   busy,
+  stage,
   onOpenApproval,
+  onOpenSituationAlert,
+  onOpenTrace,
+  onRunAssessment,
+  onRefreshLiveOverlay,
+  onRefreshFeeds,
   onExecute,
 }: {
   context: IncidentContext | null;
@@ -531,133 +674,157 @@ function CommandPanel({
   publicActionCount: number;
   executedCount: number;
   busy: string | null;
+  stage: DemoStage;
   onOpenApproval: () => void;
+  onOpenSituationAlert: () => void;
+  onOpenTrace: () => void;
+  onRunAssessment: () => void;
+  onRefreshLiveOverlay: () => void;
+  onRefreshFeeds: () => void;
   onExecute: () => void;
 }) {
   const plan = assessment?.plan;
   const approved = assessment?.approval.status === "approved";
   const blockers = assumptions.filter((item) => item.blocks_execution).length;
   const validationPassed = assessment?.plan_validation?.valid === true;
-  const recordCount = (context?.fires.length || 0) + (context?.road_events.length || 0) + (context?.zones.length || 0) + (context?.shelters.length || 0);
-  const workflowSteps = [
-    {
-      label: "Context",
-      detail: context ? `${recordCount} records loaded` : "loading",
-      intent: context ? Intent.SUCCESS : Intent.NONE,
-    },
-    {
-      label: "Assessment",
-      detail: plan ? "recommendation ready" : busy === "assessment" ? "running" : "standby",
-      intent: plan ? Intent.SUCCESS : busy === "assessment" ? Intent.WARNING : Intent.NONE,
-    },
-    {
-      label: "Approval",
-      detail: assessment ? assessment.approval.status : "locked",
-      intent: assessment ? intentForStatus(assessment.approval.status) : Intent.NONE,
-    },
-    {
-      label: "Execution",
-      detail: executedCount ? `${executedCount}/${actions.length} complete` : actions.length ? "pending" : "locked",
-      intent: executedCount ? Intent.SUCCESS : actions.length ? Intent.WARNING : Intent.NONE,
-    },
-  ];
+  const stageCopy = STAGE_COPY[stage];
+  const decisionRecords = decisionRecordCount(context);
+  const liveRecords = liveOverlayRecordCount(context);
+  const publicLocked = !assessment || assessment.approval.status !== "approved";
 
   return (
     <PaneBody>
       <div className="fireguard-command-overview">
-        <section className="fireguard-panel-head">
+        <section className="fireguard-hero-command">
           <div>
-            <p className="m-0 text-xs font-semibold uppercase tracking-[0.16em] text-[#8abbff]">Evacuation command</p>
-            <H4 className="mb-0 mt-1">{plan ? "Recommendation Ready" : "Awaiting Assessment"}</H4>
+            <H4 className="m-0">{plan ? plan.recommended_strategy.replaceAll("_", " ") : stageCopy.headline}</H4>
+            <p className="m-0 mt-2 text-sm leading-5 text-[#b8c7d6]">
+              Refresh inputs, inspect the alert, run Gemini, then approve or hold the action bundle.
+            </p>
+          </div>
+          <Tag intent={stageCopy.intent}>{stageCopy.label}</Tag>
+        </section>
+
+        <section className="fireguard-command-section fireguard-command-step">
+          <div className="fireguard-command-step-head">
+            <div>
+              <span>01</span>
+              <H5 className="m-0">Inputs</H5>
+            </div>
+            <Tag minimal>{decisionRecords + liveRecords} records</Tag>
+          </div>
+          <p className="fireguard-command-step-copy">
+            Decision evidence stays separate from current situational awareness.
+          </p>
+          <div className="grid grid-cols-4 gap-2">
+            <MiniMetric label="Decision" value={decisionRecords} intent={Intent.PRIMARY} />
+            <MiniMetric label="Current" value={liveRecords} intent={Intent.SUCCESS} />
+            <MiniMetric label="Roads" value={context?.road_events.length ?? 0} intent={Intent.WARNING} />
+            <MiniMetric label="ESS" value={context?.shelters.length ?? 0} intent={Intent.PRIMARY} />
+          </div>
+          <div className="mt-3 grid gap-2">
+            <Button icon="satellite" text="Collect live overlay" loading={busy === "live-overlay"} disabled={busy !== null} onClick={onRefreshLiveOverlay} />
+            <Button icon="database" text="Sync decision feeds" loading={busy === "fivetran"} disabled={busy !== null} onClick={onRefreshFeeds} />
           </div>
         </section>
 
-        {plan ? (
-          <section className="fireguard-decision-block">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="flex flex-wrap gap-2">
-                  <Tag intent={plan.recommended_strategy === "monitor" ? Intent.PRIMARY : Intent.WARNING}>
-                    {plan.recommended_strategy.replaceAll("_", " ")}
-                  </Tag>
-                  <Tag intent={intentForPlanningMode(assessment?.planning_mode)}>{planningModeText(assessment?.planning_mode)}</Tag>
-                  <Tag intent={validationPassed ? Intent.SUCCESS : Intent.WARNING}>{validationPassed ? "validated" : "fallback guarded"}</Tag>
-                </div>
-                <p className="m-0 mt-3 text-base leading-6 text-[#eef3f7]">{shortText(operatorText(plan.summary), 330)}</p>
-              </div>
+        <section className="fireguard-command-section fireguard-command-step">
+          <div className="fireguard-command-step-head">
+            <div>
+              <span>02</span>
+              <H5 className="m-0">Situation</H5>
             </div>
-            <div className="mt-4">
-              <div className="mb-1 flex items-center justify-between text-xs text-[#abb3bf]">
-                <span>Decision confidence</span>
-                <span>{Math.round(plan.confidence * 100)}%</span>
-              </div>
-              <ProgressBar intent={Intent.SUCCESS} value={plan.confidence} />
-            </div>
-          </section>
-        ) : (
-          <section className="fireguard-empty-command">
-            <div className="fireguard-pending-state">
-              <Tag minimal intent={Intent.NONE}>no plan drafted</Tag>
-              <H5 className="m-0 mt-3">Assessment Pending</H5>
-              <p className="m-0 mt-2 text-sm leading-5 text-[#abb3bf]">Operational signals are loaded; public actions remain locked until an assessment and approval bundle exist.</p>
-            </div>
-          </section>
-        )}
-
-        <section className="fireguard-command-section">
-          <div className="flex items-center justify-between gap-2">
-            <H5 className="m-0">Operational Picture</H5>
-            <Tag minimal intent={incidentModeIntent(context?.mode)}>{incidentModeLabel(context?.mode).toLowerCase()}</Tag>
+            <Tag intent={blockers ? Intent.WARNING : Intent.PRIMARY}>{blockers} blockers</Tag>
           </div>
-          <div className="mt-3 grid grid-cols-4 gap-2">
-            <MiniMetric label="Fires" value={context?.fires.length ?? 0} intent={Intent.DANGER} />
-            <MiniMetric label="Roads" value={context?.road_events.length ?? 0} intent={Intent.WARNING} />
-            <MiniMetric label="Zones" value={context?.zones.length ?? 0} intent={Intent.NONE} />
-            <MiniMetric label="Shelters" value={context?.shelters.length ?? 0} intent={Intent.PRIMARY} />
-          </div>
+          <p className="fireguard-command-step-copy">
+            Review conflicts before planning: route closures, shelter state, and source gaps.
+          </p>
+          <Button icon="warning-sign" text="Open situation alert" intent={Intent.WARNING} disabled={!context || busy !== null} onClick={onOpenSituationAlert} />
+          {rejectedRoute ? (
+            <div className="fireguard-alert-line mt-3">
+              <span aria-hidden className="bp6-icon bp6-icon-blocked-person" />
+              <p>{shortText(String(rejectedRoute.reason), 190)}</p>
+            </div>
+          ) : null}
           {assumptions.length ? (
             <Callout className="mt-3" compact intent={blockers ? Intent.WARNING : Intent.PRIMARY} icon="info-sign">
-              {assumptions.length} input{assumptions.length === 1 ? "" : "s"} need review; {blockers} block public execution.
+              {assumptions.length} input{assumptions.length === 1 ? "" : "s"} require review.
             </Callout>
           ) : null}
         </section>
 
-        {rejectedRoute ? (
-          <section className="fireguard-command-section">
-            <div className="flex items-center justify-between gap-2">
-              <H5 className="m-0">Route Decision</H5>
-              <Tag intent={Intent.DANGER}>blocked</Tag>
+        <section className="fireguard-command-section fireguard-command-step">
+          <div className="fireguard-command-step-head">
+            <div>
+              <span>03</span>
+              <H5 className="m-0">Agent</H5>
             </div>
-            <p className="m-0 mt-2 text-sm leading-5 text-[#cbd4dd]">{shortText(String(rejectedRoute.reason), 190)}</p>
-          </section>
-        ) : null}
+            {assessment ? <Tag intent={intentForPlanningMode(assessment.planning_mode)}>{planningModeText(assessment.planning_mode)}</Tag> : <Tag minimal>ready</Tag>}
+          </div>
+          <p className="fireguard-command-step-copy">
+            Gemini chooses sequence, destinations, messages, and rejected alternatives. Backend validation gates the result.
+          </p>
+          <Button
+            large
+            icon="play"
+            text={plan ? "Run reassessment" : "Run Gemini agent"}
+            intent={Intent.DANGER}
+            loading={busy === "assessment"}
+            disabled={busy !== null}
+            onClick={onRunAssessment}
+          />
+          {plan ? (
+            <div className="fireguard-decision-block mt-3">
+              <div className="flex flex-wrap gap-2">
+                <Tag intent={plan.recommended_strategy === "monitor" ? Intent.PRIMARY : Intent.WARNING}>
+                  {plan.recommended_strategy.replaceAll("_", " ")}
+                </Tag>
+                <Tag intent={validationPassed ? Intent.SUCCESS : Intent.WARNING}>{validationPassed ? "validated" : "guarded"}</Tag>
+                <Tag minimal intent={publicLocked ? Intent.WARNING : Intent.SUCCESS}>{publicLocked ? "locked" : "approved"}</Tag>
+              </div>
+              <p className="m-0 mt-3 text-sm leading-5 text-[#eef3f7]">{shortText(operatorText(plan.summary), 220)}</p>
+              <div className="mt-3">
+                <div className="mb-1 flex items-center justify-between text-xs text-[#abb3bf]">
+                  <span>Confidence</span>
+                  <span>{Math.round(plan.confidence * 100)}%</span>
+                </div>
+                <ProgressBar intent={Intent.SUCCESS} value={plan.confidence} />
+              </div>
+            </div>
+          ) : null}
+        </section>
 
-        <section className="fireguard-command-section">
-          <div className="flex items-center justify-between gap-2">
-            <H5 className="m-0">Action Control</H5>
+        <section className="fireguard-command-section fireguard-command-step">
+          <div className="fireguard-command-step-head">
+            <div>
+              <span>04</span>
+              <H5 className="m-0">Approval</H5>
+            </div>
             {assessment ? <Tag intent={intentForStatus(assessment.approval.status)}>{assessment.approval.status}</Tag> : <Tag minimal>locked</Tag>}
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <p className="fireguard-command-step-copy">
+            Public-facing, road, shelter, and dispatch actions stay held until approval.
+          </p>
+          <div className="grid grid-cols-4 gap-2">
             <MiniMetric label="Drafted" value={actions.length} />
-            <MiniMetric label="Public" value={publicActionCount} />
-            <MiniMetric label="Done" value={executedCount} />
+            <MiniMetric label="Public" value={publicActionCount} intent={Intent.WARNING} />
+            <MiniMetric label="Done" value={executedCount} intent={Intent.SUCCESS} />
+            <MiniMetric label="Blocked" value={blockers} intent={blockers ? Intent.WARNING : Intent.NONE} />
           </div>
           <div className="mt-3 grid gap-2">
             {!assessment ? (
               <div className="fireguard-locked-state">
                 <Tag minimal>locked</Tag>
-                <span>Approval bundle pending.</span>
               </div>
             ) : (
               <>
+                <Button icon="path-search" text="Tool trace" onClick={onOpenTrace} />
                 {!approved ? <Button icon="confirm" text="Review & Approve" intent={Intent.PRIMARY} onClick={onOpenApproval} /> : null}
                 <Button icon="play" text="Execute Approved Actions" intent={Intent.SUCCESS} disabled={!approved || busy !== null} loading={busy === "execute"} onClick={onExecute} />
               </>
             )}
           </div>
         </section>
-
-        <WorkflowStatus steps={workflowSteps} />
       </div>
     </PaneBody>
   );
@@ -681,22 +848,12 @@ function WorkflowStatus({ steps }: { steps: Array<{ label: string; detail: strin
 }
 
 function CenterOpsArea({ context, assessment, actions }: { context: IncidentContext | null; assessment: AssessmentResult | null; actions: ActionItem[] }) {
-  const incidentMode = context?.mode === "hybrid" ? "Replay plan + live overlay" : context?.mode === "replay" ? "Replay window" : "Live window";
-  const decisionSignalCount = (context?.fires.length || 0) + (context?.road_events.length || 0) + (context?.shelters.length || 0) + (context?.zones.length || 0);
-  const liveSignalCount = (context?.live_context?.fires.length || 0) + (context?.live_context?.road_events.length || 0) + (context?.live_context?.perimeters.length || 0);
-
   return (
     <div className="ops-center-stack">
       <section className="ops-map-frame">
         <div className="ops-column-header">
           <div>
-            <p className="ops-section-kicker">Operational map</p>
-            <H5 className="m-0">BC Fire, Roads, Shelters, Routes</H5>
-          </div>
-          <div className="ops-header-tags">
-            <Tag minimal intent={incidentModeIntent(context?.mode)}>{incidentMode}</Tag>
-            <Tag minimal>{decisionSignalCount} decision records</Tag>
-            {context?.mode === "hybrid" ? <Tag minimal intent={Intent.PRIMARY}>{liveSignalCount} live overlay</Tag> : null}
+            <H5 className="m-0">BC Operations</H5>
           </div>
         </div>
         <div className="ops-map-body">
@@ -706,8 +863,7 @@ function CenterOpsArea({ context, assessment, actions }: { context: IncidentCont
       <section className="ops-analytics-frame">
         <div className="ops-column-header ops-column-header-compact">
           <div>
-            <p className="ops-section-kicker">Operational summary</p>
-            <H5 className="m-0">Risk, Routes, Actions</H5>
+            <H5 className="m-0">Status</H5>
           </div>
           <Tag minimal>{actions.length} actions</Tag>
         </div>
@@ -734,7 +890,7 @@ function RiskSummaryCard({ risks, context }: { risks: ZoneRisk[]; context: Incid
   const ranked = [...risks].sort((a, b) => b.score - a.score).slice(0, 3);
   return (
     <div className="ops-summary-card">
-      <SummaryCardHeader title="Zone risk" subtitle={ranked.length ? `${ranked.length} zones scored` : "assessment pending"} />
+      <SummaryCardHeader title="Zone risk" subtitle={ranked.length ? `${ranked.length} zones` : "pending"} />
       {ranked.length ? (
         <div className="ops-risk-list">
           {ranked.map((risk) => (
@@ -768,7 +924,7 @@ function RouteSummaryCard({ routes }: { routes: AssessmentResult["plan"]["routes
   const total = Math.max(routes.length, 1);
   return (
     <div className="ops-summary-card">
-      <SummaryCardHeader title="Route safety" subtitle={routes.length ? `${routes.length} route options` : "no routes evaluated"} />
+      <SummaryCardHeader title="Route safety" subtitle={routes.length ? `${routes.length} routes` : "pending"} />
       <div className="ops-route-split" aria-hidden="true">
         <span className="ops-route-safe" style={{ width: `${(safe.length / total) * 100}%` }} />
         <span className="ops-route-blocked" style={{ width: `${(blocked.length / total) * 100}%` }} />
@@ -790,7 +946,7 @@ function ActionStateSummary({ actions }: { actions: ActionItem[] }) {
   const total = Math.max(actions.length, 1);
   return (
     <div className="ops-summary-card">
-      <SummaryCardHeader title="Action state" subtitle={actions.length ? `${actions.length} drafted actions` : "no bundle drafted"} />
+      <SummaryCardHeader title="Action state" subtitle={actions.length ? `${actions.length} actions` : "pending"} />
       <div className="ops-action-state-bar" aria-hidden="true">
         <span className="ops-action-state-pending" style={{ width: `${(pending / total) * 100}%` }} />
         <span className="ops-action-state-approved" style={{ width: `${(approved / total) * 100}%` }} />
@@ -798,7 +954,7 @@ function ActionStateSummary({ actions }: { actions: ActionItem[] }) {
         <span className="ops-action-state-failed" style={{ width: `${(failed / total) * 100}%` }} />
       </div>
       <div className="ops-summary-grid">
-        <MetricLine label="Pending" value={String(pending)} />
+        <MetricLine label="Queued" value={String(pending)} />
         <MetricLine label="Approved" value={String(approved)} tone="safe" />
         <MetricLine label="Executed" value={String(executed)} />
       </div>
@@ -830,26 +986,135 @@ function RightOpsPanel({
   context,
   assessment,
   actions,
+  stage,
 }: {
   status: IntegrationStatus | null;
   evalResult: Record<string, unknown> | null;
   context: IncidentContext | null;
   assessment: AssessmentResult | null;
   actions: ActionItem[];
+  stage: DemoStage;
 }) {
   return (
     <aside className="ops-right-stack">
       <div className="ops-column-header">
         <div>
-          <p className="ops-section-kicker">Execution status</p>
-          <H5 className="m-0">Systems & Queue</H5>
+          <H5 className="m-0">Operational State</H5>
         </div>
-        <Tag minimal intent={actions.length ? Intent.WARNING : Intent.NONE}>{actions.length ? `${actions.length} drafted` : "idle"}</Tag>
       </div>
       <div className="ops-pane-content">
-        <OverviewPane status={status} evalResult={evalResult} context={context} assessment={assessment} actions={actions} />
+        <MissionBriefPane status={status} evalResult={evalResult} context={context} assessment={assessment} actions={actions} stage={stage} />
       </div>
     </aside>
+  );
+}
+
+function MissionBriefPane({
+  status,
+  evalResult,
+  context,
+  assessment,
+  actions,
+  stage,
+}: {
+  status: IntegrationStatus | null;
+  evalResult: Record<string, unknown> | null;
+  context: IncidentContext | null;
+  assessment: AssessmentResult | null;
+  actions: ActionItem[];
+  stage: DemoStage;
+}) {
+  const providerHealth = providerSummaries(status, evalResult).slice(0, 4);
+  const plan = assessment?.plan;
+  const pendingActions = actions.filter((action) => action.status === "pending").length;
+  const stageCopy = STAGE_COPY[stage];
+  const topRisks = [...(plan?.zone_risks || [])].sort((a, b) => b.score - a.score).slice(0, 2);
+  const rejected = plan?.rejected_alternatives?.[0];
+
+  return (
+    <PaneBody>
+      <section className="ops-panel">
+        <div className="ops-panel-title">
+          <H5 className="m-0">Providers</H5>
+          <Tag minimal intent={stageCopy.intent}>{stageCopy.label}</Tag>
+        </div>
+        <div className="mission-provider-strip">
+          {providerHealth.map((item) => (
+            <div key={item.title} className="mission-provider-chip">
+              <span className={`ops-status-dot ops-status-${item.intent}`} />
+              <span>{item.title}</span>
+              <Tag minimal intent={item.intent}>{item.value}</Tag>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="ops-panel">
+        <div className="ops-panel-title">
+          <H5 className="m-0">Snapshot</H5>
+          <Tag minimal intent={assessment ? Intent.SUCCESS : Intent.NONE}>{assessment ? "ready" : "not run"}</Tag>
+        </div>
+        {plan ? (
+          <div className="mission-snapshot">
+            <TraceLine label="Strategy" value={plan.recommended_strategy.replaceAll("_", " ")} />
+            <TraceLine label="Planning" value={planningModeText(assessment?.planning_mode)} />
+            <TraceLine label="Validation" value={assessment?.plan_validation?.valid === true ? "passed" : "guarded"} />
+            <TraceLine label="Approval" value={assessment?.approval.status || "locked"} />
+          </div>
+        ) : (
+          <div className="mission-signal-grid">
+            <MetricLine label="Decision" value={String(decisionRecordCount(context))} />
+            <MetricLine label="Current" value={String(liveOverlayRecordCount(context))} />
+            <MetricLine label="Orders" value={String(context?.public_evacuation_orders?.length || 0)} />
+          </div>
+        )}
+      </section>
+
+      {topRisks.length ? (
+        <section className="ops-panel">
+          <div className="ops-panel-title">
+            <H5 className="m-0">Risk</H5>
+          </div>
+          <div className="grid gap-2">
+            {topRisks.map((risk) => (
+              <div key={risk.zone_id} className="mission-risk-row">
+                <span>{risk.zone_id}</span>
+                <div className="ops-meter">
+                  <span className={`ops-meter-fill ops-meter-${risk.risk_level.toLowerCase()}`} style={{ width: `${Math.round(risk.score * 100)}%` }} />
+                </div>
+                <Tag minimal intent={intentForRisk(risk.risk_level)}>{risk.risk_level}</Tag>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {rejected ? (
+        <section className="ops-panel mission-rejection">
+          <div className="ops-panel-title">
+            <H5 className="m-0">Rejected route</H5>
+            <Tag intent={Intent.DANGER}>blocked</Tag>
+          </div>
+          <p>{shortText(String(rejected.reason), 210)}</p>
+        </section>
+      ) : null}
+
+      <section className="ops-panel">
+        <div className="ops-panel-title">
+          <H5 className="m-0">Queue</H5>
+          <Tag minimal intent={pendingActions ? Intent.WARNING : actions.length ? Intent.SUCCESS : Intent.NONE}>
+            {actions.length ? `${pendingActions}/${actions.length} queued` : "locked"}
+          </Tag>
+        </div>
+        <div className="ops-action-list">
+          {actions.length ? actions.slice(0, 4).map((action) => (
+            <ActionQueueRow key={action.action_id} action={action} />
+          )) : (
+            <div className="ops-empty-line">None</div>
+          )}
+        </div>
+      </section>
+    </PaneBody>
   );
 }
 
@@ -877,7 +1142,7 @@ function OverviewPane({
     <PaneBody>
       <section className="ops-panel">
         <div className="ops-panel-title">
-          <H5 className="m-0">Provider Status</H5>
+          <H5 className="m-0">Providers</H5>
         </div>
         <div className="ops-provider-grid">
           {summaries.map((item) => (
@@ -902,20 +1167,20 @@ function OverviewPane({
           <DonutGauge label="Open ESS" value={context?.shelters.length ? openShelters / context.shelters.length : 0} intent={openShelters ? Intent.SUCCESS : Intent.WARNING} />
         </div>
         <div className="mt-3 grid gap-2">
-          <TraceLine label="Eval checks" value={evalTotal ? `${evalPassed}/${evalTotal}` : "pending"} />
+          <TraceLine label="Eval checks" value={evalTotal ? `${evalPassed}/${evalTotal}` : "not run"} />
           <TraceLine label="Trace events" value={String(assessment?.trace.length || 0)} />
         </div>
       </section>
 
       <section className="ops-panel ops-action-table">
         <div className="ops-panel-title">
-          <H5 className="m-0">Action Queue</H5>
+          <H5 className="m-0">Queue</H5>
         </div>
         <div className="ops-action-list">
           {actions.length ? actions.slice(0, 7).map((action) => (
             <ActionQueueRow key={action.action_id} action={action} />
           )) : (
-            <div className="ops-empty-line">No action bundle drafted.</div>
+            <div className="ops-empty-line">None</div>
           )}
         </div>
       </section>
@@ -1012,6 +1277,213 @@ function ApprovalDialog({
         <div className={Classes.DIALOG_FOOTER_ACTIONS}>
           <Button text="Cancel" onClick={onClose} />
           <Button intent={Intent.SUCCESS} icon="tick" text="Approve" disabled={!assessment || assessment.approval.status === "approved"} loading={busy === "approve"} onClick={onApprove} />
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+function SituationAlertDialog({
+  isOpen,
+  context,
+  assessment,
+  rejectedRoute,
+  busy,
+  onClose,
+  onRunAssessment,
+}: {
+  isOpen: boolean;
+  context: IncidentContext | null;
+  assessment: AssessmentResult | null;
+  rejectedRoute?: Record<string, unknown>;
+  busy: string | null;
+  onClose: () => void;
+  onRunAssessment: () => void;
+}) {
+  const liveRecords = liveOverlayRecordCount(context);
+  const decisionRecords = decisionRecordCount(context);
+  const conflictCount = (context?.road_events.length || 0) + (context?.fires.length || 0);
+  const capacityAvailable = context?.shelters.reduce((total, shelter) => total + Number(shelter.capacity_available || 0), 0) || 0;
+
+  return (
+    <Dialog className="bp6-dark fireguard-alert-dialog" icon="warning-sign" isOpen={isOpen} onClose={onClose} title="Situation Alert">
+      <div className={Classes.DIALOG_BODY}>
+        <div className="fireguard-alert-hero">
+          <div className="fireguard-alert-pulse" aria-hidden>
+            <span />
+            <span />
+            <strong>FG</strong>
+          </div>
+          <div>
+            <p className="ops-section-kicker">Wildfire evacuation alert</p>
+            <H4 className="m-0">Route, fire, and shelter constraints require assessment</H4>
+            <p className="m-0 mt-2 text-sm leading-5 text-[#cbd4dd]">
+              {assessment
+                ? shortText(operatorText(assessment.plan.summary), 260)
+                : "Current evidence is loaded. Run Gemini to choose strategy, sequence zones, select destinations, and draft approval-gated actions."}
+            </p>
+          </div>
+        </div>
+
+        <div className="fireguard-alert-grid">
+          <AlertSignal label="Decision records" value={decisionRecords} intent={Intent.PRIMARY} />
+          <AlertSignal label="Live overlay" value={liveRecords} intent={liveRecords ? Intent.SUCCESS : Intent.WARNING} />
+          <AlertSignal label="Fire/road signals" value={conflictCount} intent={Intent.WARNING} />
+          <AlertSignal label="ESS capacity" value={capacityAvailable} intent={Intent.PRIMARY} />
+        </div>
+
+        {rejectedRoute ? (
+          <Callout className="mt-4" intent={Intent.DANGER} icon="blocked-person" title="Unsafe route rejected">
+            {shortText(String(rejectedRoute.reason), 240)}
+          </Callout>
+        ) : (
+          <Callout className="mt-4" intent={Intent.WARNING} icon="info-sign" title="Command decision required">
+            Public actions stay locked behind Gemini planning, backend validation, and commander approval.
+          </Callout>
+        )}
+      </div>
+      <div className={Classes.DIALOG_FOOTER}>
+        <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+          <Button text="Close" onClick={onClose} />
+          <Button
+            icon="play"
+            intent={Intent.DANGER}
+            text={assessment ? "Run Reassessment" : "Run Gemini Agent"}
+            loading={busy === "assessment"}
+            disabled={busy !== null}
+            onClick={onRunAssessment}
+          />
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+function AlertSignal({ label, value, intent }: { label: string; value: number; intent: Intent }) {
+  return (
+    <div className="fireguard-alert-signal">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <i className={`ops-status-dot ops-status-${intent}`} />
+    </div>
+  );
+}
+
+function AgentTraceDialog({
+  isOpen,
+  assessment,
+  traceEvents,
+  evalResult,
+  onClose,
+}: {
+  isOpen: boolean;
+  assessment: AssessmentResult | null;
+  traceEvents: Array<Record<string, unknown>>;
+  evalResult: Record<string, unknown> | null;
+  onClose: () => void;
+}) {
+  const toolCalls = assessment?.gemini_tool_calls || [];
+  const validationPassed = assessment?.plan_validation?.valid === true;
+  const rejectedAlternatives = assessment?.plan.rejected_alternatives || [];
+  const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
+  const visibleToolEvents: Array<Record<string, unknown>> = traceEvents.length
+    ? traceEvents.slice(0, 8)
+    : toolCalls.map((tool) => ({ tool, evidence_ids: [] as string[] }));
+
+  return (
+    <Dialog className="bp6-dark fireguard-trace-dialog" icon="path-search" isOpen={isOpen} onClose={onClose} title="Agent Decision Trace">
+      <div className={Classes.DIALOG_BODY}>
+        {assessment ? (
+          <div className="fireguard-trace-layout">
+            <section className="fireguard-trace-summary">
+              <TraceLine label="Gemini status" value={assessment.gemini_status || "not run"} />
+              <TraceLine label="Planning mode" value={planningModeText(assessment.planning_mode)} />
+              <TraceLine label="Backend validation" value={validationPassed ? "passed" : "guarded"} />
+              <TraceLine label="Phoenix spans" value={String(assessment.phoenix_trace_ids?.length || 0)} />
+              <TraceLine label="Eval score" value={evalResult ? `${Math.round(Number(evalResult.score || 0) * 100)}%` : "not run"} />
+            </section>
+
+            <section className="fireguard-trace-section">
+              <div className="ops-panel-title">
+                <H5 className="m-0">Gemini Planning Output</H5>
+                <Tag intent={intentForPlanningMode(assessment.planning_mode)}>{planningModeText(assessment.planning_mode)}</Tag>
+              </div>
+              <p className="m-0 mt-2 text-sm leading-5 text-[#cbd4dd]">{operatorText(assessment.plan.summary)}</p>
+              <div className="mt-3 grid gap-2">
+                {assessment.plan.steps.slice(0, 4).map((step) => (
+                  <div key={step.step_id} className="fireguard-muted-card p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold">{step.zone_id}</span>
+                      <Tag minimal>{step.strategy}</Tag>
+                    </div>
+                    <p className="m-0 mt-2 text-xs leading-5 text-[#abb3bf]">{shortText(step.message, 150)}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <section className="fireguard-trace-section">
+              <div className="ops-panel-title">
+                <H5 className="m-0">Tool Calls</H5>
+                <Tag minimal>{traceEvents.length || toolCalls.length}</Tag>
+              </div>
+              <div className="fireguard-tool-call-list">
+                {visibleToolEvents.map((event, index) => {
+                  const eventRecord = event as Record<string, unknown>;
+                  const evidenceIds = eventRecord.evidence_ids;
+                  return (
+                  <div key={`${String(eventRecord.tool || eventRecord.step || index)}-${index}`} className="fireguard-tool-call">
+                    <span aria-hidden className="bp6-icon bp6-icon-data-lineage" />
+                    <div>
+                      <strong>{String(eventRecord.tool || eventRecord.step || `tool ${index + 1}`)}</strong>
+                      <small>{Array.isArray(evidenceIds) ? `Evidence ${evidenceIds.length}` : "Evidence tracked in audit"}</small>
+                    </div>
+                  </div>
+                  );
+                })}
+              </div>
+            </section>
+
+            {rejectedAlternatives.length ? (
+              <section className="fireguard-trace-section">
+                <div className="ops-panel-title">
+                  <H5 className="m-0">Rejected Alternatives</H5>
+                  <Tag intent={Intent.DANGER}>{rejectedAlternatives.length}</Tag>
+                </div>
+                <div className="grid gap-2">
+                  {rejectedAlternatives.slice(0, 3).map((item, index) => (
+                    <div key={index} className="fireguard-muted-card p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-semibold">{stringify(item.origin_id)}{" -> "}{stringify(item.destination_id, "none")}</span>
+                        <Tag minimal intent={Intent.DANGER}>rejected</Tag>
+                      </div>
+                      <p className="m-0 mt-2 text-xs leading-5 text-[#abb3bf]">{shortText(String(item.reason), 180)}</p>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {evalChecks ? (
+              <section className="fireguard-trace-section">
+                <div className="ops-panel-title">
+                  <H5 className="m-0">Eval Checks</H5>
+                </div>
+                <div className="fireguard-eval-chip-grid">
+                  {Object.entries(evalChecks).map(([key, passed]) => (
+                    <Tag key={key} intent={passed ? Intent.SUCCESS : Intent.DANGER}>{key.replaceAll("_", " ")}</Tag>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+          </div>
+        ) : (
+          <NonIdealState icon="predictive-analysis" title="Agent has not run" description="Trigger the Gemini assessment to generate tool calls, validation, and trace exports." />
+        )}
+      </div>
+      <div className={Classes.DIALOG_FOOTER}>
+        <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+          <Button text="Close" onClick={onClose} />
         </div>
       </div>
     </Dialog>
@@ -1265,7 +1737,7 @@ function ActionDetails({ actions, assessment, busy, onExecute }: { actions: Acti
     <PaneBody>
       <div className="mb-4 flex items-center justify-between gap-3">
         <div>
-          <H5 className="m-0">Bundle {assessment?.bundle_id || "pending"}</H5>
+          <H5 className="m-0">Bundle {assessment?.bundle_id || "not created"}</H5>
           <p className="m-0 mt-1 text-sm text-[#8f99a8]">Execution requires an approved bundle.</p>
         </div>
         <Button icon="play" intent={Intent.SUCCESS} text="Execute" loading={busy === "execute"} disabled={!assessment || assessment.approval.status !== "approved" || busy !== null} onClick={onExecute} />
@@ -1306,12 +1778,12 @@ function AuditDetails({ traceEvents, evalResult, assessment }: { traceEvents: Ar
         <section>
           <H5>Trace Exports</H5>
           <div className="grid gap-2">
-            <TraceLine label="Gemini status" value={assessment?.gemini_status || "pending"} />
+            <TraceLine label="Gemini status" value={assessment?.gemini_status || "not run"} />
             <TraceLine label="Planning mode" value={planningModeText(assessment?.planning_mode)} />
-            <TraceLine label="Plan validation" value={assessment?.plan_validation?.valid === true ? "passed" : assessment ? "fallback or failed" : "pending"} />
+            <TraceLine label="Plan validation" value={assessment?.plan_validation?.valid === true ? "passed" : assessment ? "fallback or failed" : "not run"} />
             <TraceLine label="Phoenix spans" value={String(assessment?.phoenix_trace_ids?.length || 0)} />
             <TraceLine label="Arize AX spans" value={String(assessment?.arize_ax_trace_ids?.length || 0)} />
-            <TraceLine label="Eval score" value={evalResult ? `${Math.round(Number(evalResult.score || 0) * 100)}%` : "pending"} />
+            <TraceLine label="Eval score" value={evalResult ? `${Math.round(Number(evalResult.score || 0) * 100)}%` : "not run"} />
           </div>
         </section>
         {assessment?.context.source_lineage ? (
@@ -1319,8 +1791,8 @@ function AuditDetails({ traceEvents, evalResult, assessment }: { traceEvents: Ar
             <H5>Source Separation</H5>
             <div className="grid gap-2">
               <TraceLine label="Decision context" value={assessment.context.decision_context_mode || "unknown"} />
-              <TraceLine label="Decision records" value={String(Object.values(decisionCounts || {}).reduce((total, value) => total + Number(value || 0), 0))} />
-              <TraceLine label="Live overlay records" value={String(Object.values(liveCounts || {}).reduce((total, value) => total + Number(value || 0), 0))} />
+              <TraceLine label="Decision" value={String(Object.values(decisionCounts || {}).reduce((total, value) => total + Number(value || 0), 0))} />
+              <TraceLine label="Current" value={String(Object.values(liveCounts || {}).reduce((total, value) => total + Number(value || 0), 0))} />
             </div>
             <p className="m-0 mt-2 text-xs leading-5 text-[#8f99a8]">{String(assessment.context.source_lineage.rule || "")}</p>
           </section>
@@ -1431,12 +1903,12 @@ function providerSummaries(status: IntegrationStatus | null, evalResult: Record<
   const fivetranRowCount = Object.values(fivetranStreams || {}).reduce<number>((total, value) => total + (typeof value === "number" ? value : 0), 0);
   const fivetranManagedOk = fivetranManaged?.status === "ok";
   const fivetranDetail = fivetranFallbackActive
-    ? "Some feed records are using a replay fallback. Review before demo execution."
+    ? "Fallback records are flagged. Open diagnostics before execution."
     : fivetranQualityWarnings.length
       ? `${fivetranRowCount || "Loaded"} records synced; ${String(firstQualityWarning?.count_removed || 0)} out-of-region fire records filtered.`
       : fivetranManagedOk
         ? `${fivetranRowCount || "Loaded"} records synced through the warehouse.`
-        : "Source feed sync is waiting for the next run.";
+        : "Source feed sync is queued.";
   const liveOverlay = status?.live_overlay as Record<string, unknown> | undefined;
   const liveOverlayRun = liveOverlay?.latest_run as Record<string, unknown> | null | undefined;
   const liveOverlayCounts = liveOverlay?.record_counts as Record<string, unknown> | undefined;
@@ -1448,9 +1920,9 @@ function providerSummaries(status: IntegrationStatus | null, evalResult: Record<
   const liveOverlaySynced = Boolean(liveOverlayRun);
   const liveOverlayDetail = liveOverlaySynced
     ? liveOverlayFallbackActive
-      ? "Fivetran warehouse overlay was unavailable, so direct source adapters were used and marked as fallback."
+      ? "Fivetran warehouse overlay failed; direct source adapters are flagged as fallback."
       : `${liveOverlayCount || "Current"} records loaded through ${liveOverlayProvider}. ${String(liveOverlay?.decision_rule || "Display-only and separate from replay decision evidence.")}`
-    : "Refresh the Fivetran live overlay to show current warehouse records alongside the replay plan.";
+    : "Run live overlay sync to load current warehouse records beside the replay plan.";
   const evalChecks = evalResult?.checks as Record<string, boolean> | undefined;
   const passed = evalChecks ? Object.values(evalChecks).filter(Boolean).length : 0;
   const arizeCheck = status?.arize?.connection_check as Record<string, unknown> | undefined;
@@ -1460,16 +1932,16 @@ function providerSummaries(status: IntegrationStatus | null, evalResult: Record<
   const arizeDeployment = String(status?.arize?.deployment || "local");
   const arizeDetail = evalChecks
     ? `${passed}/${Object.keys(evalChecks).length} safety and grounding checks passed.`
-    : arizeOk ? "Trace export is connected." : `${arizeDeployment} trace export is not confirmed.`;
-  const taskBackend = String(status?.action_tasks?.backend || "pending");
+    : arizeOk ? "Trace export is connected." : `${arizeDeployment} trace export is disconnected.`;
+  const taskBackend = String(status?.action_tasks?.backend || "offline");
   const taskRepo = String(status?.action_tasks?.github_repo || "no repo configured");
   const shelterCapacity = status?.shelter_capacity as Record<string, unknown> | undefined;
   const shelterCapacityConfigured = shelterCapacity?.configured === true;
   const shelterCapacityUpdates = Number(shelterCapacity?.latest_update_count || 0);
-  const shelterCapacityValue = shelterCapacityConfigured ? `${shelterCapacityUpdates} sheet updates` : "sheet needed";
+  const shelterCapacityValue = shelterCapacityConfigured ? `${shelterCapacityUpdates} sheet updates` : "sheet offline";
   const shelterCapacityDetail = shelterCapacityConfigured
-    ? `Latest capacity update: ${String(shelterCapacity?.latest_update_at || "not synced yet")}`
-    : "Capacity feed is not connected yet.";
+    ? `Latest capacity update: ${String(shelterCapacity?.latest_update_at || "no sync record")}`
+    : "Capacity feed is disconnected.";
   const sourceZoneContext = status?.source_backed_zone_context as Record<string, unknown> | undefined;
   const sourceZoneUpdateCount = Number(sourceZoneContext?.latest_update_count || 0);
 
@@ -1477,14 +1949,14 @@ function providerSummaries(status: IntegrationStatus | null, evalResult: Record<
     {
       title: "Fivetran",
       state: fivetranFallbackActive ? "attention" : "active",
-      value: fivetranFallbackActive ? "review needed" : fivetranQualityWarnings.length ? "BC filtered" : fivetranManagedOk ? "connected" : fivetranRun ? String(fivetranRun.status) : "waiting",
+      value: fivetranFallbackActive ? "fallback flagged" : fivetranQualityWarnings.length ? "BC filtered" : fivetranManagedOk ? "connected" : fivetranRun ? String(fivetranRun.status) : "sync queued",
       detail: fivetranDetail,
       intent: status?.fivetran?.configured && fivetranManagedOk && !fivetranFallbackActive ? Intent.SUCCESS : Intent.WARNING,
     },
     {
       title: "Fivetran Live Overlay",
-      state: liveOverlayFallbackActive || liveOverlayWarnings.length ? "attention" : liveOverlaySynced ? "active" : "waiting",
-      value: liveOverlaySynced ? `${liveOverlayCount} current records` : "not synced",
+      state: liveOverlayFallbackActive || liveOverlayWarnings.length ? "attention" : liveOverlaySynced ? "active" : "sync required",
+      value: liveOverlaySynced ? `${liveOverlayCount} current records` : "sync required",
       detail: liveOverlayQualityWarnings.length ? `${liveOverlayDetail} ${String(liveOverlayQualityWarnings[0]?.count_removed || 0)} out-of-region fire records filtered.` : liveOverlayDetail,
       intent: liveOverlaySynced && !liveOverlayFallbackActive && !liveOverlayWarnings.length ? Intent.SUCCESS : Intent.WARNING,
     },
@@ -1512,8 +1984,8 @@ function providerSummaries(status: IntegrationStatus | null, evalResult: Record<
     {
       title: "Census/Roads",
       state: sourceZoneUpdateCount ? "active" : "attention",
-      value: sourceZoneUpdateCount ? `${sourceZoneUpdateCount} zone updates` : "sync needed",
-      detail: sourceZoneUpdateCount ? `Latest update: ${String(sourceZoneContext?.latest_update_at || "not synced yet")}` : "Zone and road context has not been refreshed.",
+      value: sourceZoneUpdateCount ? `${sourceZoneUpdateCount} zone updates` : "sync required",
+      detail: sourceZoneUpdateCount ? `Latest update: ${String(sourceZoneContext?.latest_update_at || "no sync record")}` : "Zone and road context requires sync.",
       intent: sourceZoneUpdateCount ? Intent.SUCCESS : Intent.WARNING,
     },
     {

@@ -1,6 +1,6 @@
 "use client";
 
-import { Button, ButtonGroup, Intent, Tag } from "@blueprintjs/core";
+import { Button, ButtonGroup, Classes, Dialog, H4, H5, Intent, Tag } from "@blueprintjs/core";
 import { useEffect, useMemo, useRef, useState } from "react";
 import mapboxgl, { GeoJSONSource, Map } from "mapbox-gl";
 
@@ -13,6 +13,10 @@ type Props = {
 
 type LayerKey = "fires" | "perimeters" | "roads" | "zones" | "shelters" | "routes" | "public" | "liveFires" | "livePerimeters" | "liveRoads";
 type BasemapKey = "dark" | "satellite" | "streets" | "outdoors";
+type SelectedMapFeature = {
+  coordinates: [number, number];
+  properties: Record<string, unknown>;
+};
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "";
 
@@ -35,6 +39,21 @@ const LAYER_IDS: Record<LayerKey, string[]> = {
   livePerimeters: ["live-perimeters-fill", "live-perimeters-line"],
   liveRoads: ["live-roads"],
 };
+
+const INTERACTIVE_LAYER_IDS = [
+  "fires",
+  "live-fires",
+  "roads",
+  "live-roads",
+  "shelters",
+  "public-orders",
+  "public-ess",
+  "routes",
+  "zones-fill",
+  "perimeters-fill",
+  "live-perimeters-fill",
+  "live-perimeters-line",
+];
 
 function styleUrlForBasemap(key: BasemapKey) {
   return BASEMAPS.find((style) => style.key === key)?.styleUrl || BASEMAPS[0].styleUrl;
@@ -62,6 +81,9 @@ function routeFeature(route: RouteOption) {
       flags: route.risk_flags.join("; "),
       duration: `${route.duration_minutes} min`,
       distance: `${route.distance_km} km`,
+      source_label: "Google Routes result with FireGuard route-safety validation",
+      evidence_ids: route.evidence_ids.join(", "),
+      assumption_ids: route.assumption_ids?.join(", ") || "",
     },
     geometry: {
       type: "LineString" as const,
@@ -113,6 +135,10 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           population: zone.population,
           vulnerable: zone.vulnerable_count,
           zone_id: zone.zone_id,
+          households: zone.households,
+          source_label: zone.source_label || "Synthetic municipal evacuation zone",
+          data_origin: zone.data_origin || "synthetic_demo_municipality",
+          synthetic: zone.synthetic ? "yes" : "no",
         },
         geometry: zone.geometry,
       })),
@@ -125,6 +151,10 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           capacity: `${shelter.capacity_available}/${shelter.capacity_total}`,
           status: shelter.status,
           id: shelter.shelter_id,
+          source_label: shelter.source_label || shelter.capacity_source_label || "BC ESS facility context with operator capacity feed",
+          data_origin: shelter.data_origin || "shelter_context",
+          capacity_source: shelter.capacity_source_label || "capacity source not reported",
+          official_status: shelter.official_facility_status || shelter.status,
         }),
       ),
     },
@@ -136,6 +166,7 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           confidence: fire.confidence,
           frp: fire.frp,
           source: fire.source,
+          source_label: "NASA FIRMS hotspot indexed through FireGuard operational memory",
           scope: "REPLAY DECISION",
           decision_eligible: "yes",
         }),
@@ -151,6 +182,7 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           severity: event.severity,
           road: event.road_name,
           id: event.external_id,
+          source_label: "DriveBC/Open511 road event indexed through FireGuard operational memory",
           scope: "REPLAY DECISION",
           decision_eligible: "yes",
         },
@@ -171,6 +203,7 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           label: perimeter.fire_name,
           status: perimeter.status,
           id: perimeter.fire_number,
+          source_label: "BC Wildfire perimeter record indexed through FireGuard operational memory",
           scope: "REPLAY DECISION",
           decision_eligible: "yes",
         },
@@ -185,6 +218,7 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           confidence: fire.confidence,
           frp: fire.frp,
           source: fire.source,
+          source_label: "NASA FIRMS hotspot from the current Fivetran live overlay",
           scope: "LIVE CURRENT",
           decision_eligible: "no",
         }),
@@ -200,6 +234,7 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           severity: event.severity,
           road: event.road_name,
           id: event.external_id,
+          source_label: "DriveBC/Open511 road event from the current Fivetran live overlay",
           scope: "LIVE CURRENT",
           decision_eligible: "no",
         },
@@ -220,6 +255,7 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           label: perimeter.fire_name,
           status: perimeter.status,
           id: perimeter.fire_number,
+          source_label: "BC Wildfire perimeter from the current Fivetran live overlay",
           scope: "LIVE CURRENT",
           decision_eligible: "no",
         },
@@ -233,6 +269,10 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           label: order.order_alert_name,
           status: order.status,
           agency: order.issuing_agency,
+          population: order.population,
+          homes: order.homes,
+          source_label: "EmergencyMapBC public evacuation order/alert feed",
+          source_url: order.source_url || "",
         }),
       ),
     },
@@ -243,6 +283,10 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
           label: facility.name,
           status: facility.status,
           community: facility.community,
+          municipality: facility.municipality,
+          facility_type: facility.facility_type,
+          source_label: "BC public ESS facility feed",
+          source_url: facility.source_url || "",
         }),
       ),
     },
@@ -418,14 +462,94 @@ function hydrateOperationalLayers(map: Map, collections: ReturnType<typeof build
   applyLayerVisibility(map, visible);
 }
 
+function escapeHtml(value: unknown) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function popupKind(properties: mapboxgl.GeoJSONFeature["properties"]) {
+  const scope = String(properties?.scope || "").toLowerCase();
+  const status = String(properties?.status || "").toLowerCase();
+  const safe = String(properties?.safe || "").toLowerCase();
+  if (safe === "true") return "route-safe";
+  if (safe === "false") return "route-blocked";
+  if (scope.includes("live")) return "live";
+  if (properties?.frp !== undefined || properties?.confidence !== undefined) return "fire";
+  if (properties?.capacity !== undefined) return "shelter";
+  if (properties?.road !== undefined || properties?.severity !== undefined) return "road";
+  if (properties?.population !== undefined || properties?.vulnerable !== undefined) return "zone";
+  if (properties?.agency !== undefined) return "public";
+  if (status === "open") return "ess";
+  return "record";
+}
+
+function popupKindLabel(kind: string) {
+  if (kind === "route-safe") return "Safe route";
+  if (kind === "route-blocked") return "Blocked route";
+  if (kind === "live") return "Live overlay";
+  if (kind === "fire") return "Fire signal";
+  if (kind === "shelter") return "Shelter";
+  if (kind === "road") return "Road event";
+  if (kind === "zone") return "Evacuation zone";
+  if (kind === "public") return "Evacuation notice";
+  if (kind === "ess") return "ESS facility";
+  return "Operational record";
+}
+
+function fieldLabel(key: string) {
+  return key.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function featureHtml(properties: mapboxgl.GeoJSONFeature["properties"]) {
-  if (!properties) return "<strong>Operational record</strong>";
+  if (!properties) return '<div class="fg-map-card"><strong>Operational record</strong></div>';
+  const kind = popupKind(properties);
+  const primary = String(properties.label || properties.id || "Operational record");
   const rows = Object.entries(properties)
+    .filter(([key]) => !["label"].includes(key))
     .filter(([, value]) => value !== undefined && value !== null && String(value).length > 0)
-    .slice(0, 6)
-    .map(([key, value]) => `<div style="display:flex;gap:8px;justify-content:space-between;"><span style="color:#8f99a8">${key}</span><span>${String(value)}</span></div>`)
+    .slice(0, 7)
+    .map(([key, value]) => `<div class="fg-map-row"><span>${escapeHtml(fieldLabel(key))}</span><strong>${escapeHtml(value)}</strong></div>`)
     .join("");
-  return `<div style="min-width:220px"><strong>${String(properties.label || properties.id || "Operational record")}</strong><div style="margin-top:8px;display:grid;gap:4px;">${rows}</div></div>`;
+  return `
+    <div class="fg-map-card fg-map-card-${kind}">
+      <div class="fg-map-card-top">
+        <span>${escapeHtml(popupKindLabel(kind))}</span>
+        <i>${properties.decision_eligible === "yes" ? "Decision evidence" : properties.scope ? escapeHtml(properties.scope) : "Map layer"}</i>
+      </div>
+      <h3>${escapeHtml(primary)}</h3>
+      <div class="fg-map-card-grid">${rows}</div>
+    </div>
+  `;
+}
+
+function featureTitle(properties: Record<string, unknown>) {
+  return String(properties.label || properties.id || "Operational record");
+}
+
+function selectedFeatureKind(selected: SelectedMapFeature | null) {
+  return selected ? popupKind(selected.properties) : "record";
+}
+
+function selectedFeatureRows(properties: Record<string, unknown>) {
+  return Object.entries(properties)
+    .filter(([, value]) => value !== undefined && value !== null && String(value).length > 0)
+    .filter(([key]) => !["label"].includes(key))
+    .slice(0, 18);
+}
+
+function sourceSummary(properties: Record<string, unknown>) {
+  return String(properties.source_label || properties.source || properties.data_origin || "Source not reported on this record");
+}
+
+function mapboxStaticImageUrl(selected: SelectedMapFeature | null) {
+  if (!selected || !MAPBOX_TOKEN) return "";
+  const [lon, lat] = selected.coordinates;
+  const marker = `pin-l+ff6e4a(${lon.toFixed(5)},${lat.toFixed(5)})`;
+  return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/${marker}/${lon.toFixed(5)},${lat.toFixed(5)},10.5,0/760x320@2x?access_token=${encodeURIComponent(MAPBOX_TOKEN)}`;
 }
 
 export function MapPanel({ context, assessment }: Props) {
@@ -434,6 +558,7 @@ export function MapPanel({ context, assessment }: Props) {
   const styleRef = useRef<BasemapKey>("dark");
   const [basemap, setBasemap] = useState<BasemapKey>("dark");
   const [layersOpen, setLayersOpen] = useState(false);
+  const [selectedFeature, setSelectedFeature] = useState<SelectedMapFeature | null>(null);
   const [visible, setVisible] = useState<Record<LayerKey, boolean>>({
     fires: true,
     perimeters: true,
@@ -480,11 +605,38 @@ export function MapPanel({ context, assessment }: Props) {
     map.on("load", () => {
       applyMapFog(map);
       addSourcesAndLayers(map);
-      for (const layerId of ["fires", "shelters", "public-orders", "public-ess", "routes", "roads", "live-fires", "live-roads", "live-perimeters-line"]) {
-        map.on("click", layerId, (event) => {
+      const hoverPopup = new mapboxgl.Popup({
+        closeButton: false,
+        closeOnClick: false,
+        className: "fireguard-map-hover-popup",
+        maxWidth: "440px",
+        offset: 18,
+      });
+      map.on("click", (event) => {
+        const queryableLayers = INTERACTIVE_LAYER_IDS.filter((layerId) => map.getLayer(layerId));
+        if (!queryableLayers.length) return;
+        const tolerance = 16;
+        const features = map.queryRenderedFeatures(
+          [
+            [event.point.x - tolerance, event.point.y - tolerance],
+            [event.point.x + tolerance, event.point.y + tolerance],
+          ],
+          { layers: queryableLayers },
+        );
+        const feature = features[0];
+        if (!feature) return;
+        hoverPopup.remove();
+        setSelectedFeature({
+          coordinates: [event.lngLat.lng, event.lngLat.lat],
+          properties: { ...(feature.properties || {}) },
+        });
+      });
+      for (const layerId of INTERACTIVE_LAYER_IDS) {
+        map.on("mousemove", layerId, (event) => {
           const feature = event.features?.[0];
           if (!feature || !event.lngLat) return;
-          new mapboxgl.Popup({ closeButton: true, closeOnClick: true })
+          map.getCanvas().style.cursor = "pointer";
+          hoverPopup
             .setLngLat(event.lngLat)
             .setHTML(featureHtml(feature.properties))
             .addTo(map);
@@ -494,6 +646,7 @@ export function MapPanel({ context, assessment }: Props) {
         });
         map.on("mouseleave", layerId, () => {
           map.getCanvas().style.cursor = "";
+          hoverPopup.remove();
         });
       }
     });
@@ -598,7 +751,95 @@ export function MapPanel({ context, assessment }: Props) {
           ) : null}
         </div>
       </div>
+      <MapFeatureDetailDialog selected={selectedFeature} onClose={() => setSelectedFeature(null)} />
     </section>
+  );
+}
+
+function MapFeatureDetailDialog({ selected, onClose }: { selected: SelectedMapFeature | null; onClose: () => void }) {
+  const kind = selectedFeatureKind(selected);
+  const imageUrl = mapboxStaticImageUrl(selected);
+  const coordinates = selected?.coordinates;
+  const rows = selectedFeatureRows(selected?.properties || {});
+  const sourceUrl = String(selected?.properties.source_url || "");
+
+  return (
+    <Dialog className="bp6-dark fireguard-map-detail-dialog" icon="map-marker" isOpen={Boolean(selected)} onClose={onClose} title="Map Record Detail">
+      <div className={Classes.DIALOG_BODY}>
+        {selected ? (
+          <div className="fg-map-detail">
+            <section className={`fg-map-detail-hero fg-map-detail-${kind}`}>
+              <div>
+                <p className="ops-section-kicker">{popupKindLabel(kind)}</p>
+                <H4 className="m-0">{featureTitle(selected.properties)}</H4>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Tag intent={kind === "route-blocked" || kind === "fire" || kind === "public" ? Intent.WARNING : Intent.PRIMARY}>
+                    {String(selected.properties.scope || selected.properties.status || "operational record")}
+                  </Tag>
+                  {selected.properties.decision_eligible ? (
+                    <Tag minimal intent={selected.properties.decision_eligible === "yes" ? Intent.SUCCESS : Intent.NONE}>
+                      {selected.properties.decision_eligible === "yes" ? "decision evidence" : "display overlay"}
+                    </Tag>
+                  ) : null}
+                </div>
+              </div>
+              <div className="fg-map-coordinate-card">
+                <span>Coordinate</span>
+                <strong>{coordinates ? `${coordinates[1].toFixed(5)}, ${coordinates[0].toFixed(5)}` : "not available"}</strong>
+              </div>
+            </section>
+
+            {imageUrl ? (
+              <section className="fg-map-detail-image">
+                <img src={imageUrl} alt={`Satellite context around ${featureTitle(selected.properties)}`} />
+                <div>
+                  <Tag minimal intent={Intent.PRIMARY}>Mapbox satellite context</Tag>
+                  <span>Image generated from the clicked coordinate.</span>
+                </div>
+              </section>
+            ) : null}
+
+            <section className="fg-map-detail-source">
+              <H5 className="m-0">Data Source</H5>
+              <p>{sourceSummary(selected.properties)}</p>
+              <div className="fg-map-source-grid">
+                <DetailLine label="Source" value={String(selected.properties.source || selected.properties.data_origin || "not reported")} />
+                <DetailLine label="Record ID" value={String(selected.properties.id || selected.properties.zone_id || "not reported")} />
+                <DetailLine label="Decision Use" value={selected.properties.decision_eligible === "yes" ? "Used in decision context" : selected.properties.decision_eligible === "no" ? "Live overlay only" : "Layer reference"} />
+              </div>
+              {sourceUrl ? (
+                <a className="fg-map-source-link" href={sourceUrl} target="_blank" rel="noreferrer">
+                  Open source record
+                </a>
+              ) : null}
+            </section>
+
+            <section className="fg-map-detail-fields">
+              <H5 className="m-0">Record Fields</H5>
+              <div className="fg-map-detail-grid">
+                {rows.map(([key, value]) => (
+                  <DetailLine key={key} label={fieldLabel(key)} value={String(value)} />
+                ))}
+              </div>
+            </section>
+          </div>
+        ) : null}
+      </div>
+      <div className={Classes.DIALOG_FOOTER}>
+        <div className={Classes.DIALOG_FOOTER_ACTIONS}>
+          <Button text="Close" onClick={onClose} />
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+function DetailLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="fg-map-detail-line">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -622,12 +863,12 @@ function MapboxTokenPending({ context, assessment }: Props) {
       <div className="absolute inset-x-0 top-1/2 mx-auto w-[min(560px,calc(100%-48px))] -translate-y-1/2 border border-[#5f6b7c] bg-[#182430]/95 p-5 shadow-2xl">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h3 className="m-0 text-lg font-semibold">Map basemap unavailable</h3>
+            <h3 className="m-0 text-lg font-semibold">Map provider offline</h3>
             <p className="m-0 mt-2 max-w-xl text-sm text-[#abb3bf]">
-              The assessment workflow is still available. Operational records will render on the Mapbox basemap once the map provider is connected for this deployment.
+              Assessment controls remain active. Operational records render on the Mapbox basemap when the provider token is present.
             </p>
           </div>
-          <Tag intent={Intent.WARNING}>map provider pending</Tag>
+          <Tag intent={Intent.WARNING}>provider offline</Tag>
         </div>
         <div className="mt-4 grid grid-cols-2 gap-2 md:grid-cols-4">
           <MapPendingMetric label="Fires" value={context?.fires.length ?? 0} />
