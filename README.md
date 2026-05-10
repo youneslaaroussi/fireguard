@@ -25,6 +25,7 @@ The application retrieves operational context, evaluates conflicting constraints
 - Repository: https://github.com/youneslaaroussi/fireguard
 - Transparency ledger: [docs/transparency_ledger.md](docs/transparency_ledger.md)
 - Walkthrough script: [docs/demo_script.md](docs/demo_script.md)
+- Demo presentation: [docs/presentation/fireguard-demo-deck.pptx](docs/presentation/fireguard-demo-deck.pptx)
 
 ## Safety Notice
 
