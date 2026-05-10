@@ -30,6 +30,8 @@ The application retrieves operational context, evaluates conflicting constraints
 
 FireGuard does **not** issue official emergency alerts and must not be used for real emergency response. Public-facing actions require explicit approval, SMS delivery is restricted to allowlisted test contacts, and action tasks are sent to test channels such as GitHub Issues unless an official agency integration is configured.
 
+![FireGuard safety and trust boundaries](docs/assets/fireguard-trust-boundaries-web.png)
+
 Data and actions are labeled by source:
 
 - **real/live provider paths**: Fivetran, BigQuery, Elastic, Gemini, Google Routes, Twilio, Phoenix/Arize;
@@ -98,6 +100,8 @@ Elastic stores both operational evidence and audit records. Geospatial indices d
 
 ## Provider Integrations
 
+![FireGuard provider integrations](docs/assets/fireguard-provider-integrations-web.png)
+
 ### Elastic
 
 Elastic is the official track integration and the core operational memory:
@@ -130,6 +134,8 @@ Twilio executes real messages, but only to allowlisted test contacts. GitHub Iss
 
 ## Data Sources
 
+![FireGuard data lineage](docs/assets/fireguard-data-lineage-web.png)
+
 Live/open source paths:
 
 - NASA FIRMS active fire detections;
@@ -156,6 +162,8 @@ Operator/test paths:
 - simulated municipal webhooks when GitHub task backend is not configured.
 
 ## Walkthrough
+
+![FireGuard demo walkthrough](docs/assets/fireguard-demo-walkthrough-web.png)
 
 1. Open the hosted dashboard.
 2. Show provider strip: Fivetran, Elastic, Gemini, Phoenix/Arize.
@@ -328,6 +336,8 @@ Expected hosted health signal:
 ```
 
 ## Cloud Run Deployment
+
+![FireGuard Cloud Run deployment](docs/assets/fireguard-cloud-run-deployment-web.png)
 
 The deployed API uses Cloud Run, Secret Manager, and a Serverless VPC connector to reach the Elasticsearch VM on its private address. The Elastic VM firewall must allow the connector CIDR on port 9200; the hosted deployment currently allows the `fireguard-connector` range `10.8.0.0/28` to the `fireguard-elastic` target tag.
 
