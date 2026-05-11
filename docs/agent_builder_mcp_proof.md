@@ -2,7 +2,7 @@
 
 FireGuard's judged track is Elastic. The agent proof has two layers:
 
-1. **Google Agent Builder path**: a code-first Google ADK agent plus a managed Vertex AI Agent Engine proof runtime.
+1. **Google Agent Builder path**: a Gemini Enterprise app with a connected FireGuard data store, a custom Agent Engine agent, a code-first Google ADK agent, and a managed Vertex AI Agent Engine proof runtime.
 2. **Partner MCP path**: the official Elastic MCP server exposed to the ADK agent as an `McpToolset`.
 
 ## Current Agent Builder Path
@@ -18,6 +18,21 @@ Managed Agent Engine resource:
 ```text
 projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296
 ```
+
+Gemini Enterprise app and data store:
+
+```text
+projects/425727109076/locations/global/collections/default_collection/engines/fireguard-command-center
+projects/425727109076/locations/global/collections/default_collection/dataStores/fireguard-operational-memory
+```
+
+Registered Gemini Enterprise custom agent:
+
+```text
+projects/425727109076/locations/global/collections/default_collection/engines/fireguard-command-center/assistants/default_assistant/agents/7406279429546975436
+```
+
+The data store imported five FireGuard operational-memory documents covering the safety policy, agent architecture, data lineage, Elastic MCP proof, and route-rejection scenario. The registered custom agent points at the managed Agent Engine resource above.
 
 The ADK agent uses:
 
@@ -136,5 +151,17 @@ Verified result:
 That is the strongest answer to the Devpost requirement:
 
 ```text
-Gemini / Google Agent Builder agent + Elastic partner MCP server + real tool execution.
+Gemini Enterprise app with connected data store + enabled Agent Engine agent + Elastic partner MCP server + real tool execution.
 ```
+
+## Gemini Enterprise Actions Tab
+
+Gemini Enterprise's console currently says actions are configured through data
+connectors and are available with an Enterprise Plus license. FireGuard is on
+Gemini Enterprise Standard. The Actions tab is therefore not claimed as
+configured.
+
+The real FireGuard action path is the Agent Engine-backed FireGuard tool API:
+resident SMS, shelter notification, road-ops task, dispatch task, approval
+state, execution logs, and trace export. Those actions are gated by backend
+validators and human approval, not by the Gemini Enterprise Actions tab.
