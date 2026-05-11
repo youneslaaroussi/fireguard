@@ -29,7 +29,7 @@
           },
           {
             "type": "text",
-            "text": "[{\"index\":\"fire_hotspots\",\"status\":\"open\",\"docs.count\":60},{\"index\":\"fire_perimeters\",\"status\":\"open\",\"docs.count\":53}]",
+            "text": "[{\"index\":\"fire_hotspots\",\"status\":\"open\",\"docs.count\":61},{\"index\":\"fire_perimeters\",\"status\":\"open\",\"docs.count\":55}]",
             "annotations": null,
             "meta": null
           }
@@ -41,14 +41,14 @@
   ],
   "text": [
     "FireGuard is checking operational state, route constraints, shelter status, and approval gates.\n\n",
-    "### FireGuard Posture\n\n- **Decision:** Monitor. No public evacuation action executes unless FireGuard validation and a human approval gate allow it.\n- **Reason:** Incident demo-incident-bc-001 involves low-risk wildfire activity near three zones. While evacuation triggers are currently false, road closures and shelter statuses necessitate monitoring and preparation.\n- **Confidence:** 0.90.\n- **Validation:** No validation errors were returned for the current action set.\n- **Action state:** incident_timeline_update for demo-incident-bc-001 is pending.\n- **Evidence:** Elastic MCP confirmed fire_hotspots=60 docs, fire_perimeters=53 docs; FireGuard assessment mode is `gemini_selected` with Gemini status `completed`.\n- **Next operator move:** keep live fire, road, wind, and shelter feeds refreshed; rerun assessment when any constraint changes."
+    "### FireGuard Posture\n\n- **Decision:** Monitor. No public evacuation action executes unless FireGuard validation and a human approval gate allow it.\n- **Reason:** Incident demo-incident-bc-001 involves low wildfire risk across three zones with no active evacuation trigger, though road closures and closed shelters limit safe routing options.\n- **Confidence:** 0.95.\n- **Validation:** No validation errors were returned for the current action set.\n- **Action state:** incident_timeline_update for demo-incident-bc-001 is pending.\n- **Evidence:** Elastic MCP confirmed fire_hotspots=61 docs, fire_perimeters=55 docs; FireGuard assessment mode is `gemini_selected` with Gemini status `completed`.\n- **Visuals:** [route map](https://fireguard-api-425727109076.us-central1.run.app/visuals/route-map.svg?incident_id=demo-incident-bc-001) and [tool trace](https://fireguard-api-425727109076.us-central1.run.app/visuals/tool-trace.svg?incident_id=demo-incident-bc-001).\n- **Next operator move:** keep live fire, road, wind, and shelter feeds refreshed; rerun assessment when any constraint changes."
   ],
   "proof_metadata": [
     {
       "agent_engine_runtime": "custom_managed_vertex_agent_engine",
       "gemini_location": "global",
       "gemini_model": "gemini-3.1-flash-lite-preview",
-      "gemini_response_text": "### FireGuard Incident Status: demo-incident-bc-001\n\n* **Current Posture:** Monitor. No public evacuation action is recommended.\n* **Available Data:** Elastic indices `fire_hotspots` (60 docs) and `fire_perimeters` (53 docs) are currently open.\n* **Reasoning:** Current wildfire activity is assessed as low-risk; evacuation triggers remain false across all three monitored zones.\n* **Pending Actions:** Update the incident timeline to reflect the current monitoring status.\n* **Human Approval:** No a",
+      "gemini_response_text": "### Incident Command Status: demo-incident-bc-001\n\n* **Current Posture:** Monitor; no public evacuation action is recommended.\n* **Reasoning:** Wildfire risk is currently assessed as low across all zones, and no active evacuation triggers have been met.\n* **Infrastructure Constraints:** Existing road closures and closed shelter facilities currently limit viable routing options.\n* **Data Sources:** Elastic indexing confirmed active data feeds: `fire_hotspots` (61 docs) and `fire_perimeters` (55 d",
       "elastic_mcp_url_configured": true,
       "index_pattern": "fire*"
     }

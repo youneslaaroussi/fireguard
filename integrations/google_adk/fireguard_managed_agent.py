@@ -6,6 +6,7 @@ import os
 import time
 import uuid
 from typing import Any
+from urllib.parse import quote
 
 
 class FireGuardManagedAgent:
@@ -458,13 +459,13 @@ class FireGuardManagedAgent:
             "- Public-facing execution remains gated by FireGuard validation and human approval."
         )
 
-    @classmethod
     def _operator_assessment_text(
-        cls,
+        self,
         assessment: dict[str, Any],
         mcp_response: dict[str, Any],
     ) -> str:
-        brief = cls._assessment_brief(assessment)
+        brief = self._assessment_brief(assessment)
+        incident_id = str(brief.get("incident_id") or assessment.get("incident_id") or "demo-incident-bc-001")
         strategy = str(brief.get("strategy") or "unknown").replace("_", " ")
         summary = brief.get("summary") or "FireGuard assessment completed."
         confidence = brief.get("confidence")
@@ -486,12 +487,21 @@ class FireGuardManagedAgent:
             action_text = "; ".join(action_lines)
         else:
             action_text = "No actions are queued."
-        indices = cls._mcp_index_summary(mcp_response)
+        indices = self._mcp_index_summary(mcp_response)
         evidence = ", ".join(
             f"{row.get('index')}={row.get('docs')} docs"
             for row in indices
             if row.get("index")
         ) or "Elastic MCP returned no fire index counts."
+        encoded_incident = quote(incident_id, safe="")
+        route_map_url = (
+            f"{self.fireguard_api_base_url}/visuals/route-map.svg"
+            f"?incident_id={encoded_incident}"
+        )
+        tool_trace_url = (
+            f"{self.fireguard_api_base_url}/visuals/tool-trace.svg"
+            f"?incident_id={encoded_incident}"
+        )
 
         return (
             "### FireGuard Posture\n\n"
@@ -501,6 +511,7 @@ class FireGuardManagedAgent:
             f"- **Validation:** {validation}\n"
             f"- **Action state:** {action_text}.\n"
             f"- **Evidence:** Elastic MCP confirmed {evidence}; FireGuard assessment mode is `{brief.get('planning_mode')}` with Gemini status `{brief.get('gemini_status')}`.\n"
+            f"- **Visuals:** [route map]({route_map_url}) and [tool trace]({tool_trace_url}).\n"
             "- **Next operator move:** keep live fire, road, wind, and shelter feeds refreshed; rerun assessment when any constraint changes."
         )
 

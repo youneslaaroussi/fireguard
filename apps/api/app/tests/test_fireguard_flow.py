@@ -32,6 +32,7 @@ from app.services.source_zone_context import (
     sync_source_backed_zone_context,
 )
 from app.services.store import FireGuardStore
+from app.services.visuals import render_route_map_svg, render_tool_trace_svg
 from app.services.zone_operations import (
     google_sheets_zone_operations_status,
     parse_zone_operations_sheet_values,
@@ -291,6 +292,24 @@ def test_full_assessment_creates_auditable_action_bundle() -> None:
     assert len(assessment.actions) >= 6
     assert any(event["tool"] == "search_operational_memory" for event in assessment.trace)
     assert any("closure" in alt["reason"].lower() for alt in assessment.plan.rejected_alternatives)
+
+
+def test_visual_artifacts_render_routes_and_tool_usage() -> None:
+    store = seeded_store()
+    run_assessment(store)
+
+    route_svg = render_route_map_svg(store)
+    trace_svg = render_tool_trace_svg(store)
+
+    assert route_svg.startswith("<svg")
+    assert "FIREGUARD ROUTE DECISION ARTIFACT" in route_svg
+    assert "ZONE_A" in route_svg
+    assert "REJECTED" in route_svg
+    assert "GOOGLE ROUTES + FIREGUARD VALIDATION" in route_svg
+    assert trace_svg.startswith("<svg")
+    assert "FIREGUARD TOOL TRACE ARTIFACT" in trace_svg
+    assert "compute_routes" in trace_svg
+    assert "gemini_plan_decision" in trace_svg
 
 
 def test_gemini_selected_decision_changes_final_plan(monkeypatch) -> None:

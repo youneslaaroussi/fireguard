@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.routers import actions, agent, evals, incidents, ingest, integrations, residents, shelters, sync, tools, traces
+from app.routers import actions, agent, evals, incidents, ingest, integrations, residents, shelters, sync, tools, traces, visuals
 from app.services.fivetran import sync_fivetran_to_elastic
 from app.services.store import INDEX_MAPPINGS, get_store
 
@@ -33,6 +33,7 @@ app.include_router(shelters.router)
 app.include_router(sync.router)
 app.include_router(tools.router)
 app.include_router(traces.router)
+app.include_router(visuals.router)
 
 
 @app.on_event("startup")
