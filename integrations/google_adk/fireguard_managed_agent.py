@@ -32,6 +32,13 @@ class FireGuardManagedAgent:
             "FIREGUARD_ELASTIC_MCP_ID_TOKEN_AUDIENCE", ""
         ).strip()
         self.mcp_timeout = float(os.environ.get("FIREGUARD_ELASTIC_MCP_TIMEOUT_SECONDS", "20"))
+        self.fireguard_api_base_url = os.environ.get(
+            "FIREGUARD_API_BASE_URL",
+            "https://fireguard-api-425727109076.us-central1.run.app",
+        ).rstrip("/")
+        self.fireguard_api_timeout = float(
+            os.environ.get("FIREGUARD_API_TIMEOUT_SECONDS", "45")
+        )
 
     def set_up(self) -> None:
         from google import genai
@@ -86,18 +93,16 @@ class FireGuardManagedAgent:
             },
         }
 
-        response = self.client.models.generate_content(
-            model=self.model,
-            contents="Return exactly FIREGUARD_GEMINI_31_READY.",
+        assessment = self._call_fireguard_assessment()
+        prompt = self._assessment_prompt(
+            user_message=message,
+            assessment=assessment,
+            mcp_response=mcp_response,
         )
+        response = self.client.models.generate_content(model=self.model, contents=prompt)
         gemini_text = (response.text or "").strip()
         model_version = getattr(response, "model_version", None) or self.model
-        summary = self._verification_summary(
-            model=self.model,
-            index_pattern=index_pattern,
-            mcp_response=mcp_response,
-            gemini_text=gemini_text,
-        )
+        summary = self._operator_assessment_text(assessment, mcp_response)
 
         yield {
             "model_version": model_version,
@@ -106,10 +111,11 @@ class FireGuardManagedAgent:
                 "agent_engine_runtime": "custom_managed_vertex_agent_engine",
                 "gemini_location": self.model_location,
                 "gemini_model": self.model,
-                "gemini_response_text": gemini_text,
+                "gemini_response_text": gemini_text[:500],
                 "elastic_mcp_url_configured": bool(self.mcp_url),
                 "index_pattern": index_pattern,
             },
+            "fireguard_assessment": self._assessment_brief(assessment),
         }
 
     def streaming_agent_run_with_events(self, **kwargs: Any):
@@ -118,7 +124,7 @@ class FireGuardManagedAgent:
         yield {
             "events": [
                 self._agent_text_event(
-                    text="Assessing FireGuard operational memory, Elastic MCP fire indices, route constraints, and approval-gated action policy.",
+                    text="FireGuard is checking operational state, route constraints, shelter status, and approval gates.\n\n",
                     invocation_id=invocation_id,
                     partial=True,
                     turn_complete=False,
@@ -240,8 +246,17 @@ class FireGuardManagedAgent:
             ),
             {},
         )
+        assessment = next(
+            (
+                event["fireguard_assessment"]
+                for event in events
+                if isinstance(event.get("fireguard_assessment"), dict)
+            ),
+            {},
+        )
         return {
             "fireguardProof": proof,
+            "fireguardAssessment": assessment,
             "fireguardFunctionCalls": function_calls,
             "fireguardFunctionResponses": function_responses,
         }
@@ -328,6 +343,166 @@ class FireGuardManagedAgent:
         if hasattr(result, "dict"):
             return result.dict()
         return {"result": str(result)}
+
+    def _call_fireguard_assessment(self) -> dict[str, Any]:
+        import requests
+
+        response = requests.post(
+            f"{self.fireguard_api_base_url}/incidents/assess",
+            timeout=self.fireguard_api_timeout,
+        )
+        response.raise_for_status()
+        return response.json()
+
+    @staticmethod
+    def _assessment_brief(assessment: dict[str, Any]) -> dict[str, Any]:
+        plan = assessment.get("plan") or {}
+        context = assessment.get("context") or {}
+        return {
+            "incident_id": assessment.get("incident_id"),
+            "strategy": plan.get("recommended_strategy"),
+            "summary": plan.get("summary"),
+            "confidence": plan.get("confidence"),
+            "requires_approval": plan.get("requires_approval"),
+            "planning_mode": assessment.get("planning_mode"),
+            "gemini_status": assessment.get("gemini_status"),
+            "validation_errors": assessment.get("validation_errors") or [],
+            "source_lineage": context.get("source_lineage") or {},
+            "steps": [
+                {
+                    "zone_id": step.get("zone_id"),
+                    "strategy": step.get("strategy"),
+                    "destination_id": step.get("destination_id"),
+                    "start_after_minutes": step.get("start_after_minutes"),
+                    "message": step.get("message"),
+                }
+                for step in (plan.get("steps") or [])[:4]
+            ],
+            "actions": [
+                {
+                    "action_type": action.get("action_type"),
+                    "target": action.get("target"),
+                    "status": action.get("status"),
+                    "requires_human_approval": action.get("requires_human_approval"),
+                    "message": action.get("message"),
+                }
+                for action in (assessment.get("actions") or [])[:5]
+            ],
+        }
+
+    def _assessment_prompt(
+        self,
+        *,
+        user_message: str,
+        assessment: dict[str, Any],
+        mcp_response: dict[str, Any],
+    ) -> str:
+        brief = self._assessment_brief(assessment)
+        indices = self._mcp_index_summary(mcp_response)
+        return (
+            "You are FireGuard, a wildfire evacuation coordination agent inside "
+            "Gemini Enterprise. Answer as an incident-command assistant, not as a "
+            "test harness. Do not mention verification tokens, model versions, "
+            "runtime names, or raw implementation details. Be concise and concrete.\n\n"
+            "Use only the supplied FireGuard assessment and Elastic MCP evidence. "
+            "State the current posture, the reason, what actions are pending, and "
+            "what remains gated by human approval. If the current strategy is "
+            "monitor, say clearly that no public evacuation action is recommended.\n\n"
+            f"User request: {user_message or 'Assess current wildfire evacuation posture'}\n\n"
+            f"Elastic MCP evidence: {json.dumps(indices, ensure_ascii=True)}\n\n"
+            f"FireGuard assessment: {json.dumps(brief, ensure_ascii=True)}\n\n"
+            "Return 4-7 short bullets under a single heading. Avoid filler."
+        )
+
+    @staticmethod
+    def _mcp_index_summary(mcp_response: dict[str, Any]) -> list[dict[str, Any]]:
+        rows: list[dict[str, Any]] = []
+        for content in mcp_response.get("content", []):
+            text = content.get("text") if isinstance(content, dict) else None
+            if not text or not text.startswith("["):
+                continue
+            try:
+                parsed = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(parsed, list):
+                rows.extend(row for row in parsed if isinstance(row, dict))
+        return [
+            {
+                "index": row.get("index"),
+                "status": row.get("status"),
+                "docs": row.get("docs.count"),
+            }
+            for row in rows
+        ]
+
+    @classmethod
+    def _deterministic_assessment_text(cls, assessment: dict[str, Any]) -> str:
+        brief = cls._assessment_brief(assessment)
+        summary = brief.get("summary") or "FireGuard assessment completed."
+        strategy = brief.get("strategy") or "unknown"
+        actions = brief.get("actions") or []
+        action_line = (
+            "No public actions are queued."
+            if not actions
+            else ", ".join(
+                f"{action.get('action_type')} -> {action.get('target')}"
+                for action in actions
+            )
+        )
+        return (
+            "FireGuard Assessment\n"
+            f"- Current strategy: {strategy}.\n"
+            f"- {summary}\n"
+            f"- Actions: {action_line}\n"
+            "- Public-facing execution remains gated by FireGuard validation and human approval."
+        )
+
+    @classmethod
+    def _operator_assessment_text(
+        cls,
+        assessment: dict[str, Any],
+        mcp_response: dict[str, Any],
+    ) -> str:
+        brief = cls._assessment_brief(assessment)
+        strategy = str(brief.get("strategy") or "unknown").replace("_", " ")
+        summary = brief.get("summary") or "FireGuard assessment completed."
+        confidence = brief.get("confidence")
+        confidence_text = (
+            f"{float(confidence):.2f}" if isinstance(confidence, int | float) else "n/a"
+        )
+        errors = brief.get("validation_errors") or []
+        validation = (
+            errors[0]
+            if errors
+            else "No validation errors were returned for the current action set."
+        )
+        actions = brief.get("actions") or []
+        if actions:
+            action_lines = [
+                f"{action.get('action_type')} for {action.get('target')} is {action.get('status')}"
+                for action in actions
+            ]
+            action_text = "; ".join(action_lines)
+        else:
+            action_text = "No actions are queued."
+        indices = cls._mcp_index_summary(mcp_response)
+        evidence = ", ".join(
+            f"{row.get('index')}={row.get('docs')} docs"
+            for row in indices
+            if row.get("index")
+        ) or "Elastic MCP returned no fire index counts."
+
+        return (
+            "### FireGuard Posture\n\n"
+            f"- **Decision:** {strategy.title()}. No public evacuation action executes unless FireGuard validation and a human approval gate allow it.\n"
+            f"- **Reason:** {summary}\n"
+            f"- **Confidence:** {confidence_text}.\n"
+            f"- **Validation:** {validation}\n"
+            f"- **Action state:** {action_text}.\n"
+            f"- **Evidence:** Elastic MCP confirmed {evidence}; FireGuard assessment mode is `{brief.get('planning_mode')}` with Gemini status `{brief.get('gemini_status')}`.\n"
+            "- **Next operator move:** keep live fire, road, wind, and shelter feeds refreshed; rerun assessment when any constraint changes."
+        )
 
     @staticmethod
     def _verification_summary(

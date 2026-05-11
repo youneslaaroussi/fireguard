@@ -29,7 +29,7 @@
           },
           {
             "type": "text",
-            "text": "[{\"index\":\"fire_hotspots\",\"status\":\"open\",\"docs.count\":56},{\"index\":\"fire_perimeters\",\"status\":\"open\",\"docs.count\":51}]",
+            "text": "[{\"index\":\"fire_hotspots\",\"status\":\"open\",\"docs.count\":60},{\"index\":\"fire_perimeters\",\"status\":\"open\",\"docs.count\":53}]",
             "annotations": null,
             "meta": null
           }
@@ -40,15 +40,15 @@
     }
   ],
   "text": [
-    "Assessing FireGuard operational memory, Elastic MCP fire indices, route constraints, and approval-gated action policy.",
-    "FireGuard Verification Summary\nModel requested: gemini-3.1-flash-lite-preview\nGemini response: FIREGUARD_GEMINI_31_READY\nManaged runtime: custom_managed_vertex_agent_engine\nTool called: elastic_mcp_list_indices\nIndex pattern: fire*\nIndices returned:\n- fire_hotspots status=open docs=56\n- fire_perimeters status=open docs=51"
+    "FireGuard is checking operational state, route constraints, shelter status, and approval gates.\n\n",
+    "### FireGuard Posture\n\n- **Decision:** Monitor. No public evacuation action executes unless FireGuard validation and a human approval gate allow it.\n- **Reason:** Incident demo-incident-bc-001 involves low-risk wildfire activity near three zones. While evacuation triggers are currently false, road closures and shelter statuses necessitate monitoring and preparation.\n- **Confidence:** 0.90.\n- **Validation:** No validation errors were returned for the current action set.\n- **Action state:** incident_timeline_update for demo-incident-bc-001 is pending.\n- **Evidence:** Elastic MCP confirmed fire_hotspots=60 docs, fire_perimeters=53 docs; FireGuard assessment mode is `gemini_selected` with Gemini status `completed`.\n- **Next operator move:** keep live fire, road, wind, and shelter feeds refreshed; rerun assessment when any constraint changes."
   ],
   "proof_metadata": [
     {
       "agent_engine_runtime": "custom_managed_vertex_agent_engine",
       "gemini_location": "global",
       "gemini_model": "gemini-3.1-flash-lite-preview",
-      "gemini_response_text": "FIREGUARD_GEMINI_31_READY",
+      "gemini_response_text": "### FireGuard Incident Status: demo-incident-bc-001\n\n* **Current Posture:** Monitor. No public evacuation action is recommended.\n* **Available Data:** Elastic indices `fire_hotspots` (60 docs) and `fire_perimeters` (53 docs) are currently open.\n* **Reasoning:** Current wildfire activity is assessed as low-risk; evacuation triggers remain false across all three monitored zones.\n* **Pending Actions:** Update the incident timeline to reflect the current monitoring status.\n* **Human Approval:** No a",
       "elastic_mcp_url_configured": true,
       "index_pattern": "fire*"
     }
