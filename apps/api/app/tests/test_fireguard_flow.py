@@ -1738,13 +1738,17 @@ def test_managed_agent_engine_proof_requires_gemini_31_and_elastic_mcp() -> None
     assert "custom_managed_vertex_agent_engine" in managed_source
     assert "gemini-3.1-flash-lite-preview" in managed_source
     assert "elastic_mcp_list_indices" in managed_source
+    assert "register_operations" in managed_source
+    assert "streaming_agent_run_with_events" in managed_source
     assert "AGENT_ENGINE_EXPECTED_MODEL" in verify_source
+    assert "AGENT_ENGINE_VERIFY_METHOD" in verify_source
+    assert proof["method"] == "streaming_agent_run_with_events"
     assert proof["expected_model"] == "gemini-3.1-flash-lite-preview"
     assert proof["checks"]["has_expected_model"] is True
     assert proof["checks"]["has_elastic_mcp_call"] is True
     assert proof["checks"]["has_elastic_mcp_response"] is True
-    assert proof["proof"]["function_call"]["name"] == "elastic_mcp_list_indices"
-    assert proof["proof_metadata"]["agent_engine_runtime"] == "custom_managed_vertex_agent_engine"
+    assert proof["function_calls"][0]["name"] == "elastic_mcp_list_indices"
+    assert proof["proof_metadata"][0]["agent_engine_runtime"] == "custom_managed_vertex_agent_engine"
 
 
 def test_agent_manifest_exposes_precise_agent_builder_claim() -> None:

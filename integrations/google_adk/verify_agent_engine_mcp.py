@@ -22,6 +22,10 @@ EXPECTED_MODEL = os.environ.get(
     "AGENT_ENGINE_EXPECTED_MODEL",
     "gemini-3.1-flash-lite-preview",
 )
+VERIFY_METHOD = os.environ.get(
+    "AGENT_ENGINE_VERIFY_METHOD",
+    "streaming_agent_run_with_events",
+)
 
 
 def _parts(event: dict[str, Any]) -> list[dict[str, Any]]:
@@ -51,13 +55,33 @@ def main() -> int:
 
     vertexai.init(project=PROJECT, location=LOCATION, credentials=credentials)
     agent = agent_engines.get(RESOURCE)
+    if not hasattr(agent, VERIFY_METHOD):
+        available = [
+            method
+            for method in ("query", "stream_query", "streaming_agent_run_with_events")
+            if hasattr(agent, method)
+        ]
+        print(
+            json.dumps(
+                {
+                    "status": "failed",
+                    "resource": RESOURCE,
+                    "method": VERIFY_METHOD,
+                    "available_methods": available,
+                    "error": f"Agent Engine method {VERIFY_METHOD!r} is not registered.",
+                },
+                indent=2,
+            )
+        )
+        return 1
+
     message = (
         "Verification only: call elastic_mcp_list_indices with index_pattern fire* "
         "and return the tool result. Do not call other tools."
     )
 
     events = list(
-        agent.stream_query(
+        getattr(agent, VERIFY_METHOD)(
             user_id="fireguard-devpost-proof",
             message=message,
         )
@@ -112,6 +136,7 @@ def main() -> int:
             else "failed"
         ),
         "resource": RESOURCE,
+        "method": VERIFY_METHOD,
         "expected_model": EXPECTED_MODEL,
         "model_versions": model_versions,
         "event_count": len(events),

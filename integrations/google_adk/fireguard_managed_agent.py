@@ -43,6 +43,13 @@ class FireGuardManagedAgent:
     def query(self, **kwargs: Any) -> dict[str, Any]:
         return list(self.stream_query(**kwargs))[-1]
 
+    def register_operations(self, **kwargs: Any) -> dict[str, list[str]]:
+        """Expose both SDK and Gemini Enterprise invocation method names."""
+        return {
+            "": ["query"],
+            "stream": ["stream_query", "streaming_agent_run_with_events"],
+        }
+
     def stream_query(self, **kwargs: Any):
         message = kwargs.get("message") or kwargs.get("input") or ""
         index_pattern = self._index_pattern_from_message(str(message))
@@ -102,6 +109,10 @@ class FireGuardManagedAgent:
                 "index_pattern": index_pattern,
             },
         }
+
+    def streaming_agent_run_with_events(self, **kwargs: Any):
+        """Gemini Enterprise custom-agent streaming entrypoint."""
+        yield from self.stream_query(**kwargs)
 
     @staticmethod
     def _index_pattern_from_message(message: str) -> str:

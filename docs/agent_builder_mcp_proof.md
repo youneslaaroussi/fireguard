@@ -34,6 +34,8 @@ projects/425727109076/locations/global/collections/default_collection/engines/fi
 
 The data store imported five FireGuard operational-memory documents covering the safety policy, agent architecture, data lineage, Elastic MCP proof, and route-rejection scenario. The registered custom agent points at the managed Agent Engine resource above.
 
+The managed runtime explicitly registers `streaming_agent_run_with_events`, the stream method Gemini Enterprise calls when a user chats with the custom agent in the Gemini Enterprise UI.
+
 The ADK agent uses:
 
 - Vertex/Gemini model configuration;
