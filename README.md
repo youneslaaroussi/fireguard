@@ -277,6 +277,13 @@ The ADK package is the code-first Agent Builder source path. It loads `tools.ope
 
 The managed Agent Engine proof uses `integrations/google_adk/fireguard_managed_agent.py`, not the standard regional ADK `LlmAgent` runtime. That is intentional: in this project, Gemini 3.1 is exposed through Vertex `global`, while the `us-central1` regional ADK resolver does not expose Gemini 3.1. The managed proof runtime still runs inside Vertex AI Agent Engine and verifies both Vertex global Gemini 3.1 and the official Elastic MCP tool call.
 
+For stronger Agent Builder surface proof, the project also creates a Google Discovery Engine / Agent Builder Search engine and default assistant:
+
+- `projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder`
+- `projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder/assistants/default_assistant`
+
+That engine has `agent-gallery`, `no-code-agent-builder`, and `model-selector` features enabled. The attempted ADK Agent registration points at the managed Agent Engine resource above, but Google currently returns `FAILED_PRECONDITION: Failed to allocate quota for agent creation.` This is documented in `docs/proofs/agent_builder_registry_2026-05-11.json`; do not claim a fully registered no-code UI agent until that quota gate is cleared.
+
 ## Phoenix / Arize
 
 For local Phoenix:

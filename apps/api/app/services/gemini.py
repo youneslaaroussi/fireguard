@@ -41,6 +41,13 @@ MANAGED_AGENT_ENGINE_RESOURCE = (
     "reasoningEngines/9137720630806839296"
 )
 MANAGED_AGENT_ENGINE_MODEL = "gemini-3.1-flash-lite-preview"
+AGENT_BUILDER_ENGINE_RESOURCE = (
+    "projects/425727109076/locations/global/collections/default_collection/"
+    "engines/fireguard-agent-builder"
+)
+AGENT_BUILDER_ASSISTANT_RESOURCE = (
+    f"{AGENT_BUILDER_ENGINE_RESOURCE}/assistants/default_assistant"
+)
 
 
 def agent_manifest(settings: Settings) -> dict:
@@ -63,9 +70,14 @@ def agent_manifest(settings: Settings) -> dict:
             "managed_agent_engine_runtime": "custom_managed_vertex_agent_engine",
             "managed_agent_engine_model": MANAGED_AGENT_ENGINE_MODEL,
             "gemini_location": "global",
+            "registry_engine_resource": AGENT_BUILDER_ENGINE_RESOURCE,
+            "registry_assistant_resource": AGENT_BUILDER_ASSISTANT_RESOURCE,
+            "registry_features": ["agent-gallery", "no-code-agent-builder", "model-selector"],
+            "registry_agent_registration_status": "blocked_by_google_quota_allocation",
             "verify_command": "cd integrations/google_adk && python verify_agent_engine_mcp.py",
             "proof_file": "docs/proofs/agent_engine_elastic_mcp_2026-05-11.json",
-            "claim": "Managed Vertex AI Agent Engine runtime calls Vertex global Gemini 3.1 and the official Elastic MCP service. The verifier fails unless the Gemini 3.1 model version and elastic_mcp_list_indices response are present.",
+            "registry_proof_file": "docs/proofs/agent_builder_registry_2026-05-11.json",
+            "claim": "Managed Vertex AI Agent Engine runtime calls Vertex global Gemini 3.1 and the official Elastic MCP service. A Google Agent Builder/Search engine and assistant were created by Discovery Engine API with no-code agent builder features enabled; final Agent resource registration is blocked by Google quota allocation. The verifier fails unless the Gemini 3.1 model version and elastic_mcp_list_indices response are present.",
         },
         "supporting_integrations": {
             "fivetran": {
@@ -101,6 +113,9 @@ def gemini_status(settings: Settings) -> dict[str, Any]:
             "managed_agent_engine_resource": MANAGED_AGENT_ENGINE_RESOURCE,
             "managed_agent_engine_model": MANAGED_AGENT_ENGINE_MODEL,
             "managed_agent_engine_runtime": "custom_managed_vertex_agent_engine",
+            "registry_engine_resource": AGENT_BUILDER_ENGINE_RESOURCE,
+            "registry_assistant_resource": AGENT_BUILDER_ASSISTANT_RESOURCE,
+            "registry_agent_registration_status": "blocked_by_google_quota_allocation",
             "elastic_mcp_verified": True,
         },
     }

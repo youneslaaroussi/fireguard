@@ -1,0 +1,54 @@
+{
+  "status": "partial_google_quota_blocked",
+  "created_at": "2026-05-11T12:47:46Z",
+  "project": "verdant-upgrade-493301-q1",
+  "project_number": "425727109076",
+  "api": "discoveryengine.googleapis.com/v1alpha",
+  "enabled_service": "discoveryengine.googleapis.com",
+  "agent_builder_engine": {
+    "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder",
+    "displayName": "FireGuard Agent Builder",
+    "solutionType": "SOLUTION_TYPE_SEARCH",
+    "searchEngineConfig": {
+      "searchTier": "SEARCH_TIER_ENTERPRISE",
+      "searchAddOns": ["SEARCH_ADD_ON_LLM"]
+    },
+    "industryVertical": "GENERIC",
+    "appType": "APP_TYPE_INTRANET",
+    "features": {
+      "agent-gallery": "FEATURE_STATE_ON",
+      "no-code-agent-builder": "FEATURE_STATE_ON",
+      "model-selector": "FEATURE_STATE_ON"
+    }
+  },
+  "agent_builder_assistant": {
+    "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder/assistants/default_assistant",
+    "displayName": "FireGuard Command Assistant",
+    "description": "Google Agent Builder assistant surface for FireGuard. Registered agent connects to the managed Vertex Agent Engine runtime that calls Gemini 3.1 and Elastic MCP.",
+    "webGroundingType": "WEB_GROUNDING_TYPE_DISABLED",
+    "createTime": "2026-05-11T12:46:57.852527Z",
+    "updateTime": "2026-05-11T12:47:46.795167Z"
+  },
+  "managed_agent_engine_target": {
+    "name": "projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296",
+    "runtime": "custom_managed_vertex_agent_engine",
+    "model": "gemini-3.1-flash-lite-preview",
+    "elastic_mcp_verified": true
+  },
+  "attempted_agent_registration": {
+    "displayName": "FireGuard Evacuation Agent",
+    "definition": "adkAgentDefinition.provisionedReasoningEngine",
+    "reasoningEngine": "projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296",
+    "global_result": {
+      "code": 400,
+      "status": "FAILED_PRECONDITION",
+      "message": "Failed to allocate quota for agent creation."
+    },
+    "us_result": {
+      "code": 400,
+      "status": "FAILED_PRECONDITION",
+      "message": "Failed to allocate quota for agent creation."
+    }
+  },
+  "honest_claim": "FireGuard has a working managed Vertex Agent Engine proof using Gemini 3.1 and Elastic MCP. A Google Agent Builder/Search engine and assistant were also created through Discovery Engine API with no-code agent builder features enabled. The final Agent resource registration under that assistant is blocked by Google quota allocation, so FireGuard must not claim that a no-code Agent Builder UI agent is fully registered until that quota gate is cleared."
+}

@@ -1755,6 +1755,16 @@ def test_agent_manifest_exposes_precise_agent_builder_claim() -> None:
     assert manifest["google_adk"]["purpose"].startswith("Code-first Google ADK agent")
     assert manifest["agent_builder"]["managed_agent_engine_model"] == "gemini-3.1-flash-lite-preview"
     assert manifest["agent_builder"]["managed_agent_engine_runtime"] == "custom_managed_vertex_agent_engine"
+    assert manifest["agent_builder"]["registry_engine_resource"].endswith(
+        "/engines/fireguard-agent-builder"
+    )
+    assert manifest["agent_builder"]["registry_assistant_resource"].endswith(
+        "/assistants/default_assistant"
+    )
+    assert (
+        manifest["agent_builder"]["registry_agent_registration_status"]
+        == "blocked_by_google_quota_allocation"
+    )
     assert "elastic_mcp_list_indices" in manifest["agent_builder"]["claim"]
 
 
