@@ -44,6 +44,13 @@
       "status": "FAILED_PRECONDITION",
       "message": "Failed to allocate quota for agent creation."
     },
+    "console_result": {
+      "code": 400,
+      "status": "FAILED_PRECONDITION",
+      "message": "Failed to allocate quota for agent creation.",
+      "tracking_number": "c6089420672150813",
+      "observed_at": "2026-05-11T13:03:36Z"
+    },
     "us_result": {
       "code": 400,
       "status": "FAILED_PRECONDITION",
