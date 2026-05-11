@@ -28,10 +28,33 @@ VERIFY_METHOD = os.environ.get(
 )
 
 
+def _flatten_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    flattened: list[dict[str, Any]] = []
+    for event in events:
+        nested = event.get("events")
+        if isinstance(nested, list):
+            flattened.extend(item for item in nested if isinstance(item, dict))
+        else:
+            flattened.append(event)
+    return flattened
+
+
 def _parts(event: dict[str, Any]) -> list[dict[str, Any]]:
     content = event.get("content") or {}
     parts = content.get("parts")
     return parts if isinstance(parts, list) else []
+
+
+def _metadata_items(event: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    metadata = event.get("customMetadata") or event.get("custom_metadata") or {}
+    value = metadata.get(key)
+    return value if isinstance(value, list) else []
+
+
+def _metadata_proof(event: dict[str, Any]) -> dict[str, Any] | None:
+    metadata = event.get("customMetadata") or event.get("custom_metadata") or {}
+    proof = metadata.get("fireguardProof")
+    return proof if isinstance(proof, dict) else None
 
 
 def main() -> int:
@@ -87,36 +110,54 @@ def main() -> int:
         )
     )
 
+    flat_events = _flatten_events(events)
     function_calls = [
         part["function_call"]
-        for event in events
+        for event in flat_events
         for part in _parts(event)
         if "function_call" in part
     ]
+    function_calls.extend(
+        item
+        for event in flat_events
+        for item in _metadata_items(event, "fireguardFunctionCalls")
+    )
     function_responses = [
         part["function_response"]
-        for event in events
+        for event in flat_events
         for part in _parts(event)
         if "function_response" in part
     ]
+    function_responses.extend(
+        item
+        for event in flat_events
+        for item in _metadata_items(event, "fireguardFunctionResponses")
+    )
     text_parts = [
         part["text"]
-        for event in events
+        for event in flat_events
         for part in _parts(event)
         if "text" in part
     ]
     model_versions = sorted(
         {
             event.get("model_version")
-            for event in events
+            or event.get("modelVersion")
+            for event in flat_events
             if isinstance(event.get("model_version"), str)
+            or isinstance(event.get("modelVersion"), str)
         }
     )
     proof_metadata = [
         event.get("fireguard_proof")
-        for event in events
+        for event in flat_events
         if isinstance(event.get("fireguard_proof"), dict)
     ]
+    proof_metadata.extend(
+        proof
+        for event in flat_events
+        if (proof := _metadata_proof(event)) is not None
+    )
     has_expected_model = not EXPECTED_MODEL or EXPECTED_MODEL in model_versions
     has_elastic_mcp_call = any(
         call.get("name") == "elastic_mcp_list_indices" for call in function_calls

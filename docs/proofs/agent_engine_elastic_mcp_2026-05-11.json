@@ -6,7 +6,7 @@
   "model_versions": [
     "gemini-3.1-flash-lite-preview"
   ],
-  "event_count": 3,
+  "event_count": 2,
   "function_calls": [
     {
       "name": "elastic_mcp_list_indices",
@@ -29,7 +29,7 @@
           },
           {
             "type": "text",
-            "text": "[{\"index\":\"fire_hotspots\",\"status\":\"open\",\"docs.count\":61},{\"index\":\"fire_perimeters\",\"status\":\"open\",\"docs.count\":55}]",
+            "text": "[{\"index\":\"fire_hotspots\",\"status\":\"open\",\"docs.count\":56},{\"index\":\"fire_perimeters\",\"status\":\"open\",\"docs.count\":51}]",
             "annotations": null,
             "meta": null
           }
@@ -40,7 +40,8 @@
     }
   ],
   "text": [
-    "FireGuard Verification Summary\nModel requested: gemini-3.1-flash-lite-preview\nGemini response: FIREGUARD_GEMINI_31_READY\nManaged runtime: custom_managed_vertex_agent_engine\nTool called: elastic_mcp_list_indices\nIndex pattern: fire*\nIndices returned:\n- fire_hotspots status=open docs=61\n- fire_perimeters status=open docs=55"
+    "Assessing FireGuard operational memory, Elastic MCP fire indices, route constraints, and approval-gated action policy.",
+    "FireGuard Verification Summary\nModel requested: gemini-3.1-flash-lite-preview\nGemini response: FIREGUARD_GEMINI_31_READY\nManaged runtime: custom_managed_vertex_agent_engine\nTool called: elastic_mcp_list_indices\nIndex pattern: fire*\nIndices returned:\n- fire_hotspots status=open docs=56\n- fire_perimeters status=open docs=51"
   ],
   "proof_metadata": [
     {

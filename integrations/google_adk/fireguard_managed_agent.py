@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import time
+import uuid
 from typing import Any
 
 
@@ -51,7 +53,7 @@ class FireGuardManagedAgent:
         }
 
     def stream_query(self, **kwargs: Any):
-        message = kwargs.get("message") or kwargs.get("input") or ""
+        message = self._message_from_kwargs(kwargs)
         index_pattern = self._index_pattern_from_message(str(message))
 
         yield {
@@ -112,7 +114,34 @@ class FireGuardManagedAgent:
 
     def streaming_agent_run_with_events(self, **kwargs: Any):
         """Gemini Enterprise custom-agent streaming entrypoint."""
-        yield from self.stream_query(**kwargs)
+        invocation_id = self._invocation_id_from_kwargs(kwargs)
+        yield {
+            "events": [
+                self._agent_text_event(
+                    text="Assessing FireGuard operational memory, Elastic MCP fire indices, route constraints, and approval-gated action policy.",
+                    invocation_id=invocation_id,
+                    partial=True,
+                    turn_complete=False,
+                    custom_metadata={"fireguardStatus": "running"},
+                )
+            ]
+        }
+
+        raw_events = list(self.stream_query(**kwargs))
+        text = self._final_text(raw_events)
+        metadata = self._event_metadata(raw_events)
+
+        yield {
+            "events": [
+                self._agent_text_event(
+                    text=text,
+                    invocation_id=invocation_id,
+                    partial=False,
+                    turn_complete=True,
+                    custom_metadata=metadata,
+                )
+            ]
+        }
 
     @staticmethod
     def _index_pattern_from_message(message: str) -> str:
@@ -122,6 +151,130 @@ class FireGuardManagedAgent:
         if "road*" in lowered:
             return "road*"
         return "fire*"
+
+    @classmethod
+    def _message_from_kwargs(cls, kwargs: dict[str, Any]) -> str:
+        for key in ("message", "input", "prompt", "query"):
+            value = kwargs.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+
+        request_json = kwargs.get("request_json")
+        if isinstance(request_json, str) and request_json.strip():
+            try:
+                parsed = json.loads(request_json)
+            except json.JSONDecodeError:
+                return request_json
+            found = cls._find_text(parsed)
+            if found:
+                return found
+
+        found = cls._find_text(kwargs)
+        return found or ""
+
+    @classmethod
+    def _find_text(cls, value: Any) -> str:
+        if isinstance(value, str):
+            return value if value.strip() else ""
+        if isinstance(value, list):
+            for item in value:
+                found = cls._find_text(item)
+                if found:
+                    return found
+            return ""
+        if not isinstance(value, dict):
+            return ""
+
+        for key in ("text", "message", "query", "input", "prompt"):
+            child = value.get(key)
+            if isinstance(child, str) and child.strip():
+                return child
+        for key in ("content", "contents", "parts", "messages"):
+            found = cls._find_text(value.get(key))
+            if found:
+                return found
+        return ""
+
+    @staticmethod
+    def _invocation_id_from_kwargs(kwargs: dict[str, Any]) -> str:
+        for key in ("invocation_id", "invocationId", "session_id", "sessionId"):
+            value = kwargs.get(key)
+            if isinstance(value, str) and value.strip():
+                return value
+        return f"fireguard-{uuid.uuid4().hex}"
+
+    @staticmethod
+    def _parts(event: dict[str, Any]) -> list[dict[str, Any]]:
+        content = event.get("content") or {}
+        parts = content.get("parts")
+        return parts if isinstance(parts, list) else []
+
+    @classmethod
+    def _final_text(cls, events: list[dict[str, Any]]) -> str:
+        for event in reversed(events):
+            for part in cls._parts(event):
+                text = part.get("text")
+                if isinstance(text, str) and text.strip():
+                    return text
+        return "FireGuard completed the assessment, but no text response was returned."
+
+    @classmethod
+    def _event_metadata(cls, events: list[dict[str, Any]]) -> dict[str, Any]:
+        function_calls = [
+            part["function_call"]
+            for event in events
+            for part in cls._parts(event)
+            if isinstance(part.get("function_call"), dict)
+        ]
+        function_responses = [
+            part["function_response"]
+            for event in events
+            for part in cls._parts(event)
+            if isinstance(part.get("function_response"), dict)
+        ]
+        proof = next(
+            (
+                event["fireguard_proof"]
+                for event in events
+                if isinstance(event.get("fireguard_proof"), dict)
+            ),
+            {},
+        )
+        return {
+            "fireguardProof": proof,
+            "fireguardFunctionCalls": function_calls,
+            "fireguardFunctionResponses": function_responses,
+        }
+
+    def _agent_text_event(
+        self,
+        *,
+        text: str,
+        invocation_id: str,
+        partial: bool,
+        turn_complete: bool,
+        custom_metadata: dict[str, Any],
+    ) -> dict[str, Any]:
+        return {
+            "modelVersion": self.model,
+            "content": {
+                "parts": [{"text": text}],
+                "role": "model",
+            },
+            "partial": partial,
+            "turnComplete": turn_complete,
+            "invocationId": invocation_id,
+            "author": "FireGuard Evacuation Agent",
+            "actions": {
+                "stateDelta": {},
+                "artifactDelta": {},
+                "requestedAuthConfigs": {},
+                "requestedToolConfirmations": {},
+            },
+            "id": f"fireguard-event-{uuid.uuid4().hex}",
+            "timestamp": time.time(),
+            "customMetadata": custom_metadata,
+        }
 
     async def _call_elastic_mcp_list_indices(self, index_pattern: str) -> dict[str, Any]:
         if not self.mcp_url:
