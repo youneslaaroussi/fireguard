@@ -1761,10 +1761,10 @@ def test_agent_manifest_exposes_precise_agent_builder_claim() -> None:
     assert manifest["agent_builder"]["registry_assistant_resource"].endswith(
         "/assistants/default_assistant"
     )
-    assert (
-        manifest["agent_builder"]["registry_agent_registration_status"]
-        == "blocked_by_google_quota_allocation"
+    assert manifest["agent_builder"]["registry_agent_resource"].endswith(
+        "/agents/5249668721636343430"
     )
+    assert manifest["agent_builder"]["registry_agent_registration_status"] == "enabled"
     assert "elastic_mcp_list_indices" in manifest["agent_builder"]["claim"]
 
 

@@ -1,10 +1,19 @@
 {
-  "status": "partial_google_quota_blocked",
-  "created_at": "2026-05-11T12:47:46Z",
+  "status": "enabled",
+  "created_at": "2026-05-11T13:12:09.191033Z",
   "project": "verdant-upgrade-493301-q1",
   "project_number": "425727109076",
   "api": "discoveryengine.googleapis.com/v1alpha",
   "enabled_service": "discoveryengine.googleapis.com",
+  "gemini_enterprise_subscription": {
+    "billing_account": "0103EA-358C70-63A5C4",
+    "billing_account_license_config": "billingAccounts/0103EA-358C70-63A5C4/billingAccountLicenseConfigs/45d5f80d-8a7c-4f47-ad1c-b7f6ced7329a",
+    "project_license_config": "projects/425727109076/locations/global/licenseConfigs/ac0f0b99-ed47-4864-a7de-f0ba3ba12af2",
+    "subscription_tier": "SUBSCRIPTION_TIER_ENTERPRISE",
+    "subscription_term": "SUBSCRIPTION_TERM_ONE_MONTH",
+    "state": "ACTIVE",
+    "license_assigned_to": "younes@deepshot.co"
+  },
   "agent_builder_engine": {
     "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder",
     "displayName": "FireGuard Agent Builder",
@@ -29,33 +38,37 @@
     "createTime": "2026-05-11T12:46:57.852527Z",
     "updateTime": "2026-05-11T12:47:46.795167Z"
   },
+  "agent_builder_agent": {
+    "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder/assistants/default_assistant/agents/5249668721636343430",
+    "displayName": "FireGuard Evacuation Agent",
+    "description": "Plans wildfire evacuation actions from FireGuard operational facts, with deterministic validation, human approval, and Elastic MCP-backed incident memory.",
+    "state": "ENABLED",
+    "languageCode": "en-US",
+    "starterPrompts": [
+      {
+        "text": "Assess the current wildfire threat, route constraints, shelter status, and prepare a human-approved action bundle."
+      },
+      {
+        "text": "Explain why the fastest route was rejected and list the evidence IDs used."
+      }
+    ],
+    "customPlaceholderText": "Assess current wildfire evacuation posture",
+    "adkAgentDefinition": {
+      "provisionedReasoningEngine": {
+        "reasoningEngine": "projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296"
+      }
+    }
+  },
   "managed_agent_engine_target": {
     "name": "projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296",
     "runtime": "custom_managed_vertex_agent_engine",
     "model": "gemini-3.1-flash-lite-preview",
     "elastic_mcp_verified": true
   },
-  "attempted_agent_registration": {
-    "displayName": "FireGuard Evacuation Agent",
-    "definition": "adkAgentDefinition.provisionedReasoningEngine",
-    "reasoningEngine": "projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296",
-    "global_result": {
-      "code": 400,
-      "status": "FAILED_PRECONDITION",
-      "message": "Failed to allocate quota for agent creation."
-    },
-    "console_result": {
-      "code": 400,
-      "status": "FAILED_PRECONDITION",
-      "message": "Failed to allocate quota for agent creation.",
-      "tracking_number": "c6089420672150813",
-      "observed_at": "2026-05-11T13:03:36Z"
-    },
-    "us_result": {
-      "code": 400,
-      "status": "FAILED_PRECONDITION",
-      "message": "Failed to allocate quota for agent creation."
-    }
+  "resolved_blocker": {
+    "previous_error": "Failed to allocate quota for agent creation.",
+    "console_tracking_number": "c6089420672150813",
+    "resolution": "Created Gemini Enterprise Standard monthly subscription, distributed one global license to project 425727109076, and assigned that license to younes@deepshot.co."
   },
-  "honest_claim": "FireGuard has a working managed Vertex Agent Engine proof using Gemini 3.1 and Elastic MCP. A Google Agent Builder/Search engine and assistant were also created through Discovery Engine API with no-code agent builder features enabled. The final Agent resource registration under that assistant is blocked by Google quota allocation, so FireGuard must not claim that a no-code Agent Builder UI agent is fully registered until that quota gate is cleared."
+  "honest_claim": "FireGuard has a working managed Vertex Agent Engine proof using Gemini 3.1 and Elastic MCP. A Google Agent Builder / Gemini Enterprise app, assistant, and enabled Custom agent via Agent Engine are registered through Discovery Engine API and point at the managed Agent Engine runtime."
 }
