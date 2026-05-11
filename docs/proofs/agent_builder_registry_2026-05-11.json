@@ -1,6 +1,6 @@
 {
-  "status": "enabled",
-  "created_at": "2026-05-11T13:12:09.191033Z",
+  "status": "enabled_with_connected_data_store",
+  "created_at": "2026-05-11T13:27:43.007164Z",
   "project": "verdant-upgrade-493301-q1",
   "project_number": "425727109076",
   "api": "discoveryengine.googleapis.com/v1alpha",
@@ -14,9 +14,25 @@
     "state": "ACTIVE",
     "license_assigned_to": "younes@deepshot.co"
   },
+  "connected_data_store": {
+    "name": "projects/425727109076/locations/global/collections/default_collection/dataStores/fireguard-operational-memory",
+    "displayName": "FireGuard Operational Memory",
+    "industryVertical": "GENERIC",
+    "solutionTypes": ["SOLUTION_TYPE_SEARCH"],
+    "contentConfig": "CONTENT_REQUIRED",
+    "imported_documents": [
+      "fg-policy-safety",
+      "fg-agent-architecture",
+      "fg-data-lineage",
+      "fg-elastic-mcp-proof",
+      "fg-route-rejection"
+    ],
+    "import_success_count": 5
+  },
   "agent_builder_engine": {
-    "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder",
-    "displayName": "FireGuard Agent Builder",
+    "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-command-center",
+    "displayName": "FireGuard Command Center",
+    "dataStoreIds": ["fireguard-operational-memory"],
     "solutionType": "SOLUTION_TYPE_SEARCH",
     "searchEngineConfig": {
       "searchTier": "SEARCH_TIER_ENTERPRISE",
@@ -31,15 +47,13 @@
     }
   },
   "agent_builder_assistant": {
-    "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder/assistants/default_assistant",
+    "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-command-center/assistants/default_assistant",
     "displayName": "FireGuard Command Assistant",
-    "description": "Google Agent Builder assistant surface for FireGuard. Registered agent connects to the managed Vertex Agent Engine runtime that calls Gemini 3.1 and Elastic MCP.",
-    "webGroundingType": "WEB_GROUNDING_TYPE_DISABLED",
-    "createTime": "2026-05-11T12:46:57.852527Z",
-    "updateTime": "2026-05-11T12:47:46.795167Z"
+    "description": "Gemini Enterprise assistant for FireGuard. It is connected to FireGuard operational memory and a custom Agent Engine agent backed by Gemini 3.1, Elastic MCP, deterministic validation, and approval-gated actions.",
+    "webGroundingType": "WEB_GROUNDING_TYPE_DISABLED"
   },
   "agent_builder_agent": {
-    "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder/assistants/default_assistant/agents/5249668721636343430",
+    "name": "projects/425727109076/locations/global/collections/default_collection/engines/fireguard-command-center/assistants/default_assistant/agents/7406279429546975436",
     "displayName": "FireGuard Evacuation Agent",
     "description": "Plans wildfire evacuation actions from FireGuard operational facts, with deterministic validation, human approval, and Elastic MCP-backed incident memory.",
     "state": "ENABLED",
@@ -65,10 +79,14 @@
     "model": "gemini-3.1-flash-lite-preview",
     "elastic_mcp_verified": true
   },
+  "actions_tab_status": {
+    "status": "not_configured_in_gemini_enterprise_ui",
+    "reason": "Gemini Enterprise says Actions are configured through data connectors and require Enterprise Plus. FireGuard action execution is implemented in the Agent Engine-backed FireGuard API tools and remains visible in the FireGuard approval/action timeline."
+  },
   "resolved_blocker": {
     "previous_error": "Failed to allocate quota for agent creation.",
     "console_tracking_number": "c6089420672150813",
     "resolution": "Created Gemini Enterprise Standard monthly subscription, distributed one global license to project 425727109076, and assigned that license to younes@deepshot.co."
   },
-  "honest_claim": "FireGuard has a working managed Vertex Agent Engine proof using Gemini 3.1 and Elastic MCP. A Google Agent Builder / Gemini Enterprise app, assistant, and enabled Custom agent via Agent Engine are registered through Discovery Engine API and point at the managed Agent Engine runtime."
+  "honest_claim": "FireGuard has a working managed Vertex Agent Engine proof using Gemini 3.1 and Elastic MCP. A Google Agent Builder / Gemini Enterprise app named FireGuard Command Center has a connected FireGuard Operational Memory data store and an enabled Custom agent via Agent Engine that points at the managed Agent Engine runtime."
 }

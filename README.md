@@ -277,14 +277,15 @@ The ADK package is the code-first Agent Builder source path. It loads `tools.ope
 
 The managed Agent Engine proof uses `integrations/google_adk/fireguard_managed_agent.py`, not the standard regional ADK `LlmAgent` runtime. That is intentional: in this project, Gemini 3.1 is exposed through Vertex `global`, while the `us-central1` regional ADK resolver does not expose Gemini 3.1. The managed proof runtime still runs inside Vertex AI Agent Engine and verifies both Vertex global Gemini 3.1 and the official Elastic MCP tool call.
 
-For stronger Agent Builder surface proof, the project also creates a Google Discovery Engine / Agent Builder Search engine and default assistant:
+For stronger Agent Builder surface proof, the project also creates a Google Discovery Engine / Gemini Enterprise app, connected data store, and default assistant:
 
-- `projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder`
-- `projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder/assistants/default_assistant`
+- `projects/425727109076/locations/global/collections/default_collection/engines/fireguard-command-center`
+- `projects/425727109076/locations/global/collections/default_collection/dataStores/fireguard-operational-memory`
+- `projects/425727109076/locations/global/collections/default_collection/engines/fireguard-command-center/assistants/default_assistant`
 
-That engine has `agent-gallery`, `no-code-agent-builder`, and `model-selector` features enabled. After assigning a Gemini Enterprise Standard license, the custom Agent Engine agent is fully registered and enabled:
+That engine has `agent-gallery`, `no-code-agent-builder`, and `model-selector` features enabled. The connected data store contains FireGuard operational memory, safety policy, data lineage, architecture, Elastic MCP proof, and route-rejection scenario documents. After assigning a Gemini Enterprise Standard license, the custom Agent Engine agent is fully registered and enabled:
 
-- `projects/425727109076/locations/global/collections/default_collection/engines/fireguard-agent-builder/assistants/default_assistant/agents/5249668721636343430`
+- `projects/425727109076/locations/global/collections/default_collection/engines/fireguard-command-center/assistants/default_assistant/agents/7406279429546975436`
 
 The agent's `adkAgentDefinition.provisionedReasoningEngine` points at the managed Agent Engine resource above.
 

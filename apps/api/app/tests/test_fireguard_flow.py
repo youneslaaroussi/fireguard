@@ -1756,14 +1756,18 @@ def test_agent_manifest_exposes_precise_agent_builder_claim() -> None:
     assert manifest["agent_builder"]["managed_agent_engine_model"] == "gemini-3.1-flash-lite-preview"
     assert manifest["agent_builder"]["managed_agent_engine_runtime"] == "custom_managed_vertex_agent_engine"
     assert manifest["agent_builder"]["registry_engine_resource"].endswith(
-        "/engines/fireguard-agent-builder"
+        "/engines/fireguard-command-center"
     )
     assert manifest["agent_builder"]["registry_assistant_resource"].endswith(
         "/assistants/default_assistant"
     )
     assert manifest["agent_builder"]["registry_agent_resource"].endswith(
-        "/agents/5249668721636343430"
+        "/agents/7406279429546975436"
     )
+    assert manifest["agent_builder"]["connected_data_store_resource"].endswith(
+        "/dataStores/fireguard-operational-memory"
+    )
+    assert manifest["agent_builder"]["connected_data_store_documents"] == 5
     assert manifest["agent_builder"]["registry_agent_registration_status"] == "enabled"
     assert "elastic_mcp_list_indices" in manifest["agent_builder"]["claim"]
 

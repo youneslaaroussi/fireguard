@@ -43,13 +43,17 @@ MANAGED_AGENT_ENGINE_RESOURCE = (
 MANAGED_AGENT_ENGINE_MODEL = "gemini-3.1-flash-lite-preview"
 AGENT_BUILDER_ENGINE_RESOURCE = (
     "projects/425727109076/locations/global/collections/default_collection/"
-    "engines/fireguard-agent-builder"
+    "engines/fireguard-command-center"
 )
 AGENT_BUILDER_ASSISTANT_RESOURCE = (
     f"{AGENT_BUILDER_ENGINE_RESOURCE}/assistants/default_assistant"
 )
 AGENT_BUILDER_AGENT_RESOURCE = (
-    f"{AGENT_BUILDER_ASSISTANT_RESOURCE}/agents/5249668721636343430"
+    f"{AGENT_BUILDER_ASSISTANT_RESOURCE}/agents/7406279429546975436"
+)
+AGENT_BUILDER_DATA_STORE_RESOURCE = (
+    "projects/425727109076/locations/global/collections/default_collection/"
+    "dataStores/fireguard-operational-memory"
 )
 
 
@@ -76,12 +80,14 @@ def agent_manifest(settings: Settings) -> dict:
             "registry_engine_resource": AGENT_BUILDER_ENGINE_RESOURCE,
             "registry_assistant_resource": AGENT_BUILDER_ASSISTANT_RESOURCE,
             "registry_agent_resource": AGENT_BUILDER_AGENT_RESOURCE,
+            "connected_data_store_resource": AGENT_BUILDER_DATA_STORE_RESOURCE,
+            "connected_data_store_documents": 5,
             "registry_features": ["agent-gallery", "no-code-agent-builder", "model-selector"],
             "registry_agent_registration_status": "enabled",
             "verify_command": "cd integrations/google_adk && python verify_agent_engine_mcp.py",
             "proof_file": "docs/proofs/agent_engine_elastic_mcp_2026-05-11.json",
             "registry_proof_file": "docs/proofs/agent_builder_registry_2026-05-11.json",
-            "claim": "Managed Vertex AI Agent Engine runtime calls Vertex global Gemini 3.1 and the official Elastic MCP service. A Google Agent Builder/Gemini Enterprise app, assistant, and enabled custom Agent Engine agent were created by Discovery Engine API. The verifier fails unless the Gemini 3.1 model version and elastic_mcp_list_indices response are present.",
+            "claim": "Managed Vertex AI Agent Engine runtime calls Vertex global Gemini 3.1 and the official Elastic MCP service. A Google Agent Builder/Gemini Enterprise app has a connected FireGuard operational-memory data store and an enabled custom Agent Engine agent created by Discovery Engine API. The verifier fails unless the Gemini 3.1 model version and elastic_mcp_list_indices response are present.",
         },
         "supporting_integrations": {
             "fivetran": {
@@ -120,6 +126,8 @@ def gemini_status(settings: Settings) -> dict[str, Any]:
             "registry_engine_resource": AGENT_BUILDER_ENGINE_RESOURCE,
             "registry_assistant_resource": AGENT_BUILDER_ASSISTANT_RESOURCE,
             "registry_agent_resource": AGENT_BUILDER_AGENT_RESOURCE,
+            "connected_data_store_resource": AGENT_BUILDER_DATA_STORE_RESOURCE,
+            "connected_data_store_documents": 5,
             "registry_agent_registration_status": "enabled",
             "elastic_mcp_verified": True,
         },
