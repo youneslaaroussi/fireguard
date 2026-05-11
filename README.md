@@ -67,7 +67,7 @@ FireGuard closes that gap by converting fragmented signals into a coordinated pl
 | Fivetran | Managed Connector SDK connection syncs source records into BigQuery. |
 | BigQuery bridge | Backend replaces Elastic streams from Fivetran-loaded warehouse tables. |
 | Live overlay | Fivetran BigQuery rows populate separate `live_*` Elastic indices for situational awareness; direct source adapters are explicit fallback only. These records are visible but not decision-eligible for replay plans. |
-| Gemini / Agent Builder | Hosted backend uses Vertex Gemini `gemini-3.1-flash-lite-preview` in `global`; the Google ADK agent is deployed to Vertex AI Agent Engine and has remotely called Elastic MCP. |
+| Gemini / Agent Builder | Hosted backend uses Vertex Gemini `gemini-3.1-flash-lite-preview` in `global`; the managed Vertex AI Agent Engine proof runtime also uses Gemini 3.1 and has remotely called Elastic MCP. |
 | Routes | Google Routes is used when configured, with deterministic fallback for local tests. |
 | Twilio | Outbound SMS works only for allowlisted test recipients; inbound opt-in webhook stores consent metadata. |
 | Action tasks | Approved shelter, road-ops, and dispatch actions can create real GitHub Issues. |
@@ -126,7 +126,9 @@ Fivetran is the ingestion layer:
 
 ### Gemini / Google Cloud
 
-The backend uses Vertex Gemini for tool-grounded assessment, with deterministic backend services enforcing safety math and action rules. The ADK package lives in [integrations/google_adk](integrations/google_adk), exposes the same OpenAPI tool contract used by the hosted API, and loads the official Elastic MCP server for partner-track proof through Vertex AI Agent Engine.
+The backend uses Vertex Gemini for tool-grounded assessment, with deterministic backend services enforcing safety math and action rules. The ADK package lives in [integrations/google_adk](integrations/google_adk), exposes the same OpenAPI tool contract used by the hosted API, and loads the official Elastic MCP server for partner-track proof.
+
+The managed Agent Engine proof is deployed at `projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296`. Its runtime calls Vertex global `gemini-3.1-flash-lite-preview` and the private Elastic MCP Cloud Run service from inside Vertex AI Agent Engine; the verifier fails unless both the Gemini 3.1 model version and `elastic_mcp_list_indices` tool response are present.
 
 ### Arize Phoenix
 

@@ -1721,6 +1721,32 @@ def test_google_adk_agent_declares_elastic_mcp_toolset() -> None:
     assert proof_path.exists()
 
 
+def test_managed_agent_engine_proof_requires_gemini_31_and_elastic_mcp() -> None:
+    repo_root = Path(__file__).resolve().parents[4]
+    managed_agent_path = repo_root / "integrations" / "google_adk" / "fireguard_managed_agent.py"
+    deploy_path = repo_root / "integrations" / "google_adk" / "deploy_managed_agent_engine.py"
+    verify_path = repo_root / "integrations" / "google_adk" / "verify_agent_engine_mcp.py"
+    proof_path = repo_root / "docs" / "proofs" / "agent_engine_elastic_mcp_2026-05-11.json"
+
+    assert managed_agent_path.exists()
+    assert deploy_path.exists()
+
+    managed_source = managed_agent_path.read_text()
+    verify_source = verify_path.read_text()
+    proof = json.loads(proof_path.read_text())
+
+    assert "custom_managed_vertex_agent_engine" in managed_source
+    assert "gemini-3.1-flash-lite-preview" in managed_source
+    assert "elastic_mcp_list_indices" in managed_source
+    assert "AGENT_ENGINE_EXPECTED_MODEL" in verify_source
+    assert proof["expected_model"] == "gemini-3.1-flash-lite-preview"
+    assert proof["checks"]["has_expected_model"] is True
+    assert proof["checks"]["has_elastic_mcp_call"] is True
+    assert proof["checks"]["has_elastic_mcp_response"] is True
+    assert proof["proof"]["function_call"]["name"] == "elastic_mcp_list_indices"
+    assert proof["proof_metadata"]["agent_engine_runtime"] == "custom_managed_vertex_agent_engine"
+
+
 def test_phoenix_cloud_space_name_builds_space_specific_endpoint() -> None:
     from app.services.phoenix import _application_url, _collector_endpoint
 

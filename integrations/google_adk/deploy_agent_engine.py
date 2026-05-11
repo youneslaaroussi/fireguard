@@ -78,6 +78,9 @@ deploy_kwargs = {
     ),
 }
 
+if os.environ.get("GOOGLE_API_KEY"):
+    deploy_kwargs["env_vars"]["GOOGLE_API_KEY"] = os.environ["GOOGLE_API_KEY"]
+
 if os.environ.get("AGENT_ENGINE_SERVICE_ACCOUNT"):
     deploy_kwargs["service_account"] = os.environ["AGENT_ENGINE_SERVICE_ACCOUNT"]
 

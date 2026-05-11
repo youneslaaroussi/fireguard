@@ -50,7 +50,10 @@ def agent_manifest(settings: Settings) -> dict:
             "agent_path": "integrations/google_adk/fireguard_agent",
             "tool_spec": "integrations/google_adk/fireguard_agent/tools.openapi.json",
             "run_command": "cd integrations/google_adk && adk run fireguard_agent",
-            "purpose": "Code-first ADK agent deployed to Vertex AI Agent Engine with FireGuard OpenAPI tools and Elastic MCP tools while backend services enforce deterministic safety and approvals.",
+            "purpose": "Code-first ADK agent plus managed Vertex AI Agent Engine proof runtime. The managed runtime calls Vertex global Gemini 3.1 and Elastic MCP while backend services enforce deterministic safety and approvals.",
+            "managed_agent_engine_resource": "projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296",
+            "managed_agent_engine_model": "gemini-3.1-flash-lite-preview",
+            "managed_agent_engine_verify_command": "cd integrations/google_adk && python verify_agent_engine_mcp.py",
         },
         "supporting_integrations": {
             "fivetran": {

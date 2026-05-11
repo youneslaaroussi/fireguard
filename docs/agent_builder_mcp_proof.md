@@ -2,7 +2,7 @@
 
 FireGuard's judged track is Elastic. The agent proof has two layers:
 
-1. **Google Agent Builder path**: a code-first Google ADK agent deployable to Vertex AI Agent Engine.
+1. **Google Agent Builder path**: a code-first Google ADK agent plus a managed Vertex AI Agent Engine proof runtime.
 2. **Partner MCP path**: the official Elastic MCP server exposed to the ADK agent as an `McpToolset`.
 
 ## Current Agent Builder Path
@@ -24,6 +24,17 @@ The ADK agent uses:
 - Vertex/Gemini model configuration;
 - FireGuard OpenAPI toolset for safety-controlled backend operations;
 - Elastic MCP toolset for direct partner MCP access to operational memory.
+
+The managed proof runtime lives in:
+
+```text
+integrations/google_adk/fireguard_managed_agent.py
+```
+
+It exists because the standard regional ADK `LlmAgent` model resolver does not
+expose Gemini 3.1 in `us-central1` for this project. The managed proof runtime
+still runs inside Vertex AI Agent Engine, but it explicitly calls Vertex global
+Gemini 3.1 and the private Elastic MCP service.
 
 ## Elastic MCP Integration
 
@@ -101,8 +112,9 @@ Expected output shape:
 
 ## Managed Agent Engine MCP Proof
 
-The managed Agent Engine resource has been updated with `FIREGUARD_ELASTIC_MCP_URL`
-and `FIREGUARD_ELASTIC_MCP_REQUIRED=true`.
+The managed Agent Engine resource has been updated with a FireGuard managed
+runtime that calls Vertex global Gemini 3.1 and the private Elastic MCP Cloud Run
+service from inside Vertex AI Agent Engine.
 
 Remote verification command:
 
@@ -115,7 +127,8 @@ python verify_agent_engine_mcp.py
 Verified result:
 
 - resource: `projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296`
-- model: `gemini-2.5-flash`
+- model: `gemini-3.1-flash-lite-preview`
+- runtime: `custom_managed_vertex_agent_engine`
 - tool call: `elastic_mcp_list_indices` with `index_pattern=fire*`
 - tool response: live `fire_hotspots` and `fire_perimeters` counts from Elasticsearch
 - proof file: [docs/proofs/agent_engine_elastic_mcp_2026-05-11.json](proofs/agent_engine_elastic_mcp_2026-05-11.json)
