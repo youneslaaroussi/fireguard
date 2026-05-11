@@ -1701,6 +1701,26 @@ def test_google_adk_openapi_spec_declares_required_tools() -> None:
     }.issubset(operation_ids)
 
 
+def test_google_adk_agent_declares_elastic_mcp_toolset() -> None:
+    repo_root = Path(__file__).resolve().parents[4]
+    agent_path = repo_root / "integrations" / "google_adk" / "fireguard_agent" / "agent.py"
+    agent_source = agent_path.read_text()
+
+    assert "McpToolset" in agent_source
+    assert "StreamableHTTPConnectionParams" in agent_source
+    assert "StdioConnectionParams" in agent_source
+    assert 'tool_name_prefix="elastic_mcp"' in agent_source
+    assert "FIREGUARD_ELASTIC_MCP_URL" in agent_source
+    assert "FIREGUARD_ELASTIC_MCP_ENABLED" in agent_source
+    assert "X-Serverless-Authorization" in agent_source
+    assert "elastic_mcp_search" in agent_source
+
+    verify_path = repo_root / "integrations" / "google_adk" / "verify_agent_engine_mcp.py"
+    proof_path = repo_root / "docs" / "proofs" / "agent_engine_elastic_mcp_2026-05-11.json"
+    assert verify_path.exists()
+    assert proof_path.exists()
+
+
 def test_phoenix_cloud_space_name_builds_space_specific_endpoint() -> None:
     from app.services.phoenix import _application_url, _collector_endpoint
 

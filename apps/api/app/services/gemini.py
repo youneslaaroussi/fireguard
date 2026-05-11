@@ -50,7 +50,7 @@ def agent_manifest(settings: Settings) -> dict:
             "agent_path": "integrations/google_adk/fireguard_agent",
             "tool_spec": "integrations/google_adk/fireguard_agent/tools.openapi.json",
             "run_command": "cd integrations/google_adk && adk run fireguard_agent",
-            "purpose": "Code-first ADK agent that uses FireGuard's OpenAPI tool endpoints while backend services enforce deterministic safety and approvals.",
+            "purpose": "Code-first ADK agent deployed to Vertex AI Agent Engine with FireGuard OpenAPI tools and Elastic MCP tools while backend services enforce deterministic safety and approvals.",
         },
         "supporting_integrations": {
             "fivetran": {
@@ -65,8 +65,11 @@ def agent_manifest(settings: Settings) -> dict:
         },
         "elastic_mcp": {
             "server": "@elastic/mcp-server-elasticsearch",
+            "adk_toolset": "google.adk.tools.mcp_tool.McpToolset",
+            "tool_prefix": "elastic_mcp",
+            "transports": ["streamable_http", "stdio"],
             "requires": ["ELASTICSEARCH_URL", "ELASTICSEARCH_API_KEY"],
-            "purpose": "Partner-track MCP integration for listing indices, inspecting mappings, and running search over FireGuard operational memory.",
+            "purpose": "Partner-track MCP integration for listing indices, inspecting mappings, and running search over FireGuard operational memory. Managed Agent Engine verification called elastic_mcp_list_indices successfully.",
         },
     }
 

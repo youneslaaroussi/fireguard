@@ -1,0 +1,37 @@
+{
+  "verified_at": "2026-05-11T01:57:13Z",
+  "google_cloud_project": "verdant-upgrade-493301-q1",
+  "agent_engine_resource": "projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296",
+  "model_version": "gemini-2.5-flash",
+  "invocation_id": "e-b8e4e6da-1eca-447c-bb56-42e44d026e1a",
+  "proof": {
+    "function_call": {
+      "name": "elastic_mcp_list_indices",
+      "args": {
+        "index_pattern": "fire*"
+      }
+    },
+    "function_response": {
+      "name": "elastic_mcp_list_indices",
+      "response": {
+        "content": [
+          {
+            "type": "text",
+            "text": "Found 2 indices:"
+          },
+          {
+            "type": "text",
+            "text": "[{\"index\":\"fire_hotspots\",\"status\":\"open\",\"docs.count\":57},{\"index\":\"fire_perimeters\",\"status\":\"open\",\"docs.count\":55}]"
+          }
+        ],
+        "isError": false
+      }
+    },
+    "final_model_text": "Found 2 indices: [{\"index\":\"fire_hotspots\",\"status\":\"open\",\"docs.count\":57},{\"index\":\"fire_perimeters\",\"status\":\"open\",\"docs.count\":55}]"
+  },
+  "notes": [
+    "This is a managed Vertex AI Agent Engine invocation, not a local ADK run.",
+    "The tool name is prefixed with elastic_mcp to distinguish the partner MCP call from backend OpenAPI tools.",
+    "The private Elastic MCP Cloud Run service authenticates to Cloud Run with X-Serverless-Authorization and to Elasticsearch with its configured API key."
+  ]
+}

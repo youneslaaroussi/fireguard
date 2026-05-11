@@ -1,11 +1,24 @@
 {
   "mcpServers": {
     "elasticsearch-fireguard": {
-      "command": "npx",
-      "args": ["-y", "@elastic/mcp-server-elasticsearch"],
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-i",
+        "-e",
+        "ES_URL",
+        "-e",
+        "ES_API_KEY",
+        "-e",
+        "OTEL_LOG_LEVEL",
+        "docker.elastic.co/mcp/elasticsearch",
+        "stdio"
+      ],
       "env": {
         "ES_URL": "${ELASTICSEARCH_URL}",
-        "ES_API_KEY": "${ELASTICSEARCH_API_KEY}"
+        "ES_API_KEY": "${ELASTICSEARCH_API_KEY}",
+        "OTEL_LOG_LEVEL": "none"
       }
     }
   }

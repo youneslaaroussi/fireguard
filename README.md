@@ -26,6 +26,7 @@ The application retrieves operational context, evaluates conflicting constraints
 - Transparency ledger: [docs/transparency_ledger.md](docs/transparency_ledger.md)
 - Walkthrough script: [docs/demo_script.md](docs/demo_script.md)
 - Demo presentation: [docs/presentation/fireguard-demo-deck.pptx](docs/presentation/fireguard-demo-deck.pptx)
+- Agent Builder / MCP proof: [docs/agent_builder_mcp_proof.md](docs/agent_builder_mcp_proof.md)
 
 ## Safety Notice
 
@@ -62,11 +63,11 @@ FireGuard closes that gap by converting fragmented signals into a coordinated pl
 |---|---|
 | Hosted app | Cloud Run web and API services are deployed and publicly reachable. |
 | Elastic | Elasticsearch runs on GCE; Cloud Run reaches it through a VPC connector; hosted status reports `elastic-mirrored`. |
-| Elastic MCP | Official Elastic MCP server has been verified against the same Elasticsearch deployment. |
+| Elastic MCP | Official Elastic MCP server is deployed privately on Cloud Run, pointed at the same Elasticsearch deployment, and verified through a managed Agent Engine `elastic_mcp_list_indices` call. |
 | Fivetran | Managed Connector SDK connection syncs source records into BigQuery. |
 | BigQuery bridge | Backend replaces Elastic streams from Fivetran-loaded warehouse tables. |
 | Live overlay | Fivetran BigQuery rows populate separate `live_*` Elastic indices for situational awareness; direct source adapters are explicit fallback only. These records are visible but not decision-eligible for replay plans. |
-| Gemini | Hosted backend uses Vertex Gemini `gemini-3.1-flash-lite-preview` in `global`; ADK/Agent Engine package is included. |
+| Gemini / Agent Builder | Hosted backend uses Vertex Gemini `gemini-3.1-flash-lite-preview` in `global`; the Google ADK agent is deployed to Vertex AI Agent Engine and has remotely called Elastic MCP. |
 | Routes | Google Routes is used when configured, with deterministic fallback for local tests. |
 | Twilio | Outbound SMS works only for allowlisted test recipients; inbound opt-in webhook stores consent metadata. |
 | Action tasks | Approved shelter, road-ops, and dispatch actions can create real GitHub Issues. |
@@ -110,7 +111,9 @@ Elastic is the official track integration and the core operational memory:
 - geospatial indexing for fires, perimeters, road events, shelters, and zones;
 - evidence retrieval for incident context and policy snippets;
 - action logs, traces, and eval records;
-- Elastic MCP server pointed at the same deployment for partner validation.
+- Elastic MCP server pointed at the same deployment for partner validation;
+- Google ADK `McpToolset` support for Elastic MCP tools prefixed as `elastic_mcp_*`;
+- managed Agent Engine proof artifact: [docs/proofs/agent_engine_elastic_mcp_2026-05-11.json](docs/proofs/agent_engine_elastic_mcp_2026-05-11.json).
 
 ### Fivetran
 
@@ -123,7 +126,7 @@ Fivetran is the ingestion layer:
 
 ### Gemini / Google Cloud
 
-The backend uses Vertex Gemini for tool-grounded assessment, with deterministic backend services enforcing safety math and action rules. The ADK package lives in [integrations/google_adk](integrations/google_adk) and exposes the same OpenAPI tool contract used by the hosted API.
+The backend uses Vertex Gemini for tool-grounded assessment, with deterministic backend services enforcing safety math and action rules. The ADK package lives in [integrations/google_adk](integrations/google_adk), exposes the same OpenAPI tool contract used by the hosted API, and loads the official Elastic MCP server for partner-track proof through Vertex AI Agent Engine.
 
 ### Arize Phoenix
 

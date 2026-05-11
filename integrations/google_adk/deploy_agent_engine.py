@@ -13,8 +13,10 @@ Required env vars (set in fireguard_agent/.env or your shell):
     GOOGLE_CLOUD_PROJECT      e.g. my-gcp-project
     GOOGLE_CLOUD_LOCATION     e.g. global or us-central1
     FIREGUARD_API_BASE_URL    e.g. https://fireguard-api-dovhkdlznq-uc.a.run.app
+    FIREGUARD_ELASTIC_MCP_URL optional streamable HTTP Elastic MCP endpoint
     AGENT_ENGINE_BUCKET       e.g. gs://my-gcp-project-agent-engine  (staging bucket, must exist)
     AGENT_ENGINE_RESOURCE     optional existing reasoningEngine resource to update
+    AGENT_ENGINE_SERVICE_ACCOUNT optional runtime service account
 """
 
 from __future__ import annotations
@@ -26,6 +28,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent / "fireguard_agent" / ".env")
+AGENT_PACKAGE_DIR = Path(__file__).parent / "fireguard_agent"
 
 PROJECT = os.environ.get("GOOGLE_CLOUD_PROJECT")
 LOCATION = os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1")
@@ -56,9 +59,12 @@ deploy_kwargs = {
         "google-adk>=1.11.0",
         "python-dotenv>=1.0.0",
     ],
+    "extra_packages": [str(AGENT_PACKAGE_DIR)],
     "env_vars": {
         "GOOGLE_GENAI_USE_VERTEXAI": os.environ.get("GOOGLE_GENAI_USE_VERTEXAI", "1"),
-        "FIREGUARD_AGENT_MODEL_LOCATION": os.environ.get("FIREGUARD_AGENT_MODEL_LOCATION", "global"),
+        "FIREGUARD_AGENT_MODEL_LOCATION": os.environ.get(
+            "FIREGUARD_AGENT_MODEL_LOCATION", "global"
+        ),
         "GEMINI_MODEL": os.environ.get("GEMINI_MODEL", "gemini-3.1-flash-lite-preview"),
         "FIREGUARD_API_BASE_URL": os.environ.get(
             "FIREGUARD_API_BASE_URL", "https://fireguard-api-dovhkdlznq-uc.a.run.app"
@@ -72,10 +78,27 @@ deploy_kwargs = {
     ),
 }
 
+if os.environ.get("AGENT_ENGINE_SERVICE_ACCOUNT"):
+    deploy_kwargs["service_account"] = os.environ["AGENT_ENGINE_SERVICE_ACCOUNT"]
+
+for key in (
+    "FIREGUARD_ELASTIC_MCP_URL",
+    "FIREGUARD_ELASTIC_MCP_AUTH",
+    "FIREGUARD_ELASTIC_MCP_ID_TOKEN_AUDIENCE",
+    "FIREGUARD_ELASTIC_MCP_REQUIRED",
+    "FIREGUARD_ELASTIC_MCP_TOOLS",
+):
+    if os.environ.get(key):
+        deploy_kwargs["env_vars"][key] = os.environ[key]
+
 resource_name = os.environ.get("AGENT_ENGINE_RESOURCE")
 if resource_name:
     print(f"Updating Vertex AI Agent Engine {resource_name} (this takes a few minutes)...")
-    remote_app = agent_engines.update(resource_name=resource_name, agent_engine=app, **deploy_kwargs)
+    remote_app = agent_engines.update(
+        resource_name=resource_name,
+        agent_engine=app,
+        **deploy_kwargs,
+    )
 else:
     print("Deploying to Vertex AI Agent Engine (this takes a few minutes)...")
     remote_app = agent_engines.create(app, **deploy_kwargs)
