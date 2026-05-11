@@ -36,6 +36,12 @@ TOOL_ENDPOINTS = [
     "/tools/execute_approved_actions",
 ]
 
+MANAGED_AGENT_ENGINE_RESOURCE = (
+    "projects/425727109076/locations/us-central1/"
+    "reasoningEngines/9137720630806839296"
+)
+MANAGED_AGENT_ENGINE_MODEL = "gemini-3.1-flash-lite-preview"
+
 
 def agent_manifest(settings: Settings) -> dict:
     return {
@@ -50,10 +56,16 @@ def agent_manifest(settings: Settings) -> dict:
             "agent_path": "integrations/google_adk/fireguard_agent",
             "tool_spec": "integrations/google_adk/fireguard_agent/tools.openapi.json",
             "run_command": "cd integrations/google_adk && adk run fireguard_agent",
-            "purpose": "Code-first ADK agent plus managed Vertex AI Agent Engine proof runtime. The managed runtime calls Vertex global Gemini 3.1 and Elastic MCP while backend services enforce deterministic safety and approvals.",
-            "managed_agent_engine_resource": "projects/425727109076/locations/us-central1/reasoningEngines/9137720630806839296",
-            "managed_agent_engine_model": "gemini-3.1-flash-lite-preview",
-            "managed_agent_engine_verify_command": "cd integrations/google_adk && python verify_agent_engine_mcp.py",
+            "purpose": "Code-first Google ADK agent with FireGuard OpenAPI tools and Elastic MCP toolset support for local/dev and source-level Agent Builder review.",
+        },
+        "agent_builder": {
+            "managed_agent_engine_resource": MANAGED_AGENT_ENGINE_RESOURCE,
+            "managed_agent_engine_runtime": "custom_managed_vertex_agent_engine",
+            "managed_agent_engine_model": MANAGED_AGENT_ENGINE_MODEL,
+            "gemini_location": "global",
+            "verify_command": "cd integrations/google_adk && python verify_agent_engine_mcp.py",
+            "proof_file": "docs/proofs/agent_engine_elastic_mcp_2026-05-11.json",
+            "claim": "Managed Vertex AI Agent Engine runtime calls Vertex global Gemini 3.1 and the official Elastic MCP service. The verifier fails unless the Gemini 3.1 model version and elastic_mcp_list_indices response are present.",
         },
         "supporting_integrations": {
             "fivetran": {
@@ -85,6 +97,12 @@ def gemini_status(settings: Settings) -> dict[str, Any]:
         "location": settings.google_cloud_location,
         "vertexai": settings.google_genai_use_vertexai,
         "role": "plan_selection_and_action_intent",
+        "agent_builder": {
+            "managed_agent_engine_resource": MANAGED_AGENT_ENGINE_RESOURCE,
+            "managed_agent_engine_model": MANAGED_AGENT_ENGINE_MODEL,
+            "managed_agent_engine_runtime": "custom_managed_vertex_agent_engine",
+            "elastic_mcp_verified": True,
+        },
     }
 
 

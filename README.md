@@ -273,7 +273,9 @@ cp fireguard_agent/.env.example fireguard_agent/.env
 adk run fireguard_agent
 ```
 
-The ADK agent loads `tools.openapi.json` and points at the same FastAPI tool endpoints used by the web application.
+The ADK package is the code-first Agent Builder source path. It loads `tools.openapi.json`, points at the same FastAPI tool endpoints used by the web application, and includes Elastic MCP `McpToolset` support.
+
+The managed Agent Engine proof uses `integrations/google_adk/fireguard_managed_agent.py`, not the standard regional ADK `LlmAgent` runtime. That is intentional: in this project, Gemini 3.1 is exposed through Vertex `global`, while the `us-central1` regional ADK resolver does not expose Gemini 3.1. The managed proof runtime still runs inside Vertex AI Agent Engine and verifies both Vertex global Gemini 3.1 and the official Elastic MCP tool call.
 
 ## Phoenix / Arize
 

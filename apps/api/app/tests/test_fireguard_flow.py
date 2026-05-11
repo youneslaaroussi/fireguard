@@ -1747,6 +1747,17 @@ def test_managed_agent_engine_proof_requires_gemini_31_and_elastic_mcp() -> None
     assert proof["proof_metadata"]["agent_engine_runtime"] == "custom_managed_vertex_agent_engine"
 
 
+def test_agent_manifest_exposes_precise_agent_builder_claim() -> None:
+    from app.services.gemini import agent_manifest
+
+    manifest = agent_manifest(Settings(gemini_model="gemini-3.1-flash-lite-preview"))
+
+    assert manifest["google_adk"]["purpose"].startswith("Code-first Google ADK agent")
+    assert manifest["agent_builder"]["managed_agent_engine_model"] == "gemini-3.1-flash-lite-preview"
+    assert manifest["agent_builder"]["managed_agent_engine_runtime"] == "custom_managed_vertex_agent_engine"
+    assert "elastic_mcp_list_indices" in manifest["agent_builder"]["claim"]
+
+
 def test_phoenix_cloud_space_name_builds_space_specific_endpoint() -> None:
     from app.services.phoenix import _application_url, _collector_endpoint
 
