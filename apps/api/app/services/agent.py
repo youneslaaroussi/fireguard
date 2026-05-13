@@ -6,7 +6,7 @@ from app.models.schemas import AssessmentResult, GeminiPlanDecision, PlanValidat
 from app.services import demo_data
 from app.services.evals import evaluate_incident
 from app.services import gemini
-from app.services.planner import create_bundle, draft_plan, plan_from_gemini_decision, validate_gemini_plan_decision
+from app.services.planner import create_bundle, plan_from_gemini_decision, validate_gemini_plan_decision
 from app.services.risk import compute_all_zone_risks
 from app.services.routes import compute_routes
 from app.services.store import FireGuardStore
@@ -187,13 +187,13 @@ def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_
         ],
     )
 
-    if plan_validation.valid and gemini_decision:
-        decision = GeminiPlanDecision.model_validate(gemini_decision)
-        plan = plan_from_gemini_decision(incident_id, context, zone_risks, routes, decision)
-    else:
-        plan = draft_plan(incident_id, context, zone_risks, routes)
-        if not validation_errors:
-            validation_errors = ["Gemini did not return a valid plan decision; deterministic fallback was used."]
+    if not (plan_validation.valid and gemini_decision):
+        raise RuntimeError(
+            f"Gemini did not produce a valid plan for incident {incident_id}. "
+            f"planning_mode={planning_mode}, errors={validation_errors}"
+        )
+    decision = GeminiPlanDecision.model_validate(gemini_decision)
+    plan = plan_from_gemini_decision(incident_id, context, zone_risks, routes, decision)
 
     trace.add(
         "plan",

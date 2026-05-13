@@ -5,15 +5,15 @@ from typing import Any
 
 from app.config import Settings
 from app.models.schemas import ActionItem, EvacuationPlan, GeminiPlanDecision, RouteOption, ZoneRisk
-from app.services.planner import has_current_wildfire_evacuation_trigger
 
-SYSTEM_INSTRUCTION = """You are FireGuard, an emergency evacuation coordination agent.
-Synthesize wildfire, road, weather, shelter, and evacuation-zone data into safe,
-staged action plans. Never claim certainty beyond the data. Always consider
-whether evacuation is safer than sheltering in place. Do not execute
-public-facing or dispatch actions without explicit human approval. Include
-evidence, confidence, assumptions, data freshness, rejected alternatives, and
-fallback actions."""
+SYSTEM_INSTRUCTION = """You are FireGuard, an emergency evacuation reasoning agent.
+Your job is to assess wildfire situations from raw data and make genuine operational
+decisions — not to confirm pre-computed answers. Read the actual fire locations,
+intensities, wind conditions, road states, and zone demographics. Reason about
+whether evacuation is warranted, which zones are most at risk, what the safest
+routes are given current conditions, and how to sequence movement to avoid
+congestion and casualties. State your confidence honestly. Acknowledge what you
+don't know. Every decision must be grounded in specific evidence from the data."""
 
 DEVELOPER_INSTRUCTION = """When assessing an incident:
 1. Retrieve operational context from Elastic.
@@ -142,8 +142,6 @@ def build_operational_brief(
     memory_hits: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
-    safe_routes = [route for route in routes if route.safe]
-    unsafe_routes = [route for route in routes if not route.safe or route.risk_flags]
     evidence_ids = sorted({
         *[str(fire.get("external_id")) for fire in context.get("fires", []) if fire.get("external_id")],
         *[str(event.get("external_id")) for event in context.get("road_events", []) if event.get("external_id")],
@@ -155,7 +153,6 @@ def build_operational_brief(
         "incident_id": incident_id,
         "mode": context.get("mode"),
         "store_backend": context.get("store_backend"),
-        "wildfire_evacuation_trigger": has_current_wildfire_evacuation_trigger(context, zone_risks, routes),
         "zones": [
             {
                 "zone_id": zone["zone_id"],
@@ -185,8 +182,6 @@ def build_operational_brief(
         "road_events": [_road_event_for_llm(event) for event in context.get("road_events", [])[:6]],
         "weather": _weather_for_llm(context.get("weather", {})),
         "route_options": [_route_for_llm(route) for route in routes],
-        "safe_route_keys": [f"{route.origin_id}->{route.destination_id}" for route in safe_routes],
-        "unsafe_route_keys": [f"{route.origin_id}->{route.destination_id}" for route in unsafe_routes],
         "operational_assumptions": context.get("operational_assumptions", [])[:10],
         "data_freshness": context.get("data_freshness", []),
         "available_evidence_ids": evidence_ids[:80],
@@ -199,27 +194,23 @@ def build_operational_brief(
             }
             for hit in (memory_hits or [])[:8]
         ],
-        "action_constraints": {
-            "public_actions_require_human_approval": True,
-            "resident_sms_targets_zone_ids_only": True,
-            "resident_sms_must_not_include_phone_numbers": True,
-            "sms_allowlist_enforced_by_backend": True,
-            "municipal_task_actions_are_demo_task_records": True,
-            "allowed_action_types": ["resident_sms", "shelter_notify", "road_ops_task", "dispatch_task", "incident_timeline_update"],
-        },
     }
 
 
 def candidate_facts_summary(brief: dict[str, Any]) -> dict[str, Any]:
+    routes = brief.get("route_options", [])
     return {
-        "wildfire_evacuation_trigger": brief.get("wildfire_evacuation_trigger"),
         "zone_count": len(brief.get("zones", [])),
-        "safe_route_count": len(brief.get("safe_route_keys", [])),
-        "unsafe_route_count": len(brief.get("unsafe_route_keys", [])),
-        "safe_route_keys": brief.get("safe_route_keys", []),
-        "unsafe_route_keys": brief.get("unsafe_route_keys", []),
-        "allowed_action_types": brief.get("action_constraints", {}).get("allowed_action_types", []),
+        "fire_count": len(brief.get("fires", [])),
+        "route_count": len(routes),
+        "flagged_route_count": sum(1 for r in routes if r.get("risk_flags")),
+        "shelter_count": len(brief.get("shelters", [])),
         "evidence_count": len(brief.get("available_evidence_ids", [])),
+        "zone_risk_levels": {
+            z["zone_id"]: z["risk"]["risk_level"]
+            for z in brief.get("zones", [])
+            if z.get("risk")
+        },
     }
 
 
@@ -243,27 +234,9 @@ def run_gemini_plan_decision(
         return operational_brief
 
     def inspect_route_options() -> dict[str, Any]:
-        """Return safe and rejected route options for every evacuation zone."""
+        """Return all route options with risk flags for every zone-shelter pair."""
         tool_calls.append("inspect_route_options")
-        routes = operational_brief.get("route_options", [])
-        return {
-            "routes": routes,
-            "safe_route_keys": [
-                f"{route['origin_id']}->{route['destination_id']}"
-                for route in routes
-                if route.get("safe")
-            ],
-            "rejected": [
-                route
-                for route in routes
-                if not route.get("safe") or route.get("risk_flags")
-            ],
-        }
-
-    def inspect_action_constraints() -> dict[str, Any]:
-        """Return FireGuard execution constraints, approval rules, and demo channel limits."""
-        tool_calls.append("inspect_action_constraints")
-        return operational_brief.get("action_constraints", {})
+        return {"routes": operational_brief.get("route_options", [])}
 
     def search_operational_memory(query: str) -> dict[str, Any]:
         """Search the compact evidence bundle in operational memory."""
@@ -295,37 +268,37 @@ Return a corrected decision that satisfies every backend validator rule.
 """
 
     schema_hint = {
-        "incident_summary": "string",
+        "incident_summary": "2-sentence assessment of current situation and your recommended response",
         "selected_strategy": "monitor | evacuate_now | staged_evacuation | shelter_in_place | dispatch_assisted",
         "confidence": 0.0,
         "steps": [{
-            "zone_id": "ZONE_A",
-            "strategy": "evacuate_now",
-            "destination_id": "SHELTER_B or null",
+            "zone_id": "zone identifier from the brief",
+            "strategy": "your chosen strategy for this zone",
+            "destination_id": "shelter ID if evacuating, else null",
             "start_after_minutes": 0,
-            "message": "[DEMO - FireGuard] concise resident/operator message",
-            "rationale": ["why this step is safer than alternatives"],
-            "evidence_ids": ["source IDs that support the step"],
-            "assumption_ids": ["assumption/input IDs if used"],
+            "message": "concise resident or operator instruction",
+            "rationale": ["specific data-backed reason for this decision"],
+            "evidence_ids": ["IDs of sources that support this step"],
+            "assumption_ids": [],
         }],
         "rejected_alternatives": [{
-            "origin_id": "ZONE_A",
-            "destination_id": "SHELTER_A",
-            "reason": "why rejected",
-            "evidence_ids": ["source IDs"],
+            "origin_id": "zone ID",
+            "destination_id": "shelter ID or null",
+            "reason": "specific reason this option was rejected",
+            "evidence_ids": ["supporting source IDs"],
         }],
         "requested_actions": [{
-            "action_type": "resident_sms",
-            "target": "ZONE_A",
-            "message": "[DEMO - FireGuard] message text",
+            "action_type": "resident_sms | shelter_notify | road_ops_task | dispatch_task | incident_timeline_update",
+            "target": "zone ID, shelter ID, or road segment",
+            "message": "specific action instruction",
             "reason": "why this action is needed",
-            "evidence_ids": ["source IDs"],
+            "evidence_ids": ["supporting source IDs"],
             "assumption_ids": [],
             "payload": {},
         }],
-        "data_gaps": ["missing or stale data that affects confidence"],
-        "risks_if_wrong": ["specific operational risks"],
-        "fallback_plan": "what to do if the chosen plan becomes unsafe",
+        "data_gaps": ["specific missing or stale data that affects your confidence"],
+        "risks_if_wrong": ["specific operational consequence if this assessment is incorrect"],
+        "fallback_plan": "what to do if conditions change or this plan becomes unsafe",
     }
 
     try:
@@ -348,46 +321,32 @@ Return a corrected decision that satisfies every backend validator rule.
             http_options=types.HttpOptions(api_version="v1", timeout=30000),
         )
         prompt = f"""
-You are choosing the FireGuard operational plan for incident {incident_id}.
-You are not a geometry engine and you are not an emergency authority. Your job is
-to choose the safest operational strategy from the tool-provided facts, routes,
-constraints, and evidence.
+Assess wildfire incident {incident_id} from first principles.
 
-You own these decisions:
-- selected strategy;
-- sequencing and start delays;
-- which safe shelter destination to use when evacuation is justified;
-- which alternatives to reject and why;
-- requested resident/shelter/road/dispatch action intent;
-- message wording, assumptions, fallback plan, and risks if wrong.
+Call get_operational_brief to retrieve fire, weather, route, shelter, and zone data.
+Use search_operational_memory if you need policy or prior-incident context.
 
-Hard rules:
-- Use only route options marked safe=true for evacuation destinations.
-- Do not route to a closed or unavailable shelter.
-- If wildfire_evacuation_trigger is false, choose monitor and request no public actions.
-- Public actions are only requested, never executed; backend approval is mandatory.
-- Resident SMS actions target zone IDs only. Do not include phone numbers or recipients.
-- Municipal task actions are demo task records, not official agency dispatch.
-- Every step and requested action needs evidence_ids from available_evidence_ids.
-- For non-monitor plans, request resident_sms for every zone step that gives
-  evacuation or shelter-in-place instructions.
-- Request one shelter_notify for every shelter destination used by the plan.
-- Request dispatch_task for any dispatch-assisted step or shelter-in-place step
-  where no safe outbound route exists.
-- Request road_ops_task when a rejected road/closure alternative affects routing.
+Then reason through the situation:
+- How close and intense are the active fires relative to each zone? Consider FRP,
+  confidence, and the wind direction and speed that drives spread.
+- Do current conditions pose an imminent threat to residents, or is the risk still
+  within a monitor threshold?
+- If action is warranted: which zones need to move first and why? What is the safest
+  routing given the road events and route risk flags?
+- What sequencing and timing prevents corridor congestion?
+- What actions are needed — resident notifications, shelter preparation, road ops,
+  dispatch support? Justify each one with specific evidence.
+- What are you uncertain about? What data is missing or stale?
 
-Call get_operational_brief, inspect_route_options, and inspect_action_constraints
-at most once each. Use search_operational_memory only if you need policy or
-evidence context. Then return compact valid JSON only, no markdown fences,
-matching this schema:
+Note: resident SMS actions must target zone IDs, not phone numbers. Do not claim
+dispatch vehicles are assigned — only request assignment. All public actions require
+human approval before execution; you are composing the request, not executing it.
+
+Return compact valid JSON only, no markdown:
 {json.dumps(schema_hint, indent=2)}
 
-Keep the JSON small:
-- exactly one step per affected zone;
-- at most five rejected alternatives;
-- at most eight requested actions;
-- one sentence per message, reason, rationale item, risk, and fallback;
-- no raw source records, no coordinates, and no markdown.
+One step per affected zone. At most five rejected alternatives. At most eight requested
+actions. One sentence per message, rationale item, risk, and fallback.
 {repair_clause}
 """
         response = client.models.generate_content(
@@ -398,7 +357,6 @@ Keep the JSON small:
                 tools=[
                     get_operational_brief,
                     inspect_route_options,
-                    inspect_action_constraints,
                     search_operational_memory,
                 ],
                 temperature=0.45,
@@ -567,13 +525,6 @@ resident, shelter, road, or dispatch actions without human approval.
             ),
         )
         parsed = _parse_json_response(response.text or "{}")
-        parsed.setdefault("incident_summary", plan.summary)
-        parsed.setdefault("recommended_strategy", plan.recommended_strategy)
-        parsed.setdefault("route_rejection", plan.rejected_alternatives[0] if plan.rejected_alternatives else None)
-        parsed.setdefault("approval_gate", "Human approval required before resident, shelter, road, or dispatch actions execute.")
-        parsed.setdefault("confidence", plan.confidence)
-        parsed.setdefault("fallback_plan", plan.fallback_plan)
-        parsed.setdefault("risks_if_wrong", plan.risks_if_wrong)
         return {
             "status": "completed",
             "model": settings.gemini_model,

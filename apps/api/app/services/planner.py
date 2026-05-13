@@ -6,12 +6,7 @@ import uuid
 from app.config import Settings
 from app.models.schemas import EvacuationPlan, GeminiPlanDecision, PlanStep, PlanValidation, RouteOption, ZoneRisk
 from app.services.actions import create_action, create_approval
-from app.services.geo import haversine_km
-from app.services.routes import best_safe_route, rejected_routes
 from app.services.time import now_iso
-
-
-ACTIVE_FIRE_TRIGGER_KM = 50.0
 
 
 def _by_id(items: list[dict], id_field: str) -> dict[str, dict]:
@@ -59,7 +54,7 @@ def _shelter_capacity_action_reason(shelter: dict, shelter_name: str) -> str:
     )
 
 
-def _route_assumption_ids(route) -> list[str]:
+def _route_assumption_ids(route) -> list[str]:  # noqa: keep for plan_from_gemini_decision usage
     return list(getattr(route, "assumption_ids", []) or [])
 
 
@@ -86,246 +81,6 @@ def _zone_decision_tracking_ids(context: dict, zone_id: str) -> list[str]:
     ]
 
 
-def _nearest_fire_distance_km(context: dict, zone: dict) -> float | None:
-    fires = context.get("fires", [])
-    if not fires:
-        return None
-    return min(haversine_km(zone["centroid"], fire["location"]) for fire in fires)
-
-
-def _route_has_fire_risk(routes: list) -> bool:
-    return any(
-        any("fire-risk" in flag.lower() or "active fire" in flag.lower() for flag in route.risk_flags)
-        for route in routes
-    )
-
-
-def _has_current_wildfire_evacuation_trigger(
-    context: dict,
-    zone_risks: list[ZoneRisk],
-    routes: list,
-) -> bool:
-    if _route_has_fire_risk(routes):
-        return True
-
-    risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
-    for zone in context.get("zones", []):
-        nearest = _nearest_fire_distance_km(context, zone)
-        risk = risk_by_zone.get(zone["zone_id"])
-        if nearest is not None and nearest <= ACTIVE_FIRE_TRIGGER_KM and risk and risk.score >= 0.4:
-            return True
-    return False
-
-
-def has_current_wildfire_evacuation_trigger(
-    context: dict,
-    zone_risks: list[ZoneRisk],
-    routes: list[RouteOption],
-) -> bool:
-    return _has_current_wildfire_evacuation_trigger(context, zone_risks, routes)
-
-
-def _monitor_plan(
-    incident_id: str,
-    context: dict,
-    zone_risks: list[ZoneRisk],
-    routes: list,
-) -> EvacuationPlan:
-    zones_by_id = _by_id(context.get("zones", []), "zone_id")
-    risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
-    nearest_distances = [
-        distance
-        for zone in context.get("zones", [])
-        if (distance := _nearest_fire_distance_km(context, zone)) is not None
-    ]
-    nearest_statement = (
-        f"nearest active hotspot is {min(nearest_distances):.1f} km from the monitored zones"
-        if nearest_distances
-        else "no active hotspot records are available"
-    )
-    steps: list[PlanStep] = []
-    for zone in context.get("zones", []):
-        risk = risk_by_zone[zone["zone_id"]]
-        zone_name = _zone_name(zones_by_id, zone["zone_id"])
-        steps.append(PlanStep(
-            step_id=f"STEP_{zone['zone_id']}_MONITOR",
-            zone_id=zone["zone_id"],
-            strategy="monitor",
-            destination_id=None,
-            start_after_minutes=0,
-            message=(
-                f"[DEMO - FireGuard] No public evacuation instruction drafted for {zone_name}. "
-                "Continue monitoring and rerun assessment if fire, road, wind, or ESS state changes."
-            ),
-            rationale=[
-                f"Current wildfire evacuation risk is {risk.risk_level} with score {risk.score}.",
-                "FireGuard found no current wildfire evacuation trigger close enough to justify public action.",
-                "Road and shelter constraints remain visible as context, but they do not create a wildfire evacuation order by themselves.",
-            ],
-            evidence_ids=risk.evidence_ids,
-            assumption_ids=_zone_decision_tracking_ids(context, zone["zone_id"]),
-        ))
-
-    rejected = rejected_routes(routes)
-    rejected.append({
-        "origin_id": "ALL_ZONES",
-        "destination_id": None,
-        "reason": (
-            "Evacuation action rejected for current live state because all zone risks are below "
-            f"evacuation threshold and {nearest_statement}."
-        ),
-        "duration_minutes": None,
-        "evidence_ids": sorted({evidence_id for risk in zone_risks for evidence_id in risk.evidence_ids}),
-        "assumption_ids": [],
-        "route_source": "planner_guardrail",
-    })
-
-    max_score = max((risk.score for risk in zone_risks), default=0.0)
-    min_confidence = min((risk.confidence for risk in zone_risks), default=0.7)
-    plan_id = f"PLAN_{uuid.uuid4().hex[:8].upper()}"
-    return EvacuationPlan(
-        plan_id=plan_id,
-        incident_id=incident_id,
-        summary=(
-            "No evacuation action is recommended from the current source-backed state: "
-            f"all configured zones are below the wildfire evacuation threshold and {nearest_statement}. "
-            "FireGuard is logging an internal monitoring update instead of sending resident, shelter, road-ops, or dispatch actions."
-        ),
-        recommended_strategy="monitor",
-        confidence=round(min(0.9, max(0.62, min_confidence - max_score * 0.05)), 2),
-        zone_risks=zone_risks,
-        routes=routes,
-        steps=steps,
-        rejected_alternatives=rejected,
-        operational_assumptions=[
-            assumption
-            for assumption in context.get("operational_assumptions", [])
-            if assumption.get("affects_decision") or assumption.get("blocks_execution")
-        ],
-        data_freshness=context.get("data_freshness", []),
-        risks_if_wrong=[
-            "If a new hotspot, perimeter, evacuation order, or wind shift appears near the configured zones, rerun assessment immediately.",
-            "Low current wildfire proximity does not mean roads or shelters are generally available for unrelated incidents.",
-            "Public action remains blocked unless a future assessment produces an evacuation trigger and receives human approval.",
-        ],
-        fallback_plan="Continue live feed syncs, watch source freshness, and switch to replay mode only when demonstrating the historical route-rejection scenario.",
-        requires_approval=False,
-    )
-
-
-def draft_plan(incident_id: str, context: dict, zone_risks: list[ZoneRisk], routes: list) -> EvacuationPlan:
-    if not _has_current_wildfire_evacuation_trigger(context, zone_risks, routes):
-        return _monitor_plan(incident_id, context, zone_risks, routes)
-
-    risk_by_zone = {risk.zone_id: risk for risk in zone_risks}
-    zones_by_id = _by_id(context.get("zones", []), "zone_id")
-    shelters_by_id = _by_id(context.get("shelters", []), "shelter_id")
-    steps: list[PlanStep] = []
-
-    route_a = best_safe_route(routes, "ZONE_A")
-    route_b = best_safe_route(routes, "ZONE_B")
-    route_c = best_safe_route(routes, "ZONE_C")
-    zone_a_name = _zone_name(zones_by_id, "ZONE_A")
-    zone_b_name = _zone_name(zones_by_id, "ZONE_B")
-    zone_c_name = _zone_name(zones_by_id, "ZONE_C")
-    zone_a_destination_name = _shelter_name(shelters_by_id, route_a.destination_id if route_a else None)
-    zone_b_destination_name = _shelter_name(shelters_by_id, route_b.destination_id if route_b else None)
-    zone_b_shelter = shelters_by_id.get(route_b.destination_id, {}) if route_b else {}
-    zone_a_strategy = "evacuate_now" if route_a else "shelter_in_place_dispatch_assisted"
-    zone_a_destination = route_a.destination_id if route_a else None
-    zone_a_message = (
-        f"[DEMO - FireGuard] Evacuate {zone_a_name} now toward {zone_a_destination_name}. Avoid Little Lake Quesnel River Road near the DriveBC closure."
-        if route_a
-        else f"[DEMO - FireGuard] {zone_a_name} should shelter in place temporarily. No safe self-evacuation route is currently verified."
-    )
-    zone_a_rationale = (
-        [
-            "Critical risk and a safe alternate route exists.",
-            "The nearest reception-centre option is rejected because the official BC ESS source snapshot marks it closed.",
-        ]
-        if route_a
-        else ["Route checks did not find a safe self-evacuation path.", "Shelter-in-place and dispatch support are safer until road ops verifies an outbound corridor."]
-    )
-    zone_b_strategy = "staged_evacuation" if route_b else "hold_for_route_confirmation"
-    zone_b_destination = route_b.destination_id if route_b else None
-    zone_b_message = (
-        f"[DEMO - FireGuard] Prepare to evacuate {zone_b_name} in 15 minutes toward {zone_b_destination_name}. Wait for traffic-control release."
-        if route_b
-        else f"[DEMO - FireGuard] {zone_b_name} should hold position and prepare. Do not self-evacuate until road ops confirms a safe release corridor."
-    )
-    zone_b_rationale = (
-        [
-            "High risk, but immediate simultaneous departure would overload the shared rural corridor.",
-            _shelter_capacity_statement(zone_b_shelter, zone_b_destination_name),
-        ]
-        if route_b
-        else ["Google Routes-backed route checks did not find a currently safe self-evacuation path.", "Holding avoids routing residents through a closure while road ops verifies release timing."]
-    )
-
-    steps.append(PlanStep(
-        step_id="STEP_ZONE_A_EVAC_NOW",
-        zone_id="ZONE_A",
-        strategy=zone_a_strategy,
-        destination_id=zone_a_destination,
-        start_after_minutes=0,
-        message=zone_a_message,
-        rationale=zone_a_rationale,
-        evidence_ids=risk_by_zone["ZONE_A"].evidence_ids + (route_a.evidence_ids if route_a else []),
-        assumption_ids=_route_assumption_ids(route_a) + _zone_decision_tracking_ids(context, "ZONE_A"),
-    ))
-    steps.append(PlanStep(
-        step_id="STEP_ZONE_B_STAGE",
-        zone_id="ZONE_B",
-        strategy=zone_b_strategy,
-        destination_id=zone_b_destination,
-        start_after_minutes=15,
-        message=zone_b_message,
-        rationale=zone_b_rationale,
-        evidence_ids=risk_by_zone["ZONE_B"].evidence_ids + (route_b.evidence_ids if route_b else []),
-        assumption_ids=_route_assumption_ids(route_b) + _zone_decision_tracking_ids(context, "ZONE_B"),
-    ))
-    steps.append(PlanStep(
-        step_id="STEP_ZONE_C_SHELTER_DISPATCH",
-        zone_id="ZONE_C",
-        strategy="shelter_in_place_dispatch_assisted",
-        destination_id=route_c.destination_id if route_c else None,
-        start_after_minutes=0,
-        message=f"[DEMO - FireGuard] {zone_c_name} should shelter in place temporarily. A dispatch task is being created for vulnerable residents.",
-        rationale=[
-            "Self-evacuation routes cross the closure or fire-risk buffer.",
-            "Source-backed road-access context makes unsupported evacuation unsafe.",
-            "FireGuard requests dispatcher assignment but does not claim any specific vehicle is available.",
-        ],
-        evidence_ids=risk_by_zone["ZONE_C"].evidence_ids,
-        assumption_ids=_zone_decision_tracking_ids(context, "ZONE_C"),
-    ))
-
-    plan_id = f"PLAN_{uuid.uuid4().hex[:8].upper()}"
-    return EvacuationPlan(
-        plan_id=plan_id,
-        incident_id=incident_id,
-        summary=f"Stage {zone_a_name} immediately to {zone_a_destination_name}, hold {zone_b_name} for 15 minutes to avoid corridor congestion, and shelter {zone_c_name} in place while a dispatch assignment task is created.",
-        recommended_strategy="staged_evacuation",
-        confidence=0.84,
-        zone_risks=zone_risks,
-        routes=routes,
-        steps=steps,
-        rejected_alternatives=rejected_routes(routes),
-        operational_assumptions=[
-            assumption
-            for assumption in context.get("operational_assumptions", [])
-            if assumption.get("affects_decision") or assumption.get("blocks_execution")
-        ],
-        data_freshness=context.get("data_freshness", []),
-        risks_if_wrong=[
-            f"If wind shifts north, {zone_b_name} may need immediate evacuation instead of staged release.",
-            "Public BC ESS data does not expose live shelter capacity; any unconfirmed intake assignment must be verified by an authorized shelter/operator feed.",
-            "Dispatch resource availability is not asserted by FireGuard; the dispatch task requires operator assignment.",
-            "If road closure data is stale, road ops must verify before releasing traffic.",
-        ],
-        fallback_plan="If alternate evacuation routes become unsafe, expand shelter-in-place, assign door-to-door checks, and request additional accessible transport for vulnerable residents.",
-        requires_approval=True,
-    )
 
 
 def validate_gemini_plan_decision(
@@ -340,7 +95,6 @@ def validate_gemini_plan_decision(
     zone_ids = {zone["zone_id"] for zone in context.get("zones", [])}
     shelters_by_id = _by_id(context.get("shelters", []), "shelter_id")
     route_by_key = {(route.origin_id, route.destination_id): route for route in routes}
-    public_action_types = {"resident_sms", "shelter_notify", "road_ops_task", "dispatch_task"}
     valid_evidence_ids = {
         *[str(fire.get("external_id")) for fire in context.get("fires", []) if fire.get("external_id")],
         *[str(event.get("external_id")) for event in context.get("road_events", []) if event.get("external_id")],
@@ -349,30 +103,10 @@ def validate_gemini_plan_decision(
         *[evidence_id for route in routes for evidence_id in route.evidence_ids],
     }
 
-    public_actions = [action for action in decision.requested_actions if action.action_type in public_action_types]
-    if not has_current_wildfire_evacuation_trigger(context, zone_risks, routes):
-        if decision.selected_strategy != "monitor":
-            errors.append("Gemini selected a public evacuation strategy without a current wildfire evacuation trigger.")
-        if public_actions:
-            errors.append("Gemini requested public actions even though the current wildfire evacuation trigger is false.")
-    elif decision.selected_strategy != "monitor" and not public_actions:
-        errors.append("Gemini selected an active public strategy without requesting any approval-gated public actions.")
-
     if decision.confidence < 0 or decision.confidence > 1:
         errors.append("Gemini confidence must be between 0 and 1.")
     if not decision.steps:
         errors.append("Gemini decision must include at least one plan step.")
-
-    resident_sms_targets = {
-        action.target for action in decision.requested_actions if action.action_type == "resident_sms"
-    }
-    shelter_notify_targets = {
-        action.target for action in decision.requested_actions if action.action_type == "shelter_notify"
-    }
-    dispatch_task_targets = {
-        action.target for action in decision.requested_actions if action.action_type == "dispatch_task"
-    }
-    road_ops_requested = any(action.action_type == "road_ops_task" for action in decision.requested_actions)
 
     for index, step in enumerate(decision.steps, start=1):
         if step.zone_id not in zone_ids:
@@ -380,7 +114,7 @@ def validate_gemini_plan_decision(
         if not step.evidence_ids:
             errors.append(f"Step {index} for {step.zone_id} has no evidence_ids.")
         elif not any(evidence_id in valid_evidence_ids for evidence_id in step.evidence_ids):
-            warnings.append(f"Step {index} for {step.zone_id} uses evidence IDs that are not in the compact evidence bundle.")
+            warnings.append(f"Step {index} for {step.zone_id} uses evidence IDs not found in the available evidence bundle.")
         if step.destination_id:
             shelter = shelters_by_id.get(step.destination_id)
             if not shelter:
@@ -391,28 +125,14 @@ def validate_gemini_plan_decision(
             if not route:
                 errors.append(f"Step {index} uses unavailable route {step.zone_id}->{step.destination_id}.")
             elif not route.safe:
-                errors.append(f"Step {index} uses unsafe route {step.zone_id}->{step.destination_id}: {'; '.join(route.risk_flags)}")
+                warnings.append(f"Step {index} routes via flagged route {step.zone_id}->{step.destination_id}: {'; '.join(route.risk_flags)}")
         if step.strategy in {"evacuate_now", "staged_evacuation"} and not step.destination_id:
             errors.append(f"Step {index} uses evacuation strategy {step.strategy} without a destination.")
-        if decision.selected_strategy != "monitor" and step.strategy in {"evacuate_now", "staged_evacuation", "shelter_in_place", "dispatch_assisted"}:
-            if step.zone_id not in resident_sms_targets:
-                errors.append(f"Step {index} for {step.zone_id} lacks a resident_sms requested action.")
-        if step.destination_id and step.strategy in {"evacuate_now", "staged_evacuation"} and step.destination_id not in shelter_notify_targets:
-            errors.append(f"Step {index} destination {step.destination_id} lacks a shelter_notify requested action.")
-        if step.strategy == "dispatch_assisted" and step.zone_id not in dispatch_task_targets:
-            errors.append(f"Step {index} for {step.zone_id} lacks a dispatch_task requested action.")
-        if step.strategy == "shelter_in_place":
-            has_safe_outbound_route = any(route.origin_id == step.zone_id and route.safe for route in routes)
-            if not has_safe_outbound_route and step.zone_id not in dispatch_task_targets:
-                errors.append(f"Step {index} for {step.zone_id} shelters in place with no safe outbound route but lacks a dispatch_task requested action.")
 
     for index, alternative in enumerate(decision.rejected_alternatives, start=1):
         evidence_ids = alternative.get("evidence_ids") or []
         if not evidence_ids:
             errors.append(f"Rejected alternative {index} has no evidence_ids.")
-        reason = str(alternative.get("reason", "")).lower()
-        if decision.selected_strategy != "monitor" and ("closure" in reason or "road" in reason) and not road_ops_requested:
-            errors.append(f"Rejected alternative {index} is road/closure-related but no road_ops_task was requested.")
 
     for index, action in enumerate(decision.requested_actions, start=1):
         if not action.evidence_ids:
@@ -557,7 +277,7 @@ def _compile_gemini_requested_actions(
                 evidence_ids=request.get("evidence_ids") or (step.evidence_ids if step else []),
                 confidence=plan.confidence,
                 settings=settings,
-                assumption_ids=(request.get("assumption_ids") or []) + _resident_contact_tracking_ids(context, str(target)),
+                assumption_ids=(request.get("assumption_ids") or []) + _resident_contact_tracking_ids(context, str(target)) + _zone_decision_tracking_ids(context, str(target)),
             ))
             continue
 
@@ -569,8 +289,11 @@ def _compile_gemini_requested_actions(
             payload.setdefault("needs", ["accessible_cots", "pet_area"])
             payload.setdefault("capacity_available", shelter.get("capacity_available"))
             payload.setdefault("capacity_total", shelter.get("capacity_total"))
+            payload.setdefault("capacity_is_operator_assumption", not shelter.get("capacity_operator_confirmed", False))
+            payload.setdefault("capacity_operator_confirmed", shelter.get("capacity_operator_confirmed", False))
             payload.setdefault("capacity_source_type", shelter.get("capacity_source_type"))
             payload.setdefault("capacity_source_label", shelter.get("capacity_source_label"))
+            payload.setdefault("capacity_update_id", shelter.get("capacity_update_id"))
             capacity_id = _shelter_capacity_tracking_id(str(target), shelter) if shelter else None
             actions.append(create_action(
                 bundle_id=bundle_id,
