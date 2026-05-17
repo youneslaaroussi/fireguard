@@ -1,6 +1,7 @@
 @import "@blueprintjs/icons/lib/css/blueprint-icons.css";
 @import "@blueprintjs/core/lib/css/blueprint.css";
 @import "mapbox-gl/dist/mapbox-gl.css";
+@import "@xyflow/react/dist/style.css";
 
 @tailwind base;
 @tailwind components;
@@ -1799,4 +1800,315 @@ button {
   .fireguard-trace-section:nth-child(n + 3) {
     grid-column: auto;
   }
+}
+
+/* FireGuard Gemini Panel */
+.fg-gemini-panel {
+  display: flex;
+  flex-direction: row;
+  height: 340px;
+  background: #1c2127;
+  border-top: 1px solid #293742;
+  overflow: hidden;
+  transition: opacity 0.3s ease;
+}
+
+.fg-gemini-col {
+  overflow-y: auto;
+  padding: 20px;
+  scrollbar-width: thin;
+  scrollbar-color: #394b59 transparent;
+}
+
+.fg-gemini-col::-webkit-scrollbar { width: 4px; }
+.fg-gemini-col::-webkit-scrollbar-track { background: transparent; }
+.fg-gemini-col::-webkit-scrollbar-thumb { background: #394b59; border-radius: 2px; }
+
+.fg-trace-pre {
+  font-size: 11px;
+  color: #8a9ba8;
+  background: #161d24;
+  border-radius: 4px;
+  padding: 12px;
+  overflow-x: auto;
+  max-height: 400px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+}
+
+/* Tool call timeline */
+.fg-tool-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.fg-tool-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  position: relative;
+}
+
+.fg-tool-item:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 14px;
+  bottom: -8px;
+  width: 1px;
+  background: #293742;
+}
+
+.fg-tool-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #2d72d2;
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+
+/* Map height transitions */
+.fg-map-container {
+  transition: height 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+}
+
+/* Step pills */
+.fg-step-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fg-step-circle {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+  border: 1px solid transparent;
+}
+
+.fg-step-line {
+  width: 32px;
+  height: 1px;
+  background: #293742;
+  margin: 0 4px;
+}
+
+.fg-step-line.completed {
+  background: #394b59;
+}
+
+/* Step card in left panel */
+.fg-step-card {
+  padding: 12px 0;
+  border-bottom: 1px solid #252e38;
+}
+
+.fg-step-card:last-child {
+  border-bottom: none;
+}
+
+/* Left panel section labels */
+.fg-section-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #5c7080;
+  padding: 20px 20px 8px 20px;
+}
+
+/* Rejected alternative rows */
+.fg-rejected-row {
+  padding: 8px 0;
+  border-bottom: 1px solid #252e38;
+}
+
+.fg-rejected-row:last-child {
+  border-bottom: none;
+}
+
+@keyframes fg-item-enter {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.fg-reveal-item {
+  animation: fg-item-enter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* ── Map / Graph view toggle ─────────────────────────────────────────────── */
+.fg-view-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 36px;
+  border-bottom: 1px solid #1a2d3d;
+  background: #080f16;
+  flex-shrink: 0;
+  padding: 0 12px;
+}
+
+.fg-view-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+  padding: 0 14px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #4a5c6a;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -1px;
+}
+
+.fg-view-btn:hover {
+  color: #8abbff;
+}
+
+.fg-view-btn.active {
+  color: #8abbff;
+  border-bottom-color: #2d72d2;
+}
+
+.fg-view-live-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #e05a5a;
+  animation: fg-blink 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* ── Reasoning Graph Panel ───────────────────────────────────────────────── */
+.fg-resize-handle {
+  height: 5px;
+  background: transparent;
+  border-top: 1px solid #1e2d3d;
+  cursor: ns-resize;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.fg-resize-handle:hover,
+.fg-resize-handle:active {
+  background: rgba(138, 187, 255, 0.12);
+  border-top-color: #2d72d2;
+}
+
+.fg-reasoning-panel {
+  display: flex;
+  flex-direction: column;
+  background: #0b1117;
+  overflow: hidden;
+}
+
+.fg-reasoning-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid #1a2530;
+  background: #0d1520;
+  flex-shrink: 0;
+  min-height: 36px;
+}
+
+.fg-reasoning-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8abbff;
+  white-space: nowrap;
+}
+
+.fg-reasoning-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e05a5a;
+  animation: fg-blink 1s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+.fg-reasoning-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: #4a5c6a;
+  white-space: nowrap;
+}
+
+.fg-reasoning-meta-sep {
+  color: #2a3a48;
+}
+
+@keyframes fg-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.25; }
+}
+
+/* ── React Flow dark theme overrides ─────────────────────────────────────── */
+.react-flow__background {
+  background: #0b1117;
+}
+
+.react-flow__controls {
+  border: 1px solid #1e2d3d !important;
+  background: #0d1520 !important;
+  box-shadow: none !important;
+}
+
+.react-flow__controls-button {
+  background: #0d1520 !important;
+  border-bottom: 1px solid #1e2d3d !important;
+  color: #5c7080 !important;
+  fill: #5c7080 !important;
+}
+
+.react-flow__controls-button:hover {
+  background: #142030 !important;
+  fill: #8abbff !important;
+}
+
+.react-flow__edge-path {
+  stroke: #1e2d3d;
+}
+
+.react-flow__node {
+  cursor: pointer;
+}
+
+.react-flow__handle {
+  opacity: 0;
+}
+
+.react-flow__node:hover .react-flow__handle {
+  opacity: 1;
 }

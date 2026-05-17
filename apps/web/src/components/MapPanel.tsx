@@ -9,6 +9,7 @@ import type { AssessmentResult, IncidentContext, RouteOption } from "@/lib/types
 type Props = {
   context: IncidentContext | null;
   assessment: AssessmentResult | null;
+  streamingPhase?: number;
 };
 
 type LayerKey = "fires" | "perimeters" | "roads" | "zones" | "shelters" | "routes" | "public" | "liveFires" | "livePerimeters" | "liveRoads";
@@ -28,7 +29,7 @@ const BASEMAPS: Array<{ key: BasemapKey; label: string; styleUrl: string }> = [
 ];
 
 const LAYER_IDS: Record<LayerKey, string[]> = {
-  fires: ["fires"],
+  fires: ["fires-halo", "fires"],
   perimeters: ["perimeters-fill", "perimeters-line"],
   roads: ["roads"],
   zones: ["zones-fill", "zones-line"],
@@ -99,21 +100,26 @@ function setSourceData(map: Map, id: string, data: GeoJSON.FeatureCollection) {
   }
 }
 
+const BOUNDS_KEYS: Array<keyof ReturnType<typeof buildCollections>> = ["fires", "zones", "shelters", "roads", "perimeters", "routes"];
+
 function collectBounds(collections: ReturnType<typeof buildCollections>) {
   const bounds = new mapboxgl.LngLatBounds();
   let count = 0;
   const visit = (coordinates: unknown) => {
     if (!Array.isArray(coordinates)) return;
     if (typeof coordinates[0] === "number" && typeof coordinates[1] === "number") {
-      bounds.extend([coordinates[0], coordinates[1]]);
+      const lon = coordinates[0] as number;
+      const lat = coordinates[1] as number;
+      if (lon === 0 && lat === 0) return; // skip null-island
+      if (lon < -180 || lon > 180 || lat < -90 || lat > 90) return;
+      bounds.extend([lon, lat]);
       count += 1;
       return;
     }
     coordinates.forEach(visit);
   };
-  for (const [key, collection] of Object.entries(collections)) {
-    if (key.startsWith("live")) continue;
-    collection.features.forEach((feature) => visit(feature.geometry.coordinates));
+  for (const key of BOUNDS_KEYS) {
+    collections[key].features.forEach((feature) => visit(feature.geometry.coordinates));
   }
   return count ? bounds : null;
 }
@@ -297,8 +303,48 @@ function buildCollections(context: IncidentContext | null, assessment: Assessmen
   };
 }
 
+function polygonCentroid(geom: unknown): [number, number] | null {
+  if (!geom || typeof geom !== "object") return null;
+  const g = geom as { type: string; coordinates: unknown };
+  if (g.type === "Point") {
+    const c = g.coordinates as number[];
+    return typeof c[0] === "number" && typeof c[1] === "number" ? [c[0], c[1]] : null;
+  }
+  const ring =
+    g.type === "Polygon"
+      ? (g.coordinates as number[][][])?.[0]
+      : g.type === "MultiPolygon"
+        ? (g.coordinates as number[][][][])?.[0]?.[0]
+        : null;
+  if (!ring?.length) return null;
+  let sumLon = 0, sumLat = 0;
+  for (const [lon, lat] of ring) { sumLon += lon; sumLat += lat; }
+  return [sumLon / ring.length, sumLat / ring.length];
+}
+
+function buildCandidateRoutes(context: IncidentContext): GeoJSON.Feature[] {
+  const shelters = context.shelters.map((s) => [s.location.lon, s.location.lat] as [number, number]);
+  if (!shelters.length) return [];
+  return context.zones.flatMap((zone, i) => {
+    const centroid = polygonCentroid(zone.geometry);
+    if (!centroid) return [];
+    let nearest = shelters[0];
+    let minDist = Infinity;
+    for (const s of shelters) {
+      const d = Math.hypot(s[0] - centroid[0], s[1] - centroid[1]);
+      if (d < minDist) { minDist = d; nearest = s; }
+    }
+    return [{
+      type: "Feature" as const,
+      id: `cand-${i}`,
+      properties: { zone_id: zone.zone_id },
+      geometry: { type: "LineString" as const, coordinates: [centroid, nearest] },
+    }];
+  });
+}
+
 function addSourcesAndLayers(map: Map) {
-  for (const sourceId of ["perimeters", "zones", "roads", "routes", "fires", "shelters", "public-orders", "public-ess", "live-fires", "live-roads", "live-perimeters"]) {
+  for (const sourceId of ["perimeters", "zones", "roads", "routes", "fires", "shelters", "public-orders", "public-ess", "live-fires", "live-roads", "live-perimeters", "candidate-routes"]) {
     if (!map.getSource(sourceId)) {
       map.addSource(sourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     }
@@ -346,14 +392,27 @@ function addSourcesAndLayers(map: Map) {
       },
     });
     map.addLayer({
+      id: "fires-halo",
+      type: "circle",
+      source: "fires",
+      paint: {
+        "circle-color": "rgba(0,0,0,0)",
+        "circle-radius": 18,
+        "circle-stroke-color": "#ff6e4a",
+        "circle-stroke-width": 1.5,
+        "circle-stroke-opacity": 0.35,
+        "circle-blur": 0.5,
+      },
+    });
+    map.addLayer({
       id: "fires",
       type: "circle",
       source: "fires",
       paint: {
         "circle-color": "#db3737",
-        "circle-radius": 8,
-        "circle-blur": 0.2,
-        "circle-stroke-color": "#ffb366",
+        "circle-radius": 9,
+        "circle-blur": 0.15,
+        "circle-stroke-color": "#ff9955",
         "circle-stroke-width": 2,
       },
     });
@@ -419,6 +478,18 @@ function addSourcesAndLayers(map: Map) {
         "circle-stroke-color": "#d9f2ff",
         "circle-stroke-width": 1.5,
       },
+    });
+    map.addLayer({
+      id: "candidate-routes",
+      type: "line",
+      source: "candidate-routes",
+      paint: {
+        "line-color": "#48d0f0",
+        "line-width": 2,
+        "line-dasharray": [4, 3],
+        "line-opacity": 0,
+      },
+      layout: { "line-cap": "round" },
     });
   }
 }
@@ -552,10 +623,11 @@ function mapboxStaticImageUrl(selected: SelectedMapFeature | null) {
   return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/${marker}/${lon.toFixed(5)},${lat.toFixed(5)},10.5,0/760x320@2x?access_token=${encodeURIComponent(MAPBOX_TOKEN)}`;
 }
 
-export function MapPanel({ context, assessment }: Props) {
+export function MapPanel({ context, assessment, streamingPhase }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const styleRef = useRef<BasemapKey>("dark");
+  const animFrameRef = useRef<number | null>(null);
   const [basemap, setBasemap] = useState<BasemapKey>("dark");
   const [layersOpen, setLayersOpen] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<SelectedMapFeature | null>(null);
@@ -605,6 +677,7 @@ export function MapPanel({ context, assessment }: Props) {
     map.on("load", () => {
       applyMapFog(map);
       addSourcesAndLayers(map);
+
       const hoverPopup = new mapboxgl.Popup({
         closeButton: false,
         closeOnClick: false,
@@ -652,7 +725,12 @@ export function MapPanel({ context, assessment }: Props) {
     });
 
     mapRef.current = map;
+
+    const ro = new ResizeObserver(() => { map.resize(); });
+    if (containerRef.current) ro.observe(containerRef.current);
+
     return () => {
+      ro.disconnect();
       map.remove();
       mapRef.current = null;
     };
@@ -689,6 +767,53 @@ export function MapPanel({ context, assessment }: Props) {
     if (!map?.loaded()) return;
     applyLayerVisibility(map, visible);
   }, [visible]);
+
+  // Candidate route animation during the "route" streaming phase (phase index 4)
+  useEffect(() => {
+    const map = mapRef.current;
+    const showRoutes = streamingPhase === 4 && !assessment && Boolean(context);
+
+    const apply = () => {
+      if (!map?.getSource("candidate-routes")) return;
+      const src = map.getSource("candidate-routes") as GeoJSONSource;
+      if (showRoutes && context) {
+        src.setData({ type: "FeatureCollection", features: buildCandidateRoutes(context) });
+        // start pulsing opacity
+        if (!animFrameRef.current) {
+          let opacity = 0.6;
+          let dir = -0.012;
+          const pulse = () => {
+            opacity += dir;
+            if (opacity < 0.2 || opacity > 0.85) dir = -dir;
+            if (map.getLayer("candidate-routes")) {
+              map.setPaintProperty("candidate-routes", "line-opacity", opacity);
+            }
+            animFrameRef.current = requestAnimationFrame(pulse);
+          };
+          animFrameRef.current = requestAnimationFrame(pulse);
+        }
+      } else {
+        src.setData({ type: "FeatureCollection", features: [] });
+        if (animFrameRef.current) {
+          cancelAnimationFrame(animFrameRef.current);
+          animFrameRef.current = null;
+        }
+        if (map.getLayer("candidate-routes")) {
+          map.setPaintProperty("candidate-routes", "line-opacity", 0);
+        }
+      }
+    };
+
+    if (map?.loaded()) apply();
+    else map?.once("load", apply);
+
+    return () => {
+      if (animFrameRef.current) {
+        cancelAnimationFrame(animFrameRef.current);
+        animFrameRef.current = null;
+      }
+    };
+  }, [streamingPhase, assessment, context]);
 
   return (
     <section className="fireguard-map-panel">
