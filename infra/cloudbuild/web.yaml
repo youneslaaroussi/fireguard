@@ -8,8 +8,11 @@ steps:
       - ${_IMAGE}
       - --build-arg
       - NEXT_PUBLIC_API_BASE_URL=${_NEXT_PUBLIC_API_BASE_URL}
+      - --build-arg
+      - NEXT_PUBLIC_MAPBOX_TOKEN=${_NEXT_PUBLIC_MAPBOX_TOKEN}
       - .
 images:
   - ${_IMAGE}
 substitutions:
-  _NEXT_PUBLIC_API_BASE_URL: https://fireguard-api-dovhkdlznq-uc.a.run.app
+  _NEXT_PUBLIC_API_BASE_URL: https://fireguard-api-425727109076.us-central1.run.app
+  _NEXT_PUBLIC_MAPBOX_TOKEN: ""
