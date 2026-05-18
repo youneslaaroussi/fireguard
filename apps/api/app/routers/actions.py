@@ -8,6 +8,12 @@ from app.services.store import FireGuardStore
 router = APIRouter(tags=["actions"])
 
 
+@router.get("/action-logs")
+def list_action_logs(store: FireGuardStore = Depends(store_dependency)) -> dict:
+    actions = store.list("action_logs")
+    return {"actions": sorted(actions, key=lambda a: a.get("created_at", ""), reverse=True)}
+
+
 def _actions_for_bundle(store: FireGuardStore, bundle_id: str) -> list[dict]:
     return [action for action in store.list("action_logs") if action["bundle_id"] == bundle_id]
 

@@ -2,6 +2,18 @@ import type { AssessmentResult, IncidentContext, IntegrationStatus } from "./typ
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000";
 
+export type SlimContext = {
+  fires: Array<{ external_id: string; frp: number; source: string }>;
+  zones: Array<{ zone_id: string; name: string; population: number; vulnerable_count: number }>;
+  road_events: Array<{ external_id: string; road_name: string; title: string }>;
+};
+
+export type StreamEvent =
+  | { type: "step"; event: Record<string, unknown>; slim_context?: SlimContext }
+  | { type: "thinking"; step: string; message: string }
+  | { type: "complete"; result: AssessmentResult }
+  | { type: "error"; message: string };
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
@@ -30,6 +42,47 @@ export function runAssessment() {
   return request<AssessmentResult>("/incidents/assess", { method: "POST" });
 }
 
+export async function streamAssessment(
+  onEvent: (event: StreamEvent) => void,
+  signal?: AbortSignal,
+): Promise<AssessmentResult> {
+  const response = await fetch(`${API_BASE_URL}/incidents/assess/stream`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    cache: "no-store",
+    signal,
+  });
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`${response.status} ${response.statusText}: ${detail}`);
+  }
+  const reader = response.body!.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let finalResult: AssessmentResult | null = null;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+      for (const part of parts) {
+        const line = part.trim();
+        if (!line.startsWith("data: ")) continue;
+        const data = JSON.parse(line.slice(6)) as StreamEvent;
+        onEvent(data);
+        if (data.type === "complete") finalResult = data.result;
+        if (data.type === "error") throw new Error(data.message);
+      }
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  if (!finalResult) throw new Error("Assessment stream ended without a result");
+  return finalResult;
+}
+
 export function approveBundle(approvalId: string) {
   return request<{ approval: AssessmentResult["approval"]; actions: AssessmentResult["actions"] }>(`/approvals/${approvalId}/approve`, { method: "POST" });
 }
@@ -40,6 +93,10 @@ export function executeBundle(bundleId: string) {
 
 export function getTraces(incidentId: string) {
   return request<{ incident_id: string; traces: Array<Record<string, unknown>>; latest: { events: Array<Record<string, unknown>> } | null }>(`/traces/${incidentId}`);
+}
+
+export function getActionLogs() {
+  return request<{ actions: import("./types").ActionItem[] }>("/action-logs");
 }
 
 export function getIntegrationStatus() {
@@ -72,8 +129,8 @@ export function confirmShelterCapacity(shelterId: string, capacityAvailable: num
     body: JSON.stringify({
       capacity_available: capacityAvailable,
       capacity_total: capacityTotal,
-      updated_by: "demo-operator",
-      note: "Capacity confirmed from the FireGuard demo UI.",
+      updated_by: "operator",
+      note: "Capacity confirmed from the FireGuard operator UI.",
     }),
   });
 }
@@ -84,9 +141,9 @@ export function registerResidentTestContact(zoneId: string, phone: string) {
     body: JSON.stringify({
       zone_id: zoneId,
       phone,
-      updated_by: "demo-operator",
-      consent_label: "Operator confirmed this is an opt-in, Twilio-verified test recipient from the FireGuard demo UI.",
-      note: "Resident test contact registered from the FireGuard demo UI.",
+      updated_by: "operator",
+      consent_label: "Operator confirmed this is an opt-in, Twilio-verified test recipient.",
+      note: "Resident test contact registered from the FireGuard operator UI.",
     }),
   });
 }

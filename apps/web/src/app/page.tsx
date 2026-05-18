@@ -16,14 +16,16 @@ import { Toaster, toast } from "sonner";
 
 import { MapPanel } from "@/components/MapPanel";
 import { ReasoningGraph } from "@/components/ReasoningGraph";
+import Link from "next/link";
 import {
   approveBundle,
   executeBundle,
   getCurrentIncident,
   resetDemo,
-  runAssessment,
+  streamAssessment,
 } from "@/lib/api";
-import type { ActionItem, AssessmentResult, IncidentContext } from "@/lib/types";
+import type { SlimContext } from "@/lib/api";
+import type { ActionItem, AssessmentResult, FireHotspot, IncidentContext, Zone } from "@/lib/types";
 
 type DemoStage = "incident" | "assessing" | "reasoning" | "approving" | "executed";
 
@@ -66,6 +68,9 @@ export default function Home() {
   const [actions, setActions] = useState<ActionItem[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [streamingEvents, setStreamingEvents] = useState<Record<string, unknown>[]>([]);
+  const [streamingStep, setStreamingStep] = useState<string | null>(null);
+  const [slimContext, setSlimContext] = useState<SlimContext | null>(null);
   const [approvalOpen, setApprovalOpen] = useState(false);
   const [traceOpen, setTraceOpen] = useState(false);
   const [initialLoadHold, setInitialLoadHold] = useState(true);
@@ -164,12 +169,29 @@ export default function Home() {
 
   async function handleAssessment() {
     toast.dismiss("incident-alert");
-    await runWithBusy("assessment", async () => {
-      const result = await runAssessment();
+    setBusy("assessment");
+    setError(null);
+    setStreamingEvents([]);
+    setStreamingStep(null);
+    setSlimContext(null);
+    try {
+      const result = await streamAssessment((event) => {
+        if (event.type === "step") {
+          setStreamingEvents((prev) => [...prev, event.event]);
+          setStreamingStep((event.event.step as string) ?? null);
+          if (event.slim_context) setSlimContext(event.slim_context);
+        } else if (event.type === "thinking") {
+          setStreamingStep(event.step);
+        }
+      });
       setAssessment(result);
       setContext(result.context);
       setActions(result.actions);
-    });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Assessment failed.");
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function handleApprove() {
@@ -194,7 +216,7 @@ export default function Home() {
 
   const executedCount = actions.filter((action) => ["executed", "sent"].includes(action.status)).length;
   const showInitialLoader = !error && (!context || initialLoadHold);
-  const showGraph = assessment !== null || busy === "assessment";
+  const showGraph = assessment !== null || busy === "assessment" || streamingEvents.length > 0;
 
   return (
     <main className="h-screen overflow-hidden bg-[#0f171f] text-[#f5f8fa]">
@@ -228,7 +250,7 @@ export default function Home() {
             />
           ) : null}
 
-          {stage === "assessing" ? <AssessingPanel /> : null}
+          {stage === "assessing" ? <AssessingPanel currentStep={streamingStep} /> : null}
 
           {stage === "reasoning" || stage === "approving" ? (
             <PlanPanel
@@ -269,7 +291,12 @@ export default function Home() {
                 borderLeft: "1px solid #1a2530",
               }}
             >
-              <ReasoningGraph assessment={assessment} busy={busy} />
+              <ReasoningGraph
+                assessment={assessment}
+                streamingEvents={streamingEvents}
+                slimContext={slimContext}
+                busy={busy}
+              />
             </div>
           ) : null}
         </section>
@@ -349,6 +376,15 @@ function Topbar({
       </div>
 
       <div className="flex min-w-[280px] items-center justify-end gap-2">
+        <Link
+          href="/history"
+          style={{ display: "flex", alignItems: "center", gap: 4, textDecoration: "none", color: "#5c7080", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", padding: "4px 8px", borderRadius: 3, border: "1px solid #1a2530" }}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+          </svg>
+          Log
+        </Link>
         {assessment ? (
           <Button minimal small icon="code-block" text="Trace" onClick={onOpenTrace} />
         ) : null}
@@ -373,7 +409,7 @@ function StepPills({ stage }: { stage: DemoStage }) {
   ];
 
   return (
-    <div className="flex items-center gap-0" aria-label="Demo steps">
+    <div className="flex items-center gap-0" aria-label="Steps">
       {steps.map((step, index) => {
         const active = currentStep === step.number;
         const completed = currentStep > step.number;
@@ -521,20 +557,91 @@ function FireHotspotIcon() {
   );
 }
 
-function AssessingPanel() {
+const STEP_LABELS: Record<string, string> = {
+  observe: "Loading incident context...",
+  retrieve: "Searching operational memory...",
+  assess: "Computing zone risks...",
+  route: "Computing evacuation routes...",
+  brief: "Building operational brief...",
+  reason: "Gemini is reasoning...",
+  repair: "Repairing plan...",
+  validate: "Validating plan...",
+  plan: "Drafting evacuation plan...",
+  act: "Creating action bundle...",
+  approval: "Preparing approval request...",
+  compile: "Compiling actions...",
+};
+
+function AssessingPanel({ currentStep }: { currentStep: string | null }) {
   return (
     <div className="px-5 pt-10">
       <div className="flex flex-col items-center text-center">
         <Spinner size={44} intent={Intent.DANGER} />
         <p className="m-0 mt-4 text-sm font-medium text-white">Gemini is reasoning...</p>
-        <p className="m-0 mt-2 text-xs text-gray-500">
-          Fetching fire, route, shelter, and zone data
+        <p className="m-0 mt-2 text-xs text-gray-400">
+          {currentStep ? (STEP_LABELS[currentStep] ?? currentStep) : "Starting assessment..."}
         </p>
         <p className="m-0 mt-1 text-xs text-gray-600">
-          Reasoning trace will appear on the right
+          Reasoning trace appears live on the right
         </p>
       </div>
     </div>
+  );
+}
+
+const RISK_ZONE_COLOR: Record<string, string> = {
+  CRITICAL: "#db3737", HIGH: "#c87328", MODERATE: "#f2b824", LOW: "#3dcc91",
+};
+
+function ZoneMinimap({ zone, fires, riskLevel }: { zone: Zone; fires: FireHotspot[]; riskLevel?: string }) {
+  const ring = zone?.geometry?.coordinates?.[0] as [number, number][] | undefined;
+  if (!ring || ring.length < 3) return null;
+
+  const W = 84, H = 58;
+  const lons = ring.map((c) => c[0]);
+  const lats = ring.map((c) => c[1]);
+  const minLon = Math.min(...lons), maxLon = Math.max(...lons);
+  const minLat = Math.min(...lats), maxLat = Math.max(...lats);
+  const lonRange = maxLon - minLon || 0.01;
+  const latRange = maxLat - minLat || 0.01;
+  const pad = 0.22;
+  const vMinLon = minLon - lonRange * pad, vMaxLon = maxLon + lonRange * pad;
+  const vMinLat = minLat - latRange * pad, vMaxLat = maxLat + latRange * pad;
+
+  const px = (lon: number) => ((lon - vMinLon) / (vMaxLon - vMinLon)) * W;
+  const py = (lat: number) => ((vMaxLat - lat) / (vMaxLat - vMinLat)) * H;
+
+  const d = ring.map((c, i) => `${i === 0 ? "M" : "L"}${px(c[0]).toFixed(1)},${py(c[1]).toFixed(1)}`).join(" ") + " Z";
+  const accent = RISK_ZONE_COLOR[riskLevel ?? ""] ?? "#7c4dce";
+
+  const nearFires = fires.filter(
+    (f) => f.location.lon >= vMinLon && f.location.lon <= vMaxLon && f.location.lat >= vMinLat && f.location.lat <= vMaxLat,
+  );
+
+  return (
+    <svg
+      width={W} height={H}
+      style={{ flexShrink: 0, borderRadius: 3, border: `1px solid ${accent}50`, background: "#060b0f" }}
+    >
+      {/* Grid lines */}
+      <line x1="0" y1={H / 2} x2={W} y2={H / 2} stroke="#0e1820" strokeWidth="0.5" />
+      <line x1={W / 2} y1="0" x2={W / 2} y2={H} stroke="#0e1820" strokeWidth="0.5" />
+      {/* Zone fill */}
+      <path d={d} fill={`${accent}18`} stroke={accent} strokeWidth="1.2" strokeLinejoin="round" />
+      {/* Fire dots */}
+      {nearFires.slice(0, 12).map((f) => (
+        <circle
+          key={f.external_id}
+          cx={px(f.location.lon).toFixed(1)}
+          cy={py(f.location.lat).toFixed(1)}
+          r="2.2"
+          fill="#e05a5a"
+          opacity="0.85"
+        />
+      ))}
+      {/* Centroid pin */}
+      <circle cx={px(zone.centroid.lon).toFixed(1)} cy={py(zone.centroid.lat).toFixed(1)} r="2.5" fill={accent} opacity="0.7" />
+    </svg>
   );
 }
 
@@ -589,23 +696,36 @@ function PlanPanel({
       <hr className="mx-5 my-4 border-gray-700" />
 
       <div className="px-5">
-        {assessment.plan.steps.map((step) => (
-          <div key={step.step_id} className="fg-step-card">
-            <div className="flex items-center justify-between gap-3">
-              <p className="m-0 truncate text-sm font-medium text-white">{step.zone_id}</p>
-              <StrategyTag strategy={step.strategy} />
+        {assessment.plan.steps.map((step) => {
+          const zone = assessment.context.zones.find((z) => z.zone_id === step.zone_id);
+          const risk = assessment.plan.zone_risks.find((r) => r.zone_id === step.zone_id);
+          return (
+            <div key={step.step_id} className="fg-step-card">
+              <div className="flex items-start gap-3">
+                {/* Minimap */}
+                {zone ? (
+                  <ZoneMinimap zone={zone} fires={assessment.context.fires} riskLevel={risk?.risk_level} />
+                ) : null}
+                {/* Text content */}
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="m-0 truncate text-sm font-medium text-white">{step.zone_id}</p>
+                    <StrategyTag strategy={step.strategy} />
+                  </div>
+                  <p className="m-0 mt-1 text-xs text-gray-400">
+                    {shortText(step.message.replace("[DEMO - FireGuard] ", ""), 68)}
+                  </p>
+                  {step.rationale?.[0] ? (
+                    <p className="m-0 mt-1 text-xs italic text-gray-600">↳ {shortText(step.rationale[0], 60)}</p>
+                  ) : null}
+                  {step.start_after_minutes > 0 ? (
+                    <p className="m-0 mt-1 text-xs text-blue-400">Starts +{step.start_after_minutes} min</p>
+                  ) : null}
+                </div>
+              </div>
             </div>
-            <p className="m-0 mt-1 text-xs text-gray-400">
-              {shortText(step.message.replace("[DEMO - FireGuard] ", ""), 72)}
-            </p>
-            {step.rationale?.[0] ? (
-              <p className="m-0 mt-1 text-xs italic text-gray-600">↳ {shortText(step.rationale[0], 68)}</p>
-            ) : null}
-            {step.start_after_minutes > 0 ? (
-              <p className="m-0 mt-1 text-xs text-blue-400">Starts +{step.start_after_minutes} min</p>
-            ) : null}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {rejectedAlts.length > 0 ? (
@@ -709,7 +829,7 @@ function ExecutedPanel({
       <hr className="mx-5 my-4 border-gray-700" />
 
       <div className="px-5 pb-6">
-        <Button minimal icon="refresh" text="Reset Demo" onClick={onReset} disabled={Boolean(busy)} />
+        <Button minimal icon="refresh" text="Reset" onClick={onReset} disabled={Boolean(busy)} />
       </div>
     </div>
   );

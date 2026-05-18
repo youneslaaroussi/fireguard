@@ -1,9 +1,10 @@
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from app.models.schemas import AssessmentResult
 from app.routers.dependencies import store_dependency
 from app.services import demo_data
-from app.services.agent import run_assessment
+from app.services.agent import run_assessment, stream_assessment_events
 from app.services.store import FireGuardStore
 
 router = APIRouter(prefix="/incidents", tags=["incidents"])
@@ -17,6 +18,15 @@ def current_incident(store: FireGuardStore = Depends(store_dependency)) -> dict:
 @router.post("/assess", response_model=AssessmentResult)
 def assess_current_incident(store: FireGuardStore = Depends(store_dependency)) -> AssessmentResult:
     return run_assessment(store, demo_data.INCIDENT_ID)
+
+
+@router.post("/assess/stream")
+def assess_current_incident_stream(store: FireGuardStore = Depends(store_dependency)) -> StreamingResponse:
+    return StreamingResponse(
+        stream_assessment_events(store, demo_data.INCIDENT_ID),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/{incident_id}/context")

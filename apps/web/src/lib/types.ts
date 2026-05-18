@@ -189,6 +189,9 @@ export type ActionItem = {
   is_simulated_endpoint: boolean;
   simulation_label?: string | null;
   requires_human_approval: boolean;
+  created_at?: string;
+  approved_at?: string | null;
+  executed_at?: string | null;
 };
 
 export type Approval = {
