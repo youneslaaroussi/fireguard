@@ -7,7 +7,6 @@ import {
   Controls,
   Edge,
   Handle,
-  MiniMap,
   Node,
   NodeProps,
   Panel,
@@ -817,14 +816,6 @@ function GraphInner({
       >
         <Background color="#0e1820" gap={32} variant={BackgroundVariant.Dots} />
         <Controls style={{ bottom: 12, right: 12, left: "auto", top: "auto" }} showInteractive={false} />
-        <MiniMap
-          style={{ bottom: 12, left: 12, background: "#06090d", border: "1px solid #1a2530" }}
-          nodeColor={(n) => {
-            const d = n.data as RNodeData;
-            return (KIND_STYLE[d.kind] ?? KIND_STYLE.thought).accent + "99";
-          }}
-          maskColor="rgba(0,0,0,0.6)"
-        />
         {nodes.length > 0 ? (
           <Panel position="top-right" style={{ margin: "8px 8px 0 0" }}>
             <button
@@ -901,10 +892,24 @@ export function ReasoningGraph({
             ) : null}
           </div>
         ) : null}
-        <div className="fg-reasoning-meta" style={{ marginLeft: "auto", color: "#1e2d3d" }}>
-          {hasContent ? "scroll · pan · click nodes" : ""}
-        </div>
       </div>
+
+      {hasContent ? (
+        <div style={{
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          padding: "0 16px", height: 26, borderBottom: "1px solid #0e1820",
+          background: "#080d12", flexShrink: 0, gap: 4,
+        }}>
+          {["INCIDENT DATA", "TOOL CALLS", "DECISION", "ZONE RISK", "EVAC PLAN", "ALTERNATIVES"].map((label, i, arr) => (
+            <div key={label} style={{ display: "flex", alignItems: "center", gap: 4, flex: i < arr.length - 1 ? 1 : undefined }}>
+              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", color: "#2a3d50", whiteSpace: "nowrap" }}>{label}</span>
+              {i < arr.length - 1 ? (
+                <div style={{ flex: 1, height: 1, background: "linear-gradient(to right, #1a2530, #0e1820)", minWidth: 8 }} />
+              ) : null}
+            </div>
+          ))}
+        </div>
+      ) : null}
 
       <div style={{ flex: 1, minHeight: 0 }}>
         <ReactFlowProvider>

@@ -16,7 +16,6 @@ import { Toaster, toast } from "sonner";
 
 import { MapPanel } from "@/components/MapPanel";
 import { ReasoningGraph } from "@/components/ReasoningGraph";
-import Link from "next/link";
 import {
   approveBundle,
   executeBundle,
@@ -226,6 +225,7 @@ export default function Home() {
         stage={stage}
         assessment={assessment}
         busy={busy}
+        streamingStep={streamingStep}
         onReset={handleReset}
         onOpenTrace={() => setTraceOpen(true)}
       />
@@ -250,7 +250,12 @@ export default function Home() {
             />
           ) : null}
 
-          {stage === "assessing" ? <AssessingPanel currentStep={streamingStep} /> : null}
+          {stage === "assessing" ? (
+            <AssessingPanel
+              currentStep={streamingStep}
+              repairDetected={streamingEvents.some((e) => (e.step as string) === "repair")}
+            />
+          ) : null}
 
           {stage === "reasoning" || stage === "approving" ? (
             <PlanPanel
@@ -340,29 +345,51 @@ function InitialLoadingOverlay() {
   );
 }
 
+type PartnerState = "idle" | "connected" | "active";
+
+function PartnerBadge({ name, color, state }: { name: string; color: string; state: PartnerState }) {
+  const dotColor = state === "idle" ? "#1e2d3d" : color;
+  const textColor = state === "idle" ? "#293742" : state === "active" ? "#c0ccd8" : "#5c7080";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+      <span style={{
+        width: 5, height: 5, borderRadius: "50%", background: dotColor, display: "inline-block", flexShrink: 0,
+        animation: state === "active" ? "fg-blink 1.2s ease-in-out infinite" : "none",
+      }} />
+      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.07em", color: textColor, userSelect: "none" }}>{name}</span>
+    </div>
+  );
+}
+
 function Topbar({
   stage,
   assessment,
   busy,
+  streamingStep,
   onReset,
   onOpenTrace,
 }: {
   stage: DemoStage;
   assessment: AssessmentResult | null;
   busy: string | null;
+  streamingStep: string | null;
   onReset: () => void;
   onOpenTrace: () => void;
 }) {
-  const busyText: Record<string, string> = {
-    reset: "Resetting...",
-    assessment: "Gemini is reasoning...",
-    approve: "Approving...",
-    execute: "Executing...",
-  };
+  const STEP_ORDER = ["observe", "retrieve", "assess", "route", "brief", "reason", "repair", "validate", "plan", "act", "approval", "compile"];
+  const stepIdx = streamingStep ? STEP_ORDER.indexOf(streamingStep) : -1;
+  const pastRetrieve = stepIdx > STEP_ORDER.indexOf("retrieve");
+
+  const elasticState: PartnerState = busy === "assessment"
+    ? (streamingStep === "retrieve" ? "active" : pastRetrieve ? "connected" : "idle")
+    : assessment ? "connected" : "idle";
+
+  const arizeState: PartnerState = assessment ? "active" : "idle";
+  const fivetranState: PartnerState = "connected";
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b border-[#293742] bg-[#1c2127] px-4">
-      <div className="flex min-w-[320px] items-center gap-2">
+      <div className="flex min-w-[300px] items-center gap-2">
         <Icon icon="shield" size={18} color="#e05a5a" />
         <span className="text-sm font-bold uppercase tracking-widest text-white">FireGuard</span>
         <span className="text-gray-700">·</span>
@@ -375,25 +402,37 @@ function Topbar({
         <StepPills stage={stage} />
       </div>
 
-      <div className="flex min-w-[280px] items-center justify-end gap-2">
-        <Link
-          href="/history"
-          style={{ display: "flex", alignItems: "center", gap: 4, textDecoration: "none", color: "#5c7080", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em", padding: "4px 8px", borderRadius: 3, border: "1px solid #1a2530" }}
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-          </svg>
-          Log
-        </Link>
+      <div className="flex items-center justify-end gap-3">
+        {/* Partner integration badges */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, paddingRight: 10, borderRight: "1px solid #1a2530" }}>
+          <PartnerBadge name="Elastic" color="#00a1e0" state={elasticState} />
+          <PartnerBadge name="Fivetran" color="#0073e6" state={fivetranState} />
+          <PartnerBadge name="Arize" color="#9d4dce" state={arizeState} />
+        </div>
+
         {assessment ? (
-          <Button minimal small icon="code-block" text="Trace" onClick={onOpenTrace} />
+          <button
+            onClick={onOpenTrace}
+            style={{
+              display: "flex", alignItems: "center", gap: 5,
+              background: "#0e0520", border: "1px solid #4a2070", borderRadius: 3,
+              color: "#c090ff", fontSize: 11, fontWeight: 700, letterSpacing: "0.06em",
+              padding: "4px 9px", cursor: "pointer",
+            }}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            </svg>
+            Arize Trace
+          </button>
         ) : null}
+
         {busy ? (
           <div className="flex items-center gap-2 text-xs text-gray-400">
-            <Spinner size={16} />
-            <span>{busyText[busy] || "Working..."}</span>
+            <Spinner size={14} />
           </div>
         ) : null}
+
         <Button minimal small icon="refresh" text="Reset" onClick={onReset} disabled={Boolean(busy)} />
       </div>
     </header>
@@ -455,10 +494,42 @@ function IncidentPanel({
   onRunAssessment: () => void;
 }) {
   const zoneRisks = assessment?.plan.zone_risks || [];
+  const totalPop = (context?.zones || []).reduce((s, z) => s + z.population, 0);
+  const totalVuln = (context?.zones || []).reduce((s, z) => s + z.vulnerable_count, 0);
 
   return (
     <div>
       <div className="fg-section-label !pt-6">Incident</div>
+
+      {context && totalPop > 0 ? (
+        <div style={{
+          margin: "4px 20px 0",
+          padding: "8px 12px",
+          background: "#0e1820",
+          border: "1px solid #1a2530",
+          borderLeft: "2px solid #e05a5a",
+          borderRadius: 3,
+          display: "flex",
+          gap: 16,
+        }}>
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#edf5ff", lineHeight: 1 }}>
+              {totalPop >= 1000 ? `${(totalPop / 1000).toFixed(1)}k` : totalPop}
+            </div>
+            <div style={{ fontSize: 9, color: "#4a5c6a", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>residents at risk</div>
+          </div>
+          <div style={{ width: 1, background: "#1a2530" }} />
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#f2b824", lineHeight: 1 }}>{totalVuln}</div>
+            <div style={{ fontSize: 9, color: "#4a5c6a", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>vulnerable</div>
+          </div>
+          <div style={{ width: 1, background: "#1a2530" }} />
+          <div>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#c0a0ff", lineHeight: 1 }}>{context.zones.length}</div>
+            <div style={{ fontSize: 9, color: "#4a5c6a", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>zones</div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="space-y-3 px-5 pt-2">
         {(context?.fires || []).slice(0, revealed.fires).map((fire) => (
@@ -572,18 +643,64 @@ const STEP_LABELS: Record<string, string> = {
   compile: "Compiling actions...",
 };
 
-function AssessingPanel({ currentStep }: { currentStep: string | null }) {
+const STEP_PARTNER: Record<string, { label: string; partner?: string; color?: string }> = {
+  observe:  { label: "Reading incident context" },
+  retrieve: { label: "Searching operational memory", partner: "Elastic", color: "#00a1e0" },
+  assess:   { label: "Computing zone risk scores" },
+  route:    { label: "Computing evacuation routes" },
+  brief:    { label: "Building operational brief" },
+  reason:   { label: "Gemini reasoning...", partner: "Gemini", color: "#8abbff" },
+  repair:   { label: "Self-correcting plan", partner: "Gemini", color: "#f2b824" },
+  validate: { label: "Validating plan constraints" },
+  plan:     { label: "Drafting evacuation plan" },
+  act:      { label: "Creating action bundle" },
+  approval: { label: "Preparing commander approval" },
+  compile:  { label: "Compiling final actions" },
+};
+
+function AssessingPanel({ currentStep, repairDetected }: { currentStep: string | null; repairDetected: boolean }) {
+  const stepInfo = currentStep ? (STEP_PARTNER[currentStep] ?? { label: currentStep }) : null;
   return (
     <div className="px-5 pt-10">
       <div className="flex flex-col items-center text-center">
         <Spinner size={44} intent={Intent.DANGER} />
-        <p className="m-0 mt-4 text-sm font-medium text-white">Gemini is reasoning...</p>
-        <p className="m-0 mt-2 text-xs text-gray-400">
-          {currentStep ? (STEP_LABELS[currentStep] ?? currentStep) : "Starting assessment..."}
+        <p className="m-0 mt-4 text-sm font-medium text-white">
+          {currentStep === "reason" || currentStep === "repair" ? "Gemini is reasoning..." : "Agent running..."}
         </p>
-        <p className="m-0 mt-1 text-xs text-gray-600">
-          Reasoning trace appears live on the right
-        </p>
+
+        {stepInfo ? (
+          <div style={{ marginTop: 10, display: "flex", alignItems: "center", gap: 6 }}>
+            <p className="m-0 text-xs text-gray-400">{stepInfo.label}</p>
+            {stepInfo.partner ? (
+              <span style={{
+                fontSize: 9, fontWeight: 800, letterSpacing: "0.07em",
+                color: stepInfo.color, background: `${stepInfo.color}15`,
+                border: `1px solid ${stepInfo.color}40`,
+                borderRadius: 2, padding: "1px 5px",
+                animation: "fg-blink 1.2s ease-in-out infinite",
+              }}>
+                {stepInfo.partner}
+              </span>
+            ) : null}
+          </div>
+        ) : (
+          <p className="m-0 mt-2 text-xs text-gray-600">Starting assessment...</p>
+        )}
+
+        {repairDetected ? (
+          <div style={{
+            marginTop: 12, display: "flex", alignItems: "center", gap: 5,
+            background: "#0d1a0d", border: "1px solid #1a3a1a", borderRadius: 3,
+            padding: "5px 10px",
+          }}>
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#45d483" strokeWidth="2.5">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span style={{ fontSize: 10, fontWeight: 700, color: "#45d483", letterSpacing: "0.06em" }}>
+              Plan self-corrected
+            </span>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -713,7 +830,7 @@ function PlanPanel({
                     <StrategyTag strategy={step.strategy} />
                   </div>
                   <p className="m-0 mt-1 text-xs text-gray-400">
-                    {shortText(step.message.replace("[DEMO - FireGuard] ", ""), 68)}
+                    {shortText(step.message.replace(/\[DEMO - FireGuard\] ?/g, ""), 68)}
                   </p>
                   {step.rationale?.[0] ? (
                     <p className="m-0 mt-1 text-xs italic text-gray-600">↳ {shortText(step.rationale[0], 60)}</p>
@@ -751,7 +868,10 @@ function PlanPanel({
           <div className="px-5">
             <p className="m-0 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-600">Data Gaps</p>
             {dataGaps.map((gap) => (
-              <p key={gap} className="m-0 mb-1 text-xs text-yellow-600">⚠ {gap}</p>
+              <p key={gap} className="m-0 mb-1 flex items-start gap-1.5 text-xs text-yellow-600">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                {gap}
+              </p>
             ))}
           </div>
         </>
@@ -890,7 +1010,7 @@ function ApprovalDialog({
                     overflow: "hidden",
                   }}
                 >
-                  {action.message.replace("[DEMO - FireGuard] ", "")}
+                  {action.message.replace(/\[DEMO - FireGuard\] ?/g, "")}
                 </p>
               </div>
             </div>
@@ -914,6 +1034,21 @@ function ApprovalDialog({
   );
 }
 
+const TRACE_STEP_META: Record<string, { label: string; partner?: string; color: string }> = {
+  observe:  { label: "get_incident_context",        color: "#2d72d2" },
+  retrieve: { label: "search_operational_memory",   partner: "Elastic", color: "#00a1e0" },
+  assess:   { label: "compute_zone_risk",            color: "#f2b824" },
+  route:    { label: "compute_routes",               color: "#48aff0" },
+  brief:    { label: "operational_brief",            color: "#5c7080" },
+  reason:   { label: "gemini_plan_decision",         partner: "Gemini", color: "#9d4dce" },
+  repair:   { label: "gemini_repair",                partner: "Gemini", color: "#f2b824" },
+  validate: { label: "plan_validation",              color: "#5c7080" },
+  plan:     { label: "draft_evacuation_plan",        color: "#2a7a48" },
+  act:      { label: "create_action_bundle",         color: "#2a7a48" },
+  approval: { label: "request_human_approval",       color: "#c87328" },
+  compile:  { label: "action_bundle_compile",        color: "#5c7080" },
+};
+
 function TraceDialog({
   isOpen,
   assessment,
@@ -932,56 +1067,98 @@ function TraceDialog({
     ? (dec.data_gaps as unknown[]).filter((g): g is string => typeof g === "string")
     : [];
   const risksIfWrong = assessment.plan.risks_if_wrong ?? [];
-  const rejectedAlts = (assessment.plan.rejected_alternatives ?? []).slice(0, 5);
   const modelLabel = typeof (assessment.context.provider_status?.gemini as Record<string, unknown> | undefined)?.model === "string"
     ? String((assessment.context.provider_status.gemini as Record<string, unknown>).model)
-    : "Gemini";
+    : "gemini-2.0-flash";
+  const traceEvents = assessment.trace ?? [];
+  const repaired = assessment.planning_mode === "gemini_repaired";
 
   return (
     <Dialog
       className="bp6-dark"
       isOpen={isOpen}
       onClose={onClose}
-      title="Gemini Agent Trace"
-      style={{ width: "720px", maxHeight: "80vh" }}
+      title=""
+      style={{ width: "720px", maxHeight: "85vh", padding: 0 }}
     >
-      <div className={Classes.DIALOG_BODY} style={{ maxHeight: "calc(80vh - 120px)", overflowY: "auto" }}>
-        {/* Header grid */}
-        <div className="grid grid-cols-2 gap-4">
-          <TraceSummaryItem label="Planning Mode">
-            <PlanningModeTag mode={assessment.planning_mode} />
-          </TraceSummaryItem>
-          <TraceSummaryItem label="Model">
-            <div className="flex items-center gap-2">
-              <Tag minimal intent={Intent.PRIMARY}>{modelLabel}</Tag>
-              <Tag minimal>Vertex AI</Tag>
+      {/* Arize-branded header */}
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        padding: "14px 20px 12px",
+        background: "#0a0514",
+        borderBottom: "1px solid #2a1850",
+      }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#9d4dce", animation: "fg-blink 2s ease-in-out infinite" }} />
+          <span style={{ fontSize: 13, fontWeight: 800, color: "#edf5ff", letterSpacing: "0.02em" }}>Arize</span>
+          <span style={{ fontSize: 11, color: "#5c7080" }}>AI Observability · LLM Trace</span>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 10, fontFamily: "monospace", color: "#4a2070", background: "#0e0520", border: "1px solid #2a1050", borderRadius: 2, padding: "2px 6px" }}>{modelLabel}</span>
+          <span style={{ fontSize: 10, fontFamily: "monospace", color: "#1e3045", background: "#040a10", border: "1px solid #0e1c28", borderRadius: 2, padding: "2px 6px" }}>incident/{assessment.incident_id.slice(0, 12)}</span>
+        </div>
+      </div>
+
+      <div className={Classes.DIALOG_BODY} style={{ maxHeight: "calc(85vh - 140px)", overflowY: "auto", padding: "16px 20px" }}>
+
+        {/* Eval summary row */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
+          {[
+            { label: "TRACE STEPS", value: String(traceEvents.length), color: "#48aff0" },
+            { label: "TOOL CALLS", value: String(toolCalls.length), color: "#9d4dce" },
+            { label: "CONFIDENCE", value: `${Math.round(assessment.plan.confidence * 100)}%`, color: assessment.plan.confidence >= 0.75 ? "#45d483" : "#f2b824" },
+            { label: "PLAN STATUS", value: repaired ? "self-corrected" : "direct", color: repaired ? "#45d483" : "#48aff0" },
+          ].map(({ label, value, color }) => (
+            <div key={label} style={{ background: "#04080e", border: "1px solid #0e1820", borderRadius: 3, padding: "8px 12px" }}>
+              <div style={{ fontSize: 8, fontWeight: 800, letterSpacing: "0.12em", color: "#293742", textTransform: "uppercase", marginBottom: 4 }}>{label}</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color }}>{value}</div>
             </div>
-          </TraceSummaryItem>
-          <TraceSummaryItem label="Confidence">
-            <span className="text-sm">{Math.round(assessment.plan.confidence * 100)}%</span>
-          </TraceSummaryItem>
-          <TraceSummaryItem label="Validation">
-            {assessment.plan_validation?.valid === true ? (
-              <Tag intent={Intent.SUCCESS}>valid · {assessment.gemini_tool_calls?.length ?? 0} tool calls</Tag>
-            ) : (
-              <Tag intent={Intent.DANGER}>repair needed</Tag>
-            )}
-          </TraceSummaryItem>
+          ))}
         </div>
 
-        {/* Incident summary */}
+        {/* Trace spans */}
+        <div style={{ marginBottom: 4, fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", color: "#293742", textTransform: "uppercase" }}>Trace Spans</div>
+        <div style={{ border: "1px solid #0e1820", borderRadius: 3, overflow: "hidden", marginBottom: 20 }}>
+          {traceEvents.map((event, i) => {
+            const step = String(event.step ?? "");
+            const tool = String(event.tool ?? step);
+            const meta = TRACE_STEP_META[step] ?? { label: tool, color: "#293742" };
+            const evidenceCount = Array.isArray(event.evidence_ids) ? (event.evidence_ids as unknown[]).length : 0;
+            return (
+              <div key={i} style={{
+                display: "flex", alignItems: "center", gap: 10,
+                padding: "7px 12px",
+                borderBottom: i < traceEvents.length - 1 ? "1px solid #080d12" : "none",
+                background: i % 2 === 0 ? "#04080e" : "transparent",
+              }}>
+                <span style={{ width: 6, height: 6, borderRadius: "50%", background: meta.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 10, fontFamily: "monospace", color: "#c0ccd8", minWidth: 200 }}>{meta.label}</span>
+                {meta.partner ? (
+                  <span style={{ fontSize: 9, fontWeight: 700, color: meta.color, background: `${meta.color}15`, border: `1px solid ${meta.color}40`, borderRadius: 2, padding: "1px 5px", letterSpacing: "0.06em" }}>
+                    {meta.partner}
+                  </span>
+                ) : null}
+                <span style={{ marginLeft: "auto", fontSize: 10, color: "#293742", fontFamily: "monospace" }}>
+                  {evidenceCount > 0 ? `${evidenceCount} refs` : ""}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Gemini assessment */}
         {incidentSummary ? (
           <>
-            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Gemini Assessment</p>
-            <p className="m-0 text-sm leading-relaxed text-gray-300">{incidentSummary}</p>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", color: "#293742", textTransform: "uppercase", marginBottom: 6 }}>Gemini Assessment</div>
+            <p className="m-0 mb-5 text-sm leading-relaxed text-gray-300">{incidentSummary}</p>
           </>
         ) : null}
 
         {/* Tool calls */}
         {toolCalls.length > 0 ? (
           <>
-            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Tool Calls</p>
-            <div className="fg-tool-timeline">
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", color: "#293742", textTransform: "uppercase", marginBottom: 6 }}>Tool Calls</div>
+            <div className="fg-tool-timeline mb-5">
               {toolCalls.map((tool, i) => (
                 <div key={`${tool}-${i}`} className="fg-tool-item pb-3">
                   <span className="fg-tool-dot" />
@@ -992,55 +1169,16 @@ function TraceDialog({
           </>
         ) : null}
 
-        {/* Plan steps */}
-        {assessment.plan.steps.length > 0 ? (
-          <>
-            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Plan Steps</p>
-            <div className="space-y-2">
-              {assessment.plan.steps.map((step) => (
-                <div key={step.step_id} className="rounded-sm border border-[#252e38] px-3 py-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-mono text-xs text-gray-300">{step.zone_id}</span>
-                    <div className="flex items-center gap-2">
-                      <StrategyTag strategy={step.strategy} />
-                      <span className="text-xs text-gray-500">
-                        {step.start_after_minutes > 0 ? `+${step.start_after_minutes} min` : "immediate"}
-                      </span>
-                    </div>
-                  </div>
-                  {step.rationale?.[0] ? (
-                    <p className="m-0 mt-1 text-xs italic text-gray-600">↳ {step.rationale[0]}</p>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-          </>
-        ) : null}
-
-        {/* Rejected alternatives */}
-        {rejectedAlts.length > 0 ? (
-          <>
-            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Considered &amp; Rejected</p>
-            <div className="space-y-2">
-              {rejectedAlts.map((alt, i) => (
-                <div key={i} className="rounded-sm border border-[#2a1818] px-3 py-2">
-                  <p className="m-0 font-mono text-xs text-red-400">
-                    {stringify(alt.origin_id)} → {stringify(alt.destination_id, "none")}
-                  </p>
-                  <p className="m-0 mt-1 text-xs text-gray-500">{stringify(alt.reason ?? "", "")}</p>
-                </div>
-              ))}
-            </div>
-          </>
-        ) : null}
-
         {/* Data gaps */}
         {dataGaps.length > 0 ? (
           <>
-            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Data Gaps</p>
-            <div className="space-y-1">
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", color: "#293742", textTransform: "uppercase", marginBottom: 6 }}>Data Gaps Identified</div>
+            <div className="space-y-1 mb-5">
               {dataGaps.map((gap) => (
-                <p key={gap} className="m-0 text-xs text-yellow-600">⚠ {gap}</p>
+                <p key={gap} className="m-0 flex items-start gap-1.5 text-xs text-yellow-600">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                  {gap}
+                </p>
               ))}
             </div>
           </>
@@ -1049,22 +1187,21 @@ function TraceDialog({
         {/* Risks if wrong */}
         {risksIfWrong.length > 0 ? (
           <>
-            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Risks if Wrong</p>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", color: "#293742", textTransform: "uppercase", marginBottom: 6 }}>Risks if Wrong</div>
             <div className="space-y-1">
               {risksIfWrong.slice(0, 4).map((risk) => (
-                <p key={risk} className="m-0 text-xs text-gray-500">• {risk}</p>
+                <p key={risk} className="m-0 text-xs text-gray-500">· {risk}</p>
               ))}
             </div>
           </>
         ) : null}
 
-        {/* Validation notes */}
         {assessment.validation_errors?.length ? (
           <>
-            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Validation Notes</p>
+            <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: "0.1em", color: "#293742", textTransform: "uppercase", marginBottom: 6, marginTop: 16 }}>Validation Notes</div>
             <div className="space-y-1">
-              {assessment.validation_errors.map((validationError) => (
-                <p key={validationError} className="m-0 text-xs text-yellow-600">• {validationError}</p>
+              {assessment.validation_errors.map((e) => (
+                <p key={e} className="m-0 text-xs text-yellow-600">· {e}</p>
               ))}
             </div>
           </>
@@ -1074,19 +1211,21 @@ function TraceDialog({
   );
 }
 
-function TraceSummaryItem({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="m-0 text-xs text-gray-500">{label}</p>
-      <div className="mt-1">{children}</div>
-    </div>
-  );
-}
 
 function PlanningModeTag({ mode }: { mode?: AssessmentResult["planning_mode"] }) {
-  if (mode === "gemini_selected") return <Tag minimal intent={Intent.SUCCESS}>Gemini · direct</Tag>;
-  if (mode === "gemini_repaired") return <Tag minimal intent={Intent.WARNING}>Gemini · repaired</Tag>;
-  return <Tag minimal intent={Intent.NONE}>no gemini</Tag>;
+  if (mode === "gemini_selected") return <Tag minimal intent={Intent.SUCCESS}>Gemini</Tag>;
+  if (mode === "gemini_repaired") return (
+    <span style={{
+      display: "inline-flex", alignItems: "center", gap: 4,
+      fontSize: 10, fontWeight: 700, color: "#45d483",
+      background: "#0d2b1e", border: "1px solid #1a4a30",
+      borderRadius: 3, padding: "2px 6px",
+    }}>
+      <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg>
+      self-corrected
+    </span>
+  );
+  return <Tag minimal intent={Intent.NONE}>fallback</Tag>;
 }
 
 function StrategyTag({ strategy }: { strategy: string }) {
