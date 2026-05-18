@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -39,7 +39,6 @@ interface RNodeData extends Record<string, unknown> {
   sublabel?: string;
   detail?: unknown;
   riskLevel?: string;
-  streaming?: boolean;
 }
 type RNode = Node<RNodeData>;
 
@@ -91,7 +90,7 @@ function RNode({ data, selected }: NodeProps) {
         minWidth: isThought ? 120 : isDecision ? 160 : 138,
         maxWidth: isThought ? 200 : isDecision ? 210 : 182,
         cursor: "pointer",
-        opacity: d.streaming ? 0.6 : 1,
+        opacity: 1,
         transition: "border-color 0.12s, box-shadow 0.12s",
       }}
     >
@@ -114,10 +113,7 @@ function RNode({ data, selected }: NodeProps) {
         >
           {s.badge}
         </span>
-        {d.streaming ? (
-          <span style={{ color: s.accent, fontSize: 8, marginLeft: "auto", animation: "fg-blink 1s ease-in-out infinite" }}>●</span>
-        ) : null}
-      </div>
+        </div>
 
       <div
         style={{
@@ -159,37 +155,6 @@ function mkEdge(id: string, src: string, tgt: string, opts: { dashed?: boolean; 
 function colY(count: number, i: number, centerY: number): number {
   const spacing = 96;
   return centerY - ((count - 1) * spacing) / 2 + i * spacing;
-}
-
-// ─── streaming simulation ─────────────────────────────────────────────────────
-const STREAM_STEPS = [
-  { step: "observe",  label: "Load Context",   kind: "context" as RKind },
-  { step: "retrieve", label: "Search Memory",  kind: "tool" as RKind },
-  { step: "assess",   label: "Assess Zones",   kind: "tool" as RKind },
-  { step: "route",    label: "Compute Routes", kind: "tool" as RKind },
-  { step: "brief",    label: "Build Brief",    kind: "tool" as RKind },
-  { step: "reason",   label: "Gemini Decides", kind: "decision" as RKind },
-  { step: "validate", label: "Validate Plan",  kind: "planstep" as RKind },
-  { step: "plan",     label: "Draft Plan",     kind: "planstep" as RKind },
-];
-
-function buildStreamingGraph(count: number): { nodes: RNode[]; edges: Edge[] } {
-  const nodes: RNode[] = [];
-  const edges: Edge[] = [];
-  const STEP_W = 190;
-  const shown = STREAM_STEPS.slice(0, count);
-
-  shown.forEach(({ label, kind }, i) => {
-    const id = `s${i}`;
-    nodes.push({
-      id, type: "rn",
-      position: { x: 60 + i * STEP_W, y: 160 },
-      data: { kind, label, sublabel: `step ${i + 1}`, streaming: i === shown.length - 1 } as RNodeData,
-    });
-    if (i > 0) edges.push(mkEdge(`e${i - 1}${i}`, `s${i - 1}`, id));
-  });
-
-  return { nodes, edges };
 }
 
 // ─── full rich graph ──────────────────────────────────────────────────────────
@@ -460,48 +425,37 @@ function JsonBlock({ data }: { data: unknown }) {
 // ─── inner flow ───────────────────────────────────────────────────────────────
 function GraphInner({
   assessment,
-  streaming,
-  onToolsUpdate,
-  onPhaseUpdate,
+  loading,
 }: {
   assessment: AssessmentResult | null;
-  streaming: boolean;
-  onToolsUpdate?: (steps: string[]) => void;
-  onPhaseUpdate?: (phase: number) => void;
+  loading: boolean;
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<RNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [selected, setSelected] = useState<RNodeData | null>(null);
-  const [streamCount, setStreamCount] = useState(0);
-  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   useEffect(() => {
-    timers.current.forEach(clearTimeout);
-    timers.current = [];
-    if (!streaming) { setStreamCount(0); onToolsUpdate?.([]); onPhaseUpdate?.(0); return; }
-    setStreamCount(0);
-    STREAM_STEPS.forEach(({ label }, i) => {
-      const t = setTimeout(() => {
-        setStreamCount(i + 1);
-        onToolsUpdate?.(STREAM_STEPS.slice(0, i + 1).map((s) => s.label));
-        onPhaseUpdate?.(i + 1);
-      }, 400 + i * 800);
-      timers.current.push(t);
-    });
-    return () => { timers.current.forEach(clearTimeout); };
-  }, [streaming, onPhaseUpdate]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!streaming) return;
-    const { nodes: n, edges: e } = buildStreamingGraph(streamCount);
-    setNodes(n); setEdges(e);
-  }, [streaming, streamCount, setNodes, setEdges]);
-
-  useEffect(() => {
-    if (!assessment || streaming) return;
+    if (!assessment) return;
     const { nodes: n, edges: e } = buildRichGraph(assessment);
     setNodes(n); setEdges(e);
-  }, [assessment, streaming, setNodes, setEdges]);
+  }, [assessment, setNodes, setEdges]);
+
+  if (loading && !assessment) {
+    return (
+      <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 14, background: "#0b1117" }}>
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" style={{ animation: "fg-blink 1.4s ease-in-out infinite" }}>
+          <circle cx="12" cy="12" r="10" stroke="#1e3045" strokeWidth="2" />
+          <path d="M12 6v6l4 2" stroke="#8abbff" strokeWidth="2" strokeLinecap="round" />
+        </svg>
+        <p style={{ margin: 0, color: "#4a5c6a", fontSize: 12, fontWeight: 600, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+          Gemini is reasoning
+        </p>
+        <p style={{ margin: 0, color: "#2a3a48", fontSize: 11 }}>
+          Trace graph will appear here when complete
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div style={{ position: "relative", width: "100%", height: "100%" }}>
@@ -543,23 +497,19 @@ function GraphInner({
 export function ReasoningGraph({
   assessment,
   busy,
-  onToolsUpdate,
-  onPhaseUpdate,
 }: {
   assessment: AssessmentResult | null;
   busy: string | null;
-  onToolsUpdate?: (steps: string[]) => void;
-  onPhaseUpdate?: (phase: number) => void;
 }) {
-  const streaming = busy === "assessment";
-  if (!assessment && !streaming) return null;
+  const loading = busy === "assessment";
+  if (!assessment && !loading) return null;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", width: "100%", height: "100%", background: "#0b1117" }}>
       {/* header bar */}
       <div className="fg-reasoning-header">
         <div className="fg-reasoning-title">
-          {streaming ? <><span className="fg-reasoning-live-dot" />Gemini Reasoning — Live</> : "Gemini Reasoning Trace"}
+          Gemini Reasoning Trace
         </div>
         {assessment ? (
           <div className="fg-reasoning-meta">
@@ -569,20 +519,20 @@ export function ReasoningGraph({
             <span className="fg-reasoning-meta-sep">·</span>
             <span>{assessment.plan.zone_risks?.length ?? 0} zones</span>
             <span className="fg-reasoning-meta-sep">·</span>
-            <span>{assessment.plan.rejected_alternatives?.length ?? 0} rejected routes</span>
+            <span>{assessment.plan.rejected_alternatives?.length ?? 0} rejected</span>
             <span className="fg-reasoning-meta-sep">·</span>
             <span>{(assessment.plan.risks_if_wrong?.length ?? 0) + (Array.isArray((assessment.gemini_decision as Record<string,unknown> | null)?.data_gaps) ? ((assessment.gemini_decision as Record<string,unknown>).data_gaps as unknown[]).length : 0)} risks/gaps</span>
           </div>
         ) : null}
         <div className="fg-reasoning-meta" style={{ marginLeft: "auto", color: "#1e2d3d" }}>
-          scroll · pan · click nodes
+          {assessment ? "scroll · pan · click nodes" : ""}
         </div>
       </div>
 
       {/* graph area */}
       <div style={{ flex: 1, minHeight: 0 }}>
         <ReactFlowProvider>
-          <GraphInner assessment={assessment} streaming={streaming} onToolsUpdate={onToolsUpdate} onPhaseUpdate={onPhaseUpdate} />
+          <GraphInner assessment={assessment} loading={loading} />
         </ReactFlowProvider>
       </div>
     </div>

@@ -9,7 +9,6 @@ import type { AssessmentResult, IncidentContext, RouteOption } from "@/lib/types
 type Props = {
   context: IncidentContext | null;
   assessment: AssessmentResult | null;
-  streamingPhase?: number;
 };
 
 type LayerKey = "fires" | "perimeters" | "roads" | "zones" | "shelters" | "routes" | "public" | "liveFires" | "livePerimeters" | "liveRoads";
@@ -623,11 +622,10 @@ function mapboxStaticImageUrl(selected: SelectedMapFeature | null) {
   return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/${marker}/${lon.toFixed(5)},${lat.toFixed(5)},10.5,0/760x320@2x?access_token=${encodeURIComponent(MAPBOX_TOKEN)}`;
 }
 
-export function MapPanel({ context, assessment, streamingPhase }: Props) {
+export function MapPanel({ context, assessment }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const styleRef = useRef<BasemapKey>("dark");
-  const animFrameRef = useRef<number | null>(null);
   const [basemap, setBasemap] = useState<BasemapKey>("dark");
   const [layersOpen, setLayersOpen] = useState(false);
   const [selectedFeature, setSelectedFeature] = useState<SelectedMapFeature | null>(null);
@@ -768,52 +766,6 @@ export function MapPanel({ context, assessment, streamingPhase }: Props) {
     applyLayerVisibility(map, visible);
   }, [visible]);
 
-  // Candidate route animation during the "route" streaming phase (phase index 4)
-  useEffect(() => {
-    const map = mapRef.current;
-    const showRoutes = streamingPhase === 4 && !assessment && Boolean(context);
-
-    const apply = () => {
-      if (!map?.getSource("candidate-routes")) return;
-      const src = map.getSource("candidate-routes") as GeoJSONSource;
-      if (showRoutes && context) {
-        src.setData({ type: "FeatureCollection", features: buildCandidateRoutes(context) });
-        // start pulsing opacity
-        if (!animFrameRef.current) {
-          let opacity = 0.6;
-          let dir = -0.012;
-          const pulse = () => {
-            opacity += dir;
-            if (opacity < 0.2 || opacity > 0.85) dir = -dir;
-            if (map.getLayer("candidate-routes")) {
-              map.setPaintProperty("candidate-routes", "line-opacity", opacity);
-            }
-            animFrameRef.current = requestAnimationFrame(pulse);
-          };
-          animFrameRef.current = requestAnimationFrame(pulse);
-        }
-      } else {
-        src.setData({ type: "FeatureCollection", features: [] });
-        if (animFrameRef.current) {
-          cancelAnimationFrame(animFrameRef.current);
-          animFrameRef.current = null;
-        }
-        if (map.getLayer("candidate-routes")) {
-          map.setPaintProperty("candidate-routes", "line-opacity", 0);
-        }
-      }
-    };
-
-    if (map?.loaded()) apply();
-    else map?.once("load", apply);
-
-    return () => {
-      if (animFrameRef.current) {
-        cancelAnimationFrame(animFrameRef.current);
-        animFrameRef.current = null;
-      }
-    };
-  }, [streamingPhase, assessment, context]);
 
   return (
     <section className="fireguard-map-panel">

@@ -70,8 +70,6 @@ export default function Home() {
   const [traceOpen, setTraceOpen] = useState(false);
   const [initialLoadHold, setInitialLoadHold] = useState(true);
   const [revealed, setRevealed] = useState({ fires: 0, roads: 0, zones: false, button: false });
-  const [streamingTools, setStreamingTools] = useState<string[]>([]);
-  const [streamingPhase, setStreamingPhase] = useState(0);
   const revealTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const stage = useMemo(() => inferStage(assessment, actions, busy), [assessment, actions, busy]);
@@ -102,27 +100,23 @@ export default function Home() {
     const firesToShow = Math.min(context.fires.length, 3);
     const roadsToShow = Math.min(context.road_events.length, 2);
 
-    schedule(() => {
-      toast.error("WILDFIRE INCIDENT ACTIVE", {
-        id: "incident-alert",
-        description: `${context.fires.length} active hotspots · ${context.road_events.length} road events · ${context.zones.length} zones`,
-        duration: Infinity,
-      });
-    }, 400);
-
+    // Fires — staggered reveal, 300 ms apart
     for (let i = 0; i < firesToShow; i++) {
       const idx = i;
       schedule(() => {
         setRevealed((r) => ({ ...r, fires: idx + 1 }));
-        toast("Active hotspot detected", {
-          icon: <FireHotspotIcon />,
-          description: `NASA FIRMS · FRP ${context.fires[idx].frp?.toFixed(1) ?? "—"} MW`,
-          duration: 4000,
-        });
-      }, 700 + idx * 550);
+        if (idx === 0) {
+          toast.error("Wildfire incident active", {
+            id: "incident-alert",
+            description: `${context.fires.length} hotspots · ${context.road_events.length} road events · ${context.zones.length} zones`,
+            duration: 6000,
+          });
+        }
+      }, 200 + idx * 300);
     }
 
-    const roadStart = 700 + firesToShow * 550 + 400;
+    // Roads
+    const roadStart = 200 + firesToShow * 300 + 150;
     for (let i = 0; i < roadsToShow; i++) {
       const idx = i;
       schedule(() => {
@@ -131,18 +125,13 @@ export default function Home() {
           description: context.road_events[idx].road_name,
           duration: 4000,
         });
-      }, roadStart + idx * 600);
+      }, roadStart + idx * 300);
     }
 
-    const zonesStart = roadStart + roadsToShow * 600 + 300;
-    schedule(() => {
-      setRevealed((r) => ({ ...r, zones: true }));
-      toast.success("Incident data loaded", {
-        description: `${firesToShow} hotspots · ${roadsToShow} road events · ${context.zones.length} zones at risk`,
-        duration: 5000,
-      });
-    }, zonesStart);
-    schedule(() => setRevealed((r) => ({ ...r, button: true })), zonesStart + 350);
+    // Zones + button
+    const zonesStart = roadStart + roadsToShow * 300 + 150;
+    schedule(() => setRevealed((r) => ({ ...r, zones: true })), zonesStart);
+    schedule(() => setRevealed((r) => ({ ...r, button: true })), zonesStart + 200);
 
     return () => {
       revealTimersRef.current.forEach(clearTimeout);
@@ -168,7 +157,6 @@ export default function Home() {
       setActions([]);
       setApprovalOpen(false);
       setTraceOpen(false);
-      setStreamingPhase(0);
       const nextContext = await getCurrentIncident();
       setContext(nextContext);
     });
@@ -176,7 +164,6 @@ export default function Home() {
 
   async function handleAssessment() {
     toast.dismiss("incident-alert");
-    setStreamingPhase(0);
     await runWithBusy("assessment", async () => {
       const result = await runAssessment();
       setAssessment(result);
@@ -205,7 +192,6 @@ export default function Home() {
     });
   }
 
-  const publicActionCount = actions.filter((action) => action.requires_human_approval).length;
   const executedCount = actions.filter((action) => ["executed", "sent"].includes(action.status)).length;
   const showInitialLoader = !error && (!context || initialLoadHold);
   const showGraph = assessment !== null || busy === "assessment";
@@ -242,7 +228,7 @@ export default function Home() {
             />
           ) : null}
 
-          {stage === "assessing" ? <AssessingPanel streamingTools={streamingTools} /> : null}
+          {stage === "assessing" ? <AssessingPanel /> : null}
 
           {stage === "reasoning" || stage === "approving" ? (
             <PlanPanel
@@ -268,7 +254,7 @@ export default function Home() {
             className="relative min-h-0 overflow-hidden"
             style={{ width: showGraph ? "42%" : "100%", height: "100%", flexShrink: 0 }}
           >
-            <MapPanel context={context} assessment={assessment} streamingPhase={streamingPhase} />
+            <MapPanel context={context} assessment={assessment} />
           </div>
 
           {/* Reasoning graph — fills remaining space side-by-side */}
@@ -283,12 +269,7 @@ export default function Home() {
                 borderLeft: "1px solid #1a2530",
               }}
             >
-              <ReasoningGraph
-                assessment={assessment}
-                busy={busy}
-                onToolsUpdate={setStreamingTools}
-                onPhaseUpdate={setStreamingPhase}
-              />
+              <ReasoningGraph assessment={assessment} busy={busy} />
             </div>
           ) : null}
         </section>
@@ -354,11 +335,13 @@ function Topbar({
 
   return (
     <header className="fixed inset-x-0 top-0 z-40 flex h-14 items-center border-b border-[#293742] bg-[#1c2127] px-4">
-      <div className="flex min-w-[280px] items-center gap-2">
+      <div className="flex min-w-[320px] items-center gap-2">
         <Icon icon="shield" size={18} color="#e05a5a" />
         <span className="text-sm font-bold uppercase tracking-widest text-white">FireGuard</span>
-        <span className="text-gray-600">·</span>
+        <span className="text-gray-700">·</span>
         <span className="text-xs text-gray-400">Wildfire Evacuation Agent</span>
+        <span className="text-gray-700">·</span>
+        <span className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#4a7cbb" }}>Google Agent Builder</span>
       </div>
 
       <div className="flex flex-1 justify-center">
@@ -538,37 +521,18 @@ function FireHotspotIcon() {
   );
 }
 
-function AssessingPanel({ streamingTools }: { streamingTools: string[] }) {
+function AssessingPanel() {
   return (
     <div className="px-5 pt-10">
       <div className="flex flex-col items-center text-center">
         <Spinner size={44} intent={Intent.DANGER} />
         <p className="m-0 mt-4 text-sm font-medium text-white">Gemini is reasoning...</p>
-        <p className="m-0 mt-1 text-xs text-gray-500">Full trace visible in graph below</p>
-      </div>
-
-      <div className="mx-auto mt-6 max-w-[260px] space-y-2">
-        {streamingTools.length === 0 ? (
-          <div className="flex items-center gap-2">
-            <Spinner size={10} intent={Intent.NONE} />
-            <span className="animate-pulse text-xs text-gray-600">Initializing pipeline…</span>
-          </div>
-        ) : (
-          <>
-            {streamingTools.slice(0, -1).map((step) => (
-              <div key={step} className="flex items-center gap-2">
-                <Icon icon="tick-circle" size={11} color="#45d483" />
-                <span className="text-xs text-gray-400">{step}</span>
-              </div>
-            ))}
-            <div className="flex items-center gap-2">
-              <Spinner size={10} intent={Intent.PRIMARY} />
-              <span className="animate-pulse text-xs text-blue-400">
-                {streamingTools[streamingTools.length - 1]}
-              </span>
-            </div>
-          </>
-        )}
+        <p className="m-0 mt-2 text-xs text-gray-500">
+          Fetching fire, route, shelter, and zone data
+        </p>
+        <p className="m-0 mt-1 text-xs text-gray-600">
+          Reasoning trace will appear on the right
+        </p>
       </div>
     </div>
   );
@@ -602,19 +566,24 @@ function PlanPanel({
     dispatch_assisted: "Dispatch Assisted",
   }[assessment.plan.recommended_strategy] || assessment.plan.recommended_strategy.replaceAll("_", " ");
 
+  const rejectedAlts = (assessment.plan.rejected_alternatives ?? []).slice(0, 3);
+  const dataGaps: string[] = Array.isArray(assessment.gemini_decision?.data_gaps)
+    ? (assessment.gemini_decision!.data_gaps as unknown[]).filter((g): g is string => typeof g === "string").slice(0, 3)
+    : [];
+
   return (
     <div>
       <div className="fg-section-label !pt-6">Gemini Plan</div>
 
       <div className="px-5 pt-4">
-        <div className="flex items-baseline justify-between gap-4">
+        <div className="flex items-center justify-between gap-3">
           <h2 className="m-0 text-xl font-bold text-white">{strategy}</h2>
-          <span className={`text-xl font-bold ${confidenceClass}`}>{Math.round(confidence * 100)}%</span>
+          <div className="flex items-center gap-2">
+            <PlanningModeTag mode={assessment.planning_mode} />
+            <span className={`text-xl font-bold ${confidenceClass}`}>{Math.round(confidence * 100)}%</span>
+          </div>
         </div>
-        <ProgressBar className="mt-1 h-1" value={confidence} intent={confidenceIntent} stripes={false} animate={false} />
-        <div className="mt-2">
-          <PlanningModeTag mode={assessment.planning_mode} />
-        </div>
+        <ProgressBar className="mt-1.5 h-1" value={confidence} intent={confidenceIntent} stripes={false} animate={false} />
       </div>
 
       <hr className="mx-5 my-4 border-gray-700" />
@@ -629,12 +598,44 @@ function PlanPanel({
             <p className="m-0 mt-1 text-xs text-gray-400">
               {shortText(step.message.replace("[DEMO - FireGuard] ", ""), 72)}
             </p>
+            {step.rationale?.[0] ? (
+              <p className="m-0 mt-1 text-xs italic text-gray-600">↳ {shortText(step.rationale[0], 68)}</p>
+            ) : null}
             {step.start_after_minutes > 0 ? (
               <p className="m-0 mt-1 text-xs text-blue-400">Starts +{step.start_after_minutes} min</p>
             ) : null}
           </div>
         ))}
       </div>
+
+      {rejectedAlts.length > 0 ? (
+        <>
+          <hr className="mx-5 my-3 border-gray-700" />
+          <div className="px-5">
+            <p className="m-0 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-600">Considered &amp; Rejected</p>
+            {rejectedAlts.map((alt, i) => (
+              <div key={i} className="fg-rejected-row">
+                <p className="m-0 font-mono text-xs text-red-400">
+                  {stringify(alt.origin_id)} → {stringify(alt.destination_id, "none")}
+                </p>
+                <p className="m-0 mt-0.5 text-xs text-gray-500">{shortText(stringify(alt.reason ?? "", ""), 72)}</p>
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+
+      {dataGaps.length > 0 ? (
+        <>
+          <hr className="mx-5 my-3 border-gray-700" />
+          <div className="px-5">
+            <p className="m-0 mb-2 text-[10px] font-semibold uppercase tracking-widest text-gray-600">Data Gaps</p>
+            {dataGaps.map((gap) => (
+              <p key={gap} className="m-0 mb-1 text-xs text-yellow-600">⚠ {gap}</p>
+            ))}
+          </div>
+        </>
+      ) : null}
 
       <hr className="mx-5 my-4 border-gray-700" />
 
@@ -711,100 +712,6 @@ function ExecutedPanel({
         <Button minimal icon="refresh" text="Reset Demo" onClick={onReset} disabled={Boolean(busy)} />
       </div>
     </div>
-  );
-}
-
-function GeminiPanel({ assessment }: { assessment: AssessmentResult }) {
-  const dataGaps = Array.isArray(assessment.gemini_decision?.data_gaps)
-    ? assessment.gemini_decision.data_gaps.filter((item): item is string => typeof item === "string")
-    : [];
-
-  return (
-    <section className="fg-gemini-panel">
-      <div className="fg-gemini-col w-[35%] border-r border-[#293742]">
-        <p className="m-0 mb-3 text-xs font-medium uppercase tracking-widest text-gray-500">Gemini Reasoning</p>
-        <p className="m-0 text-sm leading-relaxed text-white">{assessment.plan.summary}</p>
-
-        <p className="m-0 mb-2 mt-4 text-xs font-medium uppercase tracking-widest text-gray-600">Tools Called</p>
-        {assessment.gemini_tool_calls?.length ? (
-          <div className="fg-tool-timeline">
-            {assessment.gemini_tool_calls.map((tool) => (
-              <div key={tool} className="fg-tool-item pb-3">
-                <span className="fg-tool-dot" />
-                <span className="text-xs font-mono text-blue-300">{tool}</span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <p className="m-0 text-xs text-gray-600">No tool calls recorded</p>
-        )}
-      </div>
-
-      <div className="fg-gemini-col w-[40%] border-r border-[#293742]">
-        <p className="m-0 mb-3 text-xs font-medium uppercase tracking-widest text-gray-500">Plan Steps</p>
-        {assessment.plan.steps.map((step, index) => (
-          <div
-            key={step.step_id}
-            className={`mb-4 pb-4 ${index < assessment.plan.steps.length - 1 ? "border-b border-[#293742]" : ""}`}
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="truncate text-xs font-mono text-gray-400">{step.zone_id}</span>
-                <StrategyTag strategy={step.strategy} />
-              </div>
-              <span className={`text-xs ${step.start_after_minutes > 0 ? "text-blue-400" : "text-green-400"}`}>
-                {step.start_after_minutes > 0 ? `+${step.start_after_minutes} min` : "immediate"}
-              </span>
-            </div>
-            <p className="m-0 mt-1 text-sm text-white">{step.message.replace("[DEMO - FireGuard] ", "")}</p>
-            {step.rationale.slice(0, 2).map((rationale) => (
-              <p key={rationale} className="m-0 ml-2 mt-1 text-xs italic text-gray-500">
-                ↳ {rationale}
-              </p>
-            ))}
-            <p className="m-0 mt-1 text-xs text-gray-600">{step.evidence_ids.length} evidence sources</p>
-          </div>
-        ))}
-      </div>
-
-      <div className="fg-gemini-col w-[25%]">
-        <p className="m-0 mb-3 text-xs font-medium uppercase tracking-widest text-gray-500">Considered & Rejected</p>
-        {assessment.plan.rejected_alternatives.slice(0, 4).map((alt, index) => (
-          <div key={`${stringify(alt.origin_id)}-${index}`} className="fg-rejected-row">
-            <p className="m-0 text-xs font-mono text-red-400">
-              {stringify(alt.origin_id)} → {stringify(alt.destination_id, "none")}
-            </p>
-            <p className="m-0 mt-1 text-xs text-gray-500">{shortText(stringify(alt.reason, ""), 80)}</p>
-          </div>
-        ))}
-
-        {dataGaps.length ? (
-          <>
-            <p className="m-0 mb-2 mt-4 text-xs font-medium uppercase tracking-widest text-gray-600">Data Gaps</p>
-            <div className="space-y-2">
-              {dataGaps.slice(0, 3).map((gap) => (
-                <p key={gap} className="m-0 text-xs text-yellow-600">
-                  ⚠ {gap}
-                </p>
-              ))}
-            </div>
-          </>
-        ) : null}
-
-        {assessment.plan.risks_if_wrong.length ? (
-          <>
-            <p className="m-0 mb-2 mt-4 text-xs font-medium uppercase tracking-widest text-gray-600">Risks If Wrong</p>
-            <div className="space-y-2">
-              {assessment.plan.risks_if_wrong.slice(0, 2).map((risk) => (
-                <p key={risk} className="m-0 text-xs text-gray-600">
-                  • {shortText(risk, 60)}
-                </p>
-              ))}
-            </div>
-          </>
-        ) : null}
-      </div>
-    </section>
   );
 }
 
@@ -896,6 +803,20 @@ function TraceDialog({
   assessment: AssessmentResult | null;
   onClose: () => void;
 }) {
+  if (!assessment) return null;
+
+  const dec = assessment.gemini_decision ?? {};
+  const incidentSummary = typeof dec.incident_summary === "string" ? dec.incident_summary : "";
+  const toolCalls = assessment.gemini_tool_calls ?? [];
+  const dataGaps: string[] = Array.isArray(dec.data_gaps)
+    ? (dec.data_gaps as unknown[]).filter((g): g is string => typeof g === "string")
+    : [];
+  const risksIfWrong = assessment.plan.risks_if_wrong ?? [];
+  const rejectedAlts = (assessment.plan.rejected_alternatives ?? []).slice(0, 5);
+  const modelLabel = typeof (assessment.context.provider_status?.gemini as Record<string, unknown> | undefined)?.model === "string"
+    ? String((assessment.context.provider_status.gemini as Record<string, unknown>).model)
+    : "Gemini";
+
   return (
     <Dialog
       className="bp6-dark"
@@ -905,50 +826,127 @@ function TraceDialog({
       style={{ width: "720px", maxHeight: "80vh" }}
     >
       <div className={Classes.DIALOG_BODY} style={{ maxHeight: "calc(80vh - 120px)", overflowY: "auto" }}>
-        {assessment ? (
-          <>
-            <div className="grid grid-cols-2 gap-4">
-              <TraceSummaryItem label="Planning Mode">
-                <PlanningModeTag mode={assessment.planning_mode} />
-              </TraceSummaryItem>
-              <TraceSummaryItem label="Validation">
-                {assessment.plan_validation?.valid === true ? (
-                  <Tag intent={Intent.SUCCESS}>valid</Tag>
-                ) : (
-                  <Tag intent={Intent.DANGER}>errors</Tag>
-                )}
-              </TraceSummaryItem>
-              <TraceSummaryItem label="Confidence">
-                <span className="text-sm">{Math.round(assessment.plan.confidence * 100)}%</span>
-              </TraceSummaryItem>
-              <TraceSummaryItem label="Tool Calls">
-                <span className="text-sm">{assessment.gemini_tool_calls?.length || 0}</span>
-              </TraceSummaryItem>
+        {/* Header grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <TraceSummaryItem label="Planning Mode">
+            <PlanningModeTag mode={assessment.planning_mode} />
+          </TraceSummaryItem>
+          <TraceSummaryItem label="Model">
+            <div className="flex items-center gap-2">
+              <Tag minimal intent={Intent.PRIMARY}>{modelLabel}</Tag>
+              <Tag minimal>Vertex AI</Tag>
             </div>
+          </TraceSummaryItem>
+          <TraceSummaryItem label="Confidence">
+            <span className="text-sm">{Math.round(assessment.plan.confidence * 100)}%</span>
+          </TraceSummaryItem>
+          <TraceSummaryItem label="Validation">
+            {assessment.plan_validation?.valid === true ? (
+              <Tag intent={Intent.SUCCESS}>valid · {assessment.gemini_tool_calls?.length ?? 0} tool calls</Tag>
+            ) : (
+              <Tag intent={Intent.DANGER}>repair needed</Tag>
+            )}
+          </TraceSummaryItem>
+        </div>
 
-            {assessment.gemini_decision ? (
-              <>
-                <p className="m-0 mb-2 mt-4 text-xs font-medium uppercase tracking-widest text-gray-500">
-                  Gemini Decision Output
-                </p>
-                <pre className="fg-trace-pre">{JSON.stringify(assessment.gemini_decision, null, 2)}</pre>
-              </>
-            ) : null}
+        {/* Incident summary */}
+        {incidentSummary ? (
+          <>
+            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Gemini Assessment</p>
+            <p className="m-0 text-sm leading-relaxed text-gray-300">{incidentSummary}</p>
+          </>
+        ) : null}
 
-            {assessment.validation_errors?.length ? (
-              <>
-                <p className="m-0 mb-2 mt-4 text-xs font-medium uppercase tracking-widest text-gray-500">
-                  Validation Notes
-                </p>
-                <div className="space-y-1">
-                  {assessment.validation_errors.map((validationError) => (
-                    <p key={validationError} className="m-0 text-xs text-yellow-600">
-                      • {validationError}
-                    </p>
-                  ))}
+        {/* Tool calls */}
+        {toolCalls.length > 0 ? (
+          <>
+            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Tool Calls</p>
+            <div className="fg-tool-timeline">
+              {toolCalls.map((tool, i) => (
+                <div key={`${tool}-${i}`} className="fg-tool-item pb-3">
+                  <span className="fg-tool-dot" />
+                  <span className="font-mono text-xs text-blue-300">{tool}</span>
                 </div>
-              </>
-            ) : null}
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {/* Plan steps */}
+        {assessment.plan.steps.length > 0 ? (
+          <>
+            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Plan Steps</p>
+            <div className="space-y-2">
+              {assessment.plan.steps.map((step) => (
+                <div key={step.step_id} className="rounded-sm border border-[#252e38] px-3 py-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="font-mono text-xs text-gray-300">{step.zone_id}</span>
+                    <div className="flex items-center gap-2">
+                      <StrategyTag strategy={step.strategy} />
+                      <span className="text-xs text-gray-500">
+                        {step.start_after_minutes > 0 ? `+${step.start_after_minutes} min` : "immediate"}
+                      </span>
+                    </div>
+                  </div>
+                  {step.rationale?.[0] ? (
+                    <p className="m-0 mt-1 text-xs italic text-gray-600">↳ {step.rationale[0]}</p>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {/* Rejected alternatives */}
+        {rejectedAlts.length > 0 ? (
+          <>
+            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Considered &amp; Rejected</p>
+            <div className="space-y-2">
+              {rejectedAlts.map((alt, i) => (
+                <div key={i} className="rounded-sm border border-[#2a1818] px-3 py-2">
+                  <p className="m-0 font-mono text-xs text-red-400">
+                    {stringify(alt.origin_id)} → {stringify(alt.destination_id, "none")}
+                  </p>
+                  <p className="m-0 mt-1 text-xs text-gray-500">{stringify(alt.reason ?? "", "")}</p>
+                </div>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {/* Data gaps */}
+        {dataGaps.length > 0 ? (
+          <>
+            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Data Gaps</p>
+            <div className="space-y-1">
+              {dataGaps.map((gap) => (
+                <p key={gap} className="m-0 text-xs text-yellow-600">⚠ {gap}</p>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {/* Risks if wrong */}
+        {risksIfWrong.length > 0 ? (
+          <>
+            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Risks if Wrong</p>
+            <div className="space-y-1">
+              {risksIfWrong.slice(0, 4).map((risk) => (
+                <p key={risk} className="m-0 text-xs text-gray-500">• {risk}</p>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {/* Validation notes */}
+        {assessment.validation_errors?.length ? (
+          <>
+            <p className="m-0 mb-2 mt-5 text-[10px] font-semibold uppercase tracking-widest text-gray-500">Validation Notes</p>
+            <div className="space-y-1">
+              {assessment.validation_errors.map((validationError) => (
+                <p key={validationError} className="m-0 text-xs text-yellow-600">• {validationError}</p>
+              ))}
+            </div>
           </>
         ) : null}
       </div>
