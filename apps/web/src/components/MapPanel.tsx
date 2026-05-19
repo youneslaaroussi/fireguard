@@ -986,7 +986,7 @@ function MapLegendItem({ tone, label }: { tone: "fire" | "road" | "live" | "shel
   );
 }
 
-function MapboxTokenPending({ context, assessment }: Props) {
+function MapboxTokenPending({ context, assessment }: { context: IncidentContext | null; assessment: AssessmentResult | null }) {
   return (
     <div className="absolute inset-0 bg-[#0b1118]">
       <div className="absolute inset-0 opacity-25" style={{
