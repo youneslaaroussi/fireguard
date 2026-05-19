@@ -220,6 +220,7 @@ def run_gemini_plan_decision(
     operational_brief: dict[str, Any],
     repair_errors: list[str] | None = None,
     previous_decision: dict[str, Any] | None = None,
+    commander_context: str | None = None,
 ) -> dict[str, Any]:
     if not settings.gemini_assessment_enabled:
         return {"status": "skipped", "reason": "GEMINI_ASSESSMENT_ENABLED is false", "tool_calls": []}
@@ -320,6 +321,15 @@ Return a corrected decision that satisfies every backend validator rule.
             location=settings.google_cloud_location,
             http_options=types.HttpOptions(api_version="v1", timeout=30000),
         )
+        commander_clause = ""
+        if commander_context:
+            commander_clause = f"""
+Commander-issued context and overrides for this incident:
+{commander_context}
+
+Give this commander context priority when making decisions.
+"""
+
         prompt = f"""
 Assess wildfire incident {incident_id} from first principles.
 
@@ -341,7 +351,7 @@ Then reason through the situation:
 Note: resident SMS actions must target zone IDs, not phone numbers. Do not claim
 dispatch vehicles are assigned — only request assignment. All public actions require
 human approval before execution; you are composing the request, not executing it.
-
+{commander_clause}
 Return compact valid JSON only, no markdown:
 {json.dumps(schema_hint, indent=2)}
 

@@ -34,10 +34,31 @@ def _slim_context(context: dict) -> dict:
     }
 
 
-def _assessment_event_generator(store: FireGuardStore, incident_id: str) -> Generator[dict, None, None]:
+def _assessment_event_generator(
+    store: FireGuardStore,
+    incident_id: str,
+    commander_context: str | None = None,
+    custom_fires: list[dict] | None = None,
+) -> Generator[dict, None, None]:
     """Core generator yielding assessment progress dicts and the final AssessmentResult."""
     try:
         context = store.incident_context(incident_id)
+
+        # Merge operator-placed custom fires at the front of context["fires"]
+        if custom_fires:
+            merged = []
+            for i, cf in enumerate(custom_fires):
+                merged.append({
+                    "external_id": f"CUSTOM_{i + 1}",
+                    "source": "Operator-placed",
+                    "confidence": "high",
+                    "frp": cf.get("frp", 80),
+                    "location": {"lat": cf["lat"], "lon": cf["lon"]},
+                    "acquired_at": now_iso(),
+                    "ingested_at": now_iso(),
+                })
+            context = {**context, "fires": merged + context.get("fires", [])}
+
         trace = TraceRecorder(incident_id, store.settings)
 
         event = trace.add(
@@ -88,7 +109,7 @@ def _assessment_event_generator(store: FireGuardStore, incident_id: str) -> Gene
         yield {"type": "step", "event": event}
 
         yield {"type": "thinking", "step": "reason", "message": "Gemini is reasoning..."}
-        gemini_result = gemini.run_gemini_plan_decision(store.settings, incident_id, operational_brief)
+        gemini_result = gemini.run_gemini_plan_decision(store.settings, incident_id, operational_brief, commander_context=commander_context)
         gemini_tool_calls = list(gemini_result.get("tool_calls", []))
         event = trace.add(
             "reason", "gemini_plan_decision",
@@ -252,17 +273,27 @@ def _assessment_event_generator(store: FireGuardStore, incident_id: str) -> Gene
         yield {"type": "error", "message": str(e)}
 
 
-def stream_assessment_events(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_ID) -> Generator[str, None, None]:
+def stream_assessment_events(
+    store: FireGuardStore,
+    incident_id: str = demo_data.INCIDENT_ID,
+    commander_context: str | None = None,
+    custom_fires: list[dict] | None = None,
+) -> Generator[str, None, None]:
     """Yields SSE-formatted strings for each assessment step."""
-    for event_dict in _assessment_event_generator(store, incident_id):
+    for event_dict in _assessment_event_generator(store, incident_id, commander_context=commander_context, custom_fires=custom_fires):
         if event_dict["type"] == "complete":
             yield f"data: {json.dumps({'type': 'complete', 'result': event_dict['result'].model_dump()})}\n\n"
         else:
             yield f"data: {json.dumps(event_dict)}\n\n"
 
 
-def run_assessment(store: FireGuardStore, incident_id: str = demo_data.INCIDENT_ID) -> AssessmentResult:
-    for event_dict in _assessment_event_generator(store, incident_id):
+def run_assessment(
+    store: FireGuardStore,
+    incident_id: str = demo_data.INCIDENT_ID,
+    commander_context: str | None = None,
+    custom_fires: list[dict] | None = None,
+) -> AssessmentResult:
+    for event_dict in _assessment_event_generator(store, incident_id, commander_context=commander_context, custom_fires=custom_fires):
         if event_dict["type"] == "complete":
             return event_dict["result"]
         if event_dict["type"] == "error":

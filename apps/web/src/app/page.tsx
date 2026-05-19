@@ -18,10 +18,17 @@ import { MapPanel } from "@/components/MapPanel";
 import { ReasoningGraph } from "@/components/ReasoningGraph";
 import {
   approveBundle,
+  confirmShelterCapacity,
   executeBundle,
   getCurrentIncident,
+  registerResidentTestContact,
   resetDemo,
+  runEval,
   streamAssessment,
+  syncFivetranToElastic,
+  syncLiveOverlay,
+  syncShelterCapacitySheet,
+  syncSourceBackedZoneContext,
 } from "@/lib/api";
 import type { SlimContext } from "@/lib/api";
 import type { ActionItem, AssessmentResult, FireHotspot, IncidentContext, Zone } from "@/lib/types";
@@ -61,6 +68,9 @@ function inferStage(assessment: AssessmentResult | null, actions: ActionItem[], 
   return "reasoning";
 }
 
+type CustomFire = { id: string; lat: number; lon: number; frp: number };
+type LiveOpKey = "fivetran" | "overlay" | "shelter-sheet" | "zone-context" | "eval";
+
 export default function Home() {
   const [context, setContext] = useState<IncidentContext | null>(null);
   const [assessment, setAssessment] = useState<AssessmentResult | null>(null);
@@ -75,6 +85,25 @@ export default function Home() {
   const [initialLoadHold, setInitialLoadHold] = useState(true);
   const [revealed, setRevealed] = useState({ fires: 0, roads: 0, zones: false, button: false });
   const revealTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  // Commander options
+  const [commanderContext, setCommanderContext] = useState("");
+  const [commanderOptionsOpen, setCommanderOptionsOpen] = useState(false);
+  const [customFires, setCustomFires] = useState<CustomFire[]>([]);
+  const [drawMode, setDrawMode] = useState(false);
+
+  // Live Ops drawer
+  const [liveOpsOpen, setLiveOpsOpen] = useState(false);
+  const [liveOpsBusy, setLiveOpsBusy] = useState<LiveOpKey | null>(null);
+  const [liveOpsStatus, setLiveOpsStatus] = useState<Partial<Record<LiveOpKey, "ok" | "error">>>({});
+  const [shelterPickId, setShelterPickId] = useState("");
+  const [shelterAvail, setShelterAvail] = useState(0);
+  const [shelterTotal, setShelterTotal] = useState(0);
+  const [residentZoneId, setResidentZoneId] = useState("");
+  const [residentPhone, setResidentPhone] = useState("");
+
+  // Selective approval
+  const [approvedActionIds, setApprovedActionIds] = useState<Set<string>>(new Set());
 
   const stage = useMemo(() => inferStage(assessment, actions, busy), [assessment, actions, busy]);
 
@@ -174,15 +203,21 @@ export default function Home() {
     setStreamingStep(null);
     setSlimContext(null);
     try {
-      const result = await streamAssessment((event) => {
-        if (event.type === "step") {
-          setStreamingEvents((prev) => [...prev, event.event]);
-          setStreamingStep((event.event.step as string) ?? null);
-          if (event.slim_context) setSlimContext(event.slim_context);
-        } else if (event.type === "thinking") {
-          setStreamingStep(event.step);
-        }
-      });
+      const result = await streamAssessment(
+        (event) => {
+          if (event.type === "step") {
+            setStreamingEvents((prev) => [...prev, event.event]);
+            setStreamingStep((event.event.step as string) ?? null);
+            if (event.slim_context) setSlimContext(event.slim_context);
+          } else if (event.type === "thinking") {
+            setStreamingStep(event.step);
+          }
+        },
+        {
+          commanderContext: commanderContext.trim() || undefined,
+          customFires: customFires.length > 0 ? customFires.map(({ lat, lon, frp }) => ({ lat, lon, frp })) : undefined,
+        },
+      );
       setAssessment(result);
       setContext(result.context);
       setActions(result.actions);
@@ -190,6 +225,27 @@ export default function Home() {
       setError(err instanceof Error ? err.message : "Assessment failed.");
     } finally {
       setBusy(null);
+    }
+  }
+
+  function handleAddFire(lat: number, lon: number) {
+    const id = `CUSTOM_${Date.now()}`;
+    setCustomFires((prev) => [...prev, { id, lat, lon, frp: 80 }]);
+    setDrawMode(false);
+    toast.success("Fire hotspot placed", { description: `${lat.toFixed(4)}, ${lon.toFixed(4)} · FRP 80 MW` });
+  }
+
+  async function handleLiveOp(key: LiveOpKey, fn: () => Promise<unknown>) {
+    setLiveOpsBusy(key);
+    try {
+      await fn();
+      setLiveOpsStatus((prev) => ({ ...prev, [key]: "ok" }));
+      toast.success(`${key} complete`);
+    } catch {
+      setLiveOpsStatus((prev) => ({ ...prev, [key]: "error" }));
+      toast.error(`${key} failed`);
+    } finally {
+      setLiveOpsBusy(null);
     }
   }
 
@@ -226,8 +282,10 @@ export default function Home() {
         assessment={assessment}
         busy={busy}
         streamingStep={streamingStep}
+        liveOpsOpen={liveOpsOpen}
         onReset={handleReset}
         onOpenTrace={() => setTraceOpen(true)}
+        onToggleLiveOps={() => setLiveOpsOpen((v) => !v)}
       />
 
       <div className="mt-14 flex h-[calc(100vh-56px)] min-h-0 flex-row overflow-hidden">
@@ -246,7 +304,16 @@ export default function Home() {
               assessment={assessment}
               busy={busy}
               revealed={revealed}
+              commanderContext={commanderContext}
+              commanderOptionsOpen={commanderOptionsOpen}
+              customFires={customFires}
+              drawMode={drawMode}
               onRunAssessment={handleAssessment}
+              onCommanderContextChange={setCommanderContext}
+              onToggleCommanderOptions={() => setCommanderOptionsOpen((v) => !v)}
+              onToggleDrawMode={() => setDrawMode((v) => !v)}
+              onRemoveFire={(id) => setCustomFires((prev) => prev.filter((f) => f.id !== id))}
+              onClearFires={() => setCustomFires([])}
             />
           ) : null}
 
@@ -262,8 +329,18 @@ export default function Home() {
               assessment={assessment}
               actions={actions}
               busy={busy}
-              onOpenApproval={() => setApprovalOpen(true)}
+              onOpenApproval={() => {
+                if (assessment) {
+                  setApprovedActionIds(new Set(actions.filter((a) => a.requires_human_approval).map((a) => a.action_id)));
+                }
+                setApprovalOpen(true);
+              }}
               onExecute={handleExecute}
+              onRerun={() => {
+                setAssessment(null);
+                setActions([]);
+                setStreamingEvents([]);
+              }}
             />
           ) : null}
 
@@ -281,7 +358,13 @@ export default function Home() {
             className="relative min-h-0 overflow-hidden"
             style={{ width: showGraph ? "42%" : "100%", height: "100%", flexShrink: 0 }}
           >
-            <MapPanel context={context} assessment={assessment} />
+            <MapPanel
+              context={context}
+              assessment={assessment}
+              drawMode={drawMode}
+              customFires={customFires}
+              onAddFire={handleAddFire}
+            />
           </div>
 
           {/* Reasoning graph — fills remaining space side-by-side */}
@@ -311,9 +394,56 @@ export default function Home() {
         isOpen={approvalOpen}
         assessment={assessment}
         actions={actions}
+        approvedActionIds={approvedActionIds}
         busy={busy}
         onClose={() => setApprovalOpen(false)}
+        onToggleAction={(id) =>
+          setApprovedActionIds((prev) => {
+            const next = new Set(prev);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+          })
+        }
         onApprove={handleApprove}
+      />
+
+      <LiveOpsDrawer
+        isOpen={liveOpsOpen}
+        context={context}
+        assessment={assessment}
+        liveOpsBusy={liveOpsBusy}
+        liveOpsStatus={liveOpsStatus}
+        shelterPickId={shelterPickId}
+        shelterAvail={shelterAvail}
+        shelterTotal={shelterTotal}
+        residentZoneId={residentZoneId}
+        residentPhone={residentPhone}
+        onShelterPickId={setShelterPickId}
+        onShelterAvail={setShelterAvail}
+        onShelterTotal={setShelterTotal}
+        onResidentZoneId={setResidentZoneId}
+        onResidentPhone={setResidentPhone}
+        onClose={() => setLiveOpsOpen(false)}
+        onRunSync={(key) => {
+          const ops: Record<LiveOpKey, () => Promise<unknown>> = {
+            fivetran: syncFivetranToElastic,
+            overlay: syncLiveOverlay,
+            "shelter-sheet": syncShelterCapacitySheet,
+            "zone-context": syncSourceBackedZoneContext,
+            eval: () => runEval(assessment?.incident_id || "demo"),
+          };
+          handleLiveOp(key, ops[key]);
+        }}
+        onShelterCheckIn={() =>
+          handleLiveOp("shelter-sheet", () =>
+            confirmShelterCapacity(shelterPickId, shelterAvail, shelterTotal),
+          )
+        }
+        onResidentRegister={() =>
+          handleLiveOp("overlay", () =>
+            registerResidentTestContact(residentZoneId, residentPhone),
+          )
+        }
       />
 
       <TraceDialog
@@ -366,15 +496,19 @@ function Topbar({
   assessment,
   busy,
   streamingStep,
+  liveOpsOpen,
   onReset,
   onOpenTrace,
+  onToggleLiveOps,
 }: {
   stage: DemoStage;
   assessment: AssessmentResult | null;
   busy: string | null;
   streamingStep: string | null;
+  liveOpsOpen: boolean;
   onReset: () => void;
   onOpenTrace: () => void;
+  onToggleLiveOps: () => void;
 }) {
   const STEP_ORDER = ["observe", "retrieve", "assess", "route", "brief", "reason", "repair", "validate", "plan", "act", "approval", "compile"];
   const stepIdx = streamingStep ? STEP_ORDER.indexOf(streamingStep) : -1;
@@ -433,6 +567,21 @@ function Topbar({
           </div>
         ) : null}
 
+        <button
+          onClick={onToggleLiveOps}
+          style={{
+            display: "flex", alignItems: "center", gap: 5,
+            background: liveOpsOpen ? "#0a1a2e" : "transparent",
+            border: liveOpsOpen ? "1px solid #2d72d2" : "1px solid #293742",
+            borderRadius: 3, color: liveOpsOpen ? "#8abbff" : "#8a9ba8",
+            fontSize: 11, fontWeight: 700, letterSpacing: "0.05em",
+            padding: "4px 9px", cursor: "pointer",
+          }}
+        >
+          <Icon icon="database" size={11} color="currentColor" />
+          Live Ops
+        </button>
+
         <Button minimal small icon="refresh" text="Reset" onClick={onReset} disabled={Boolean(busy)} />
       </div>
     </header>
@@ -485,13 +634,31 @@ function IncidentPanel({
   assessment,
   busy,
   revealed,
+  commanderContext,
+  commanderOptionsOpen,
+  customFires,
+  drawMode,
   onRunAssessment,
+  onCommanderContextChange,
+  onToggleCommanderOptions,
+  onToggleDrawMode,
+  onRemoveFire,
+  onClearFires,
 }: {
   context: IncidentContext | null;
   assessment: AssessmentResult | null;
   busy: string | null;
   revealed: { fires: number; roads: number; zones: boolean; button: boolean };
+  commanderContext: string;
+  commanderOptionsOpen: boolean;
+  customFires: CustomFire[];
+  drawMode: boolean;
   onRunAssessment: () => void;
+  onCommanderContextChange: (v: string) => void;
+  onToggleCommanderOptions: () => void;
+  onToggleDrawMode: () => void;
+  onRemoveFire: (id: string) => void;
+  onClearFires: () => void;
 }) {
   const zoneRisks = assessment?.plan.zone_risks || [];
   const totalPop = (context?.zones || []).reduce((s, z) => s + z.population, 0);
@@ -499,7 +666,22 @@ function IncidentPanel({
 
   return (
     <div>
-      <div className="fg-section-label !pt-6">Incident</div>
+      <div className="fg-section-label !pt-6" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingRight: 20 }}>
+        <span>Incident</span>
+        <button
+          onClick={onToggleCommanderOptions}
+          style={{
+            display: "flex", alignItems: "center", gap: 4,
+            background: commanderOptionsOpen ? "#1a2e45" : "transparent",
+            border: commanderOptionsOpen ? "1px solid #2d72d2" : "1px solid #293742",
+            borderRadius: 3, color: commanderOptionsOpen ? "#8abbff" : "#5c7080",
+            fontSize: 10, fontWeight: 700, letterSpacing: "0.05em", padding: "3px 7px", cursor: "pointer",
+          }}
+        >
+          <Icon icon="settings" size={10} color="currentColor" />
+          Options
+        </button>
+      </div>
 
       {context && totalPop > 0 ? (
         <div style={{
@@ -528,6 +710,61 @@ function IncidentPanel({
             <div style={{ fontSize: 18, fontWeight: 800, color: "#c0a0ff", lineHeight: 1 }}>{context.zones.length}</div>
             <div style={{ fontSize: 9, color: "#4a5c6a", fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 2 }}>zones</div>
           </div>
+        </div>
+      ) : null}
+
+      {commanderOptionsOpen ? (
+        <div className="fg-commander-options mx-5 mb-4 mt-2">
+          <div style={{ marginBottom: 8, fontSize: 10, fontWeight: 700, color: "#5c7080", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+            Commander Context
+          </div>
+          <textarea
+            value={commanderContext}
+            onChange={(e) => onCommanderContextChange(e.target.value)}
+            placeholder="Add operational context for Gemini... e.g. 'Prioritize elderly residents. Highway 5 bridge is out. We have 3 helicopters available.'"
+            style={{
+              width: "100%", minHeight: 80, resize: "vertical",
+              background: "#0e1820", border: "1px solid #293742", borderRadius: 3,
+              color: "#c0ccd8", fontSize: 12, padding: "8px 10px", fontFamily: "inherit",
+              outline: "none",
+            }}
+          />
+          <div style={{ marginTop: 8, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <button
+              onClick={onToggleDrawMode}
+              style={{
+                display: "flex", alignItems: "center", gap: 5,
+                background: drawMode ? "#2a1200" : "#0e1820",
+                border: drawMode ? "1px solid #ff9800" : "1px solid #293742",
+                borderRadius: 3, color: drawMode ? "#ff9800" : "#8a9ba8",
+                fontSize: 11, fontWeight: 700, padding: "5px 10px", cursor: "pointer",
+                animation: drawMode ? "fg-blink 1.2s ease-in-out infinite" : "none",
+              }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C9.5 5.5 9 8.5 11 12c-3-.5-4.5-3.5-3-6.5C5.5 8 4.5 12.5 6.5 16 8 18.5 10 20.5 12 20.5s5-3 5-7.5c0-3.5-2.5-7-5-11z"/></svg>
+              {drawMode ? "Click map to place fire" : "Place Fire on Map"}
+            </button>
+            {customFires.length > 0 ? (
+              <button
+                onClick={onClearFires}
+                style={{ fontSize: 10, color: "#db3737", background: "transparent", border: "none", cursor: "pointer", padding: "3px 6px" }}
+              >
+                Clear {customFires.length} fire{customFires.length !== 1 ? "s" : ""}
+              </button>
+            ) : null}
+          </div>
+          {customFires.length > 0 ? (
+            <div style={{ marginTop: 6 }}>
+              {customFires.map((cf) => (
+                <div key={cf.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "3px 0", borderBottom: "1px solid #1a2530" }}>
+                  <span style={{ fontSize: 11, color: "#ff9800", fontFamily: "monospace" }}>
+                    {cf.lat.toFixed(4)}, {cf.lon.toFixed(4)} · {cf.frp} MW
+                  </span>
+                  <button onClick={() => onRemoveFire(cf.id)} style={{ color: "#5c7080", background: "none", border: "none", cursor: "pointer", padding: "0 4px", fontSize: 14 }}>×</button>
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -768,12 +1005,14 @@ function PlanPanel({
   busy,
   onOpenApproval,
   onExecute,
+  onRerun,
 }: {
   assessment: AssessmentResult | null;
   actions: ActionItem[];
   busy: string | null;
   onOpenApproval: () => void;
   onExecute: () => void;
+  onRerun: () => void;
 }) {
   if (!assessment) return null;
 
@@ -879,7 +1118,21 @@ function PlanPanel({
 
       <hr className="mx-5 my-4 border-gray-700" />
 
-      <div className="px-5 pb-6">
+      <div className="px-5 pb-1">
+        <button
+          onClick={onRerun}
+          disabled={Boolean(busy)}
+          style={{
+            width: "100%", background: "transparent", border: "1px dashed #293742",
+            borderRadius: 3, color: "#5c7080", fontSize: 11, fontWeight: 600,
+            padding: "6px 12px", cursor: "pointer", letterSpacing: "0.04em",
+          }}
+        >
+          ↩ Re-run with new context
+        </button>
+      </div>
+
+      <div className="px-5 pb-6 pt-2">
         {assessment.plan.requires_approval && assessment.approval.status === "pending" ? (
           <>
             <Button
@@ -959,18 +1212,23 @@ function ApprovalDialog({
   isOpen,
   assessment,
   actions,
+  approvedActionIds,
   busy,
   onClose,
+  onToggleAction,
   onApprove,
 }: {
   isOpen: boolean;
   assessment: AssessmentResult | null;
   actions: ActionItem[];
+  approvedActionIds: Set<string>;
   busy: string | null;
   onClose: () => void;
+  onToggleAction: (id: string) => void;
   onApprove: () => void;
 }) {
   const approvalActions = actions.filter((action) => action.requires_human_approval);
+  const selectedCount = approvalActions.filter((a) => approvedActionIds.has(a.action_id)).length;
 
   return (
     <Dialog
@@ -984,7 +1242,7 @@ function ApprovalDialog({
       <div className={Classes.DIALOG_BODY}>
         <Callout intent={Intent.WARNING} title="Public-facing actions require your approval">
           <p className="m-0 text-sm">
-            The following actions will be dispatched to residents, shelters, and road operations upon approval. This cannot be undone.
+            Review and select which actions to approve. Only selected actions will be dispatched.
           </p>
         </Callout>
 
@@ -992,29 +1250,63 @@ function ApprovalDialog({
           <p className="m-0 mt-4 text-sm text-gray-300">{assessment.plan.summary}</p>
         ) : null}
 
-        <div className="mt-4">
-          {approvalActions.map((action) => (
-            <div key={action.action_id} className="flex gap-3 border-b border-[#293742] py-2 last:border-b-0">
-              <div className="pt-1">
-                <ActionTypeIcon actionType={action.action_type} color="#5c7080" />
+        <div className="mt-3 flex items-center gap-3">
+          <span className="text-xs text-gray-500">{selectedCount} of {approvalActions.length} selected</span>
+          <button
+            onClick={() => approvalActions.forEach((a) => { if (!approvedActionIds.has(a.action_id)) onToggleAction(a.action_id); })}
+            style={{ fontSize: 10, color: "#8abbff", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            Select All
+          </button>
+          <button
+            onClick={() => approvalActions.forEach((a) => { if (approvedActionIds.has(a.action_id)) onToggleAction(a.action_id); })}
+            style={{ fontSize: 10, color: "#5c7080", background: "none", border: "none", cursor: "pointer", padding: 0 }}
+          >
+            Clear All
+          </button>
+        </div>
+
+        <div className="mt-2">
+          {approvalActions.map((action) => {
+            const checked = approvedActionIds.has(action.action_id);
+            return (
+              <div
+                key={action.action_id}
+                className="flex gap-3 border-b border-[#293742] py-2 last:border-b-0"
+                style={{ opacity: checked ? 1 : 0.45, cursor: "pointer" }}
+                onClick={() => onToggleAction(action.action_id)}
+              >
+                <div style={{ paddingTop: 2, flexShrink: 0 }}>
+                  <div style={{
+                    width: 14, height: 14, borderRadius: 2,
+                    border: checked ? "2px solid #f2b824" : "2px solid #5c7080",
+                    background: checked ? "#f2b82420" : "transparent",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                  }}>
+                    {checked ? <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="#f2b824" strokeWidth="3"><polyline points="20 6 9 17 4 12" /></svg> : null}
+                  </div>
+                </div>
+                <div className="pt-0.5">
+                  <ActionTypeIcon actionType={action.action_type} color="#5c7080" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="m-0 text-xs font-medium uppercase text-white">{action.action_type}</p>
+                  <p className="m-0 text-xs text-gray-400">→ {action.target}</p>
+                  <p
+                    className="m-0 mt-1 text-xs text-gray-500"
+                    style={{
+                      display: "-webkit-box",
+                      WebkitBoxOrient: "vertical",
+                      WebkitLineClamp: 2,
+                      overflow: "hidden",
+                    }}
+                  >
+                    {action.message.replace(/\[DEMO - FireGuard\] ?/g, "")}
+                  </p>
+                </div>
               </div>
-              <div className="min-w-0 flex-1">
-                <p className="m-0 text-xs font-medium uppercase text-white">{action.action_type}</p>
-                <p className="m-0 text-xs text-gray-400">→ {action.target}</p>
-                <p
-                  className="m-0 mt-1 text-xs text-gray-500"
-                  style={{
-                    display: "-webkit-box",
-                    WebkitBoxOrient: "vertical",
-                    WebkitLineClamp: 2,
-                    overflow: "hidden",
-                  }}
-                >
-                  {action.message.replace(/\[DEMO - FireGuard\] ?/g, "")}
-                </p>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
       <div className={Classes.DIALOG_FOOTER}>
@@ -1023,9 +1315,9 @@ function ApprovalDialog({
           <Button
             intent={Intent.WARNING}
             icon="tick"
-            text="Approve and Proceed"
+            text={`Approve Selected (${selectedCount})`}
             loading={busy === "approve"}
-            disabled={Boolean(busy)}
+            disabled={Boolean(busy) || selectedCount === 0}
             onClick={onApprove}
           />
         </div>
@@ -1255,4 +1547,258 @@ function ActionTypeIcon({ actionType, color = "#cbd4dd" }: { actionType: string;
             : "dot";
 
   return <Icon icon={icon as any} size={16} color={color} />;
+}
+
+// ─── Live Ops Drawer ─────────────────────────────────────────────────────────
+
+function LiveOpsDrawer({
+  isOpen,
+  context,
+  assessment,
+  liveOpsBusy,
+  liveOpsStatus,
+  shelterPickId,
+  shelterAvail,
+  shelterTotal,
+  residentZoneId,
+  residentPhone,
+  onShelterPickId,
+  onShelterAvail,
+  onShelterTotal,
+  onResidentZoneId,
+  onResidentPhone,
+  onClose,
+  onRunSync,
+  onShelterCheckIn,
+  onResidentRegister,
+}: {
+  isOpen: boolean;
+  context: IncidentContext | null;
+  assessment: AssessmentResult | null;
+  liveOpsBusy: LiveOpKey | null;
+  liveOpsStatus: Partial<Record<LiveOpKey, "ok" | "error">>;
+  shelterPickId: string;
+  shelterAvail: number;
+  shelterTotal: number;
+  residentZoneId: string;
+  residentPhone: string;
+  onShelterPickId: (v: string) => void;
+  onShelterAvail: (v: number) => void;
+  onShelterTotal: (v: number) => void;
+  onResidentZoneId: (v: string) => void;
+  onResidentPhone: (v: string) => void;
+  onClose: () => void;
+  onRunSync: (key: LiveOpKey) => void;
+  onShelterCheckIn: () => void;
+  onResidentRegister: () => void;
+}) {
+  const shelters = context?.shelters || [];
+  const zones = context?.zones || [];
+
+  return (
+    <>
+      {isOpen ? (
+        <div
+          onClick={onClose}
+          style={{
+            position: "fixed", inset: 0, zIndex: 29,
+            background: "transparent",
+          }}
+        />
+      ) : null}
+      <div
+        style={{
+          position: "fixed",
+          top: 56,
+          right: 0,
+          width: 320,
+          height: "calc(100vh - 56px)",
+          background: "#131b24",
+          borderLeft: "1px solid #293742",
+          zIndex: 30,
+          overflowY: "auto",
+          transform: isOpen ? "translateX(0)" : "translateX(100%)",
+          transition: "transform 0.22s ease",
+          boxShadow: isOpen ? "-8px 0 24px rgba(0,0,0,0.4)" : "none",
+        }}
+      >
+        <div style={{ padding: "14px 16px 8px", borderBottom: "1px solid #1a2530", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <Icon icon="database" size={13} color="#8abbff" />
+            <span style={{ fontSize: 12, fontWeight: 700, color: "#edf5ff", letterSpacing: "0.05em" }}>Live Ops</span>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "#5c7080", cursor: "pointer", fontSize: 18, lineHeight: 1, padding: "0 4px" }}>×</button>
+        </div>
+
+        {/* Data Sync */}
+        <LiveOpsSection title="Data Sync">
+          {([
+            ["fivetran", "Sync Fivetran → Elastic", "exchange"],
+            ["overlay", "Refresh Live Overlay", "refresh"],
+            ["shelter-sheet", "Sync Shelter Capacity Sheet", "home"],
+            ["zone-context", "Sync Zone Context", "map-marker"],
+          ] as Array<[LiveOpKey, string, string]>).map(([key, label, icon]) => (
+            <LiveOpsButton
+              key={key}
+              label={label}
+              icon={icon}
+              busy={liveOpsBusy === key}
+              status={liveOpsStatus[key]}
+              onClick={() => onRunSync(key)}
+            />
+          ))}
+        </LiveOpsSection>
+
+        {/* Shelter Check-in */}
+        <LiveOpsSection title="Shelter Capacity Check-in">
+          <div style={{ marginBottom: 6 }}>
+            <label style={labelStyle}>Shelter</label>
+            <select
+              value={shelterPickId}
+              onChange={(e) => onShelterPickId(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="">Select shelter…</option>
+              {shelters.map((s) => (
+                <option key={s.shelter_id} value={s.shelter_id}>
+                  {s.name} ({s.capacity_available}/{s.capacity_total})
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginBottom: 8 }}>
+            <div>
+              <label style={labelStyle}>Available</label>
+              <input
+                type="number"
+                min={0}
+                value={shelterAvail}
+                onChange={(e) => onShelterAvail(Number(e.target.value))}
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Total</label>
+              <input
+                type="number"
+                min={0}
+                value={shelterTotal}
+                onChange={(e) => onShelterTotal(Number(e.target.value))}
+                style={inputStyle}
+              />
+            </div>
+          </div>
+          <LiveOpsButton
+            label="Update Capacity"
+            icon="tick"
+            busy={liveOpsBusy === "shelter-sheet"}
+            status={liveOpsStatus["shelter-sheet"]}
+            disabled={!shelterPickId}
+            onClick={onShelterCheckIn}
+          />
+        </LiveOpsSection>
+
+        {/* Resident Contact */}
+        <LiveOpsSection title="Register Test Resident Contact">
+          <div style={{ marginBottom: 6 }}>
+            <label style={labelStyle}>Zone</label>
+            <select
+              value={residentZoneId}
+              onChange={(e) => onResidentZoneId(e.target.value)}
+              style={selectStyle}
+            >
+              <option value="">Select zone…</option>
+              {zones.map((z) => (
+                <option key={z.zone_id} value={z.zone_id}>{z.name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: 8 }}>
+            <label style={labelStyle}>Phone Number</label>
+            <input
+              type="tel"
+              placeholder="+1-555-000-0000"
+              value={residentPhone}
+              onChange={(e) => onResidentPhone(e.target.value)}
+              style={inputStyle}
+            />
+          </div>
+          <LiveOpsButton
+            label="Register Contact"
+            icon="mobile-phone"
+            busy={liveOpsBusy === "overlay"}
+            status={liveOpsStatus["overlay"]}
+            disabled={!residentZoneId || !residentPhone}
+            onClick={onResidentRegister}
+          />
+        </LiveOpsSection>
+
+        {/* Eval Runner */}
+        <LiveOpsSection title="Evaluation">
+          <LiveOpsButton
+            label="Run Assessment Eval"
+            icon="calculator"
+            busy={liveOpsBusy === "eval"}
+            status={liveOpsStatus["eval"]}
+            disabled={!assessment}
+            onClick={() => onRunSync("eval")}
+          />
+          {!assessment ? (
+            <p style={{ margin: "4px 0 0", fontSize: 10, color: "#5c7080" }}>Run an assessment first to enable eval.</p>
+          ) : null}
+        </LiveOpsSection>
+      </div>
+    </>
+  );
+}
+
+const labelStyle: React.CSSProperties = {
+  display: "block", marginBottom: 3,
+  fontSize: 10, fontWeight: 700, color: "#5c7080", letterSpacing: "0.07em", textTransform: "uppercase",
+};
+
+const selectStyle: React.CSSProperties = {
+  width: "100%", background: "#0e1820", border: "1px solid #293742", borderRadius: 3,
+  color: "#c0ccd8", fontSize: 12, padding: "5px 8px",
+};
+
+const inputStyle: React.CSSProperties = {
+  width: "100%", background: "#0e1820", border: "1px solid #293742", borderRadius: 3,
+  color: "#c0ccd8", fontSize: 12, padding: "5px 8px",
+};
+
+function LiveOpsSection({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ padding: "12px 16px", borderBottom: "1px solid #1a2530" }}>
+      <div style={{ fontSize: 9, fontWeight: 800, color: "#4a5c6a", letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: 10 }}>{title}</div>
+      {children}
+    </div>
+  );
+}
+
+function LiveOpsButton({
+  label, icon, busy, status, disabled, onClick,
+}: {
+  label: string; icon: string; busy: boolean;
+  status?: "ok" | "error"; disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy || disabled}
+      style={{
+        width: "100%", display: "flex", alignItems: "center", gap: 7,
+        background: "#0e1820", border: "1px solid #293742", borderRadius: 3,
+        color: busy ? "#5c7080" : "#c0ccd8", fontSize: 11, fontWeight: 600,
+        padding: "7px 10px", cursor: busy || disabled ? "not-allowed" : "pointer",
+        marginBottom: 5, opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      {busy ? <Spinner size={12} /> : <Icon icon={icon as any} size={12} color="currentColor" />}
+      <span style={{ flex: 1, textAlign: "left" }}>{label}</span>
+      {status === "ok" ? <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#3dcc91", flexShrink: 0 }} /> : null}
+      {status === "error" ? <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#db3737", flexShrink: 0 }} /> : null}
+    </button>
+  );
 }

@@ -44,11 +44,20 @@ export function runAssessment() {
 
 export async function streamAssessment(
   onEvent: (event: StreamEvent) => void,
+  options?: {
+    commanderContext?: string;
+    customFires?: Array<{ lat: number; lon: number; frp: number }>;
+  },
   signal?: AbortSignal,
 ): Promise<AssessmentResult> {
+  const body: Record<string, unknown> = {};
+  if (options?.commanderContext) body["commander_context"] = options.commanderContext;
+  if (options?.customFires && options.customFires.length > 0) body["custom_fires"] = options.customFires;
+
   const response = await fetch(`${API_BASE_URL}/incidents/assess/stream`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
     cache: "no-store",
     signal,
   });

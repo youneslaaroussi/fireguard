@@ -9,6 +9,9 @@ import type { AssessmentResult, IncidentContext, RouteOption } from "@/lib/types
 type Props = {
   context: IncidentContext | null;
   assessment: AssessmentResult | null;
+  drawMode: boolean;
+  customFires: Array<{ id: string; lat: number; lon: number; frp: number }>;
+  onAddFire: (lat: number, lon: number) => void;
 };
 
 type LayerKey = "fires" | "perimeters" | "roads" | "zones" | "shelters" | "routes" | "public" | "liveFires" | "livePerimeters" | "liveRoads";
@@ -343,7 +346,7 @@ function buildCandidateRoutes(context: IncidentContext): GeoJSON.Feature[] {
 }
 
 function addSourcesAndLayers(map: Map) {
-  for (const sourceId of ["perimeters", "zones", "roads", "routes", "fires", "shelters", "public-orders", "public-ess", "live-fires", "live-roads", "live-perimeters", "candidate-routes"]) {
+  for (const sourceId of ["perimeters", "zones", "roads", "routes", "fires", "shelters", "public-orders", "public-ess", "live-fires", "live-roads", "live-perimeters", "candidate-routes", "custom-fires"]) {
     if (!map.getSource(sourceId)) {
       map.addSource(sourceId, { type: "geojson", data: { type: "FeatureCollection", features: [] } });
     }
@@ -490,6 +493,18 @@ function addSourcesAndLayers(map: Map) {
       },
       layout: { "line-cap": "round" },
     });
+    map.addLayer({
+      id: "custom-fires-layer",
+      type: "circle",
+      source: "custom-fires",
+      paint: {
+        "circle-color": "#ff9800",
+        "circle-radius": 11,
+        "circle-stroke-color": "#ffffff",
+        "circle-stroke-width": 2,
+        "circle-opacity": 0.9,
+      },
+    });
   }
 }
 
@@ -622,7 +637,7 @@ function mapboxStaticImageUrl(selected: SelectedMapFeature | null) {
   return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/static/${marker}/${lon.toFixed(5)},${lat.toFixed(5)},10.5,0/760x320@2x?access_token=${encodeURIComponent(MAPBOX_TOKEN)}`;
 }
 
-export function MapPanel({ context, assessment }: Props) {
+export function MapPanel({ context, assessment, drawMode, customFires, onAddFire }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<Map | null>(null);
   const styleRef = useRef<BasemapKey>("dark");
@@ -642,6 +657,9 @@ export function MapPanel({ context, assessment }: Props) {
     liveRoads: true,
   });
 
+  const drawModeRef = useRef(drawMode);
+  const onAddFireRef = useRef(onAddFire);
+
   const collections = useMemo(() => buildCollections(context, assessment), [context, assessment]);
   const collectionsRef = useRef(collections);
   const visibleRef = useRef(visible);
@@ -654,6 +672,35 @@ export function MapPanel({ context, assessment }: Props) {
   useEffect(() => {
     visibleRef.current = visible;
   }, [visible]);
+
+  useEffect(() => {
+    drawModeRef.current = drawMode;
+    const map = mapRef.current;
+    if (!map) return;
+    map.getCanvas().style.cursor = drawMode ? "crosshair" : "";
+  }, [drawMode]);
+
+  useEffect(() => {
+    onAddFireRef.current = onAddFire;
+  }, [onAddFire]);
+
+  // Update custom fires source when customFires prop changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const geojson: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: customFires.map((cf) => ({
+        type: "Feature" as const,
+        id: cf.id,
+        properties: { label: cf.id, frp: cf.frp, source: "Operator-placed" },
+        geometry: { type: "Point" as const, coordinates: [cf.lon, cf.lat] },
+      })),
+    };
+    const apply = () => setSourceData(map, "custom-fires", geojson);
+    if (map.loaded()) apply();
+    else map.once("load", apply);
+  }, [customFires]);
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current || !mapboxConfigured) return;
@@ -684,6 +731,11 @@ export function MapPanel({ context, assessment }: Props) {
         offset: 18,
       });
       map.on("click", (event) => {
+        // In draw mode, place a custom fire instead of opening a popup
+        if (drawModeRef.current) {
+          onAddFireRef.current(event.lngLat.lat, event.lngLat.lng);
+          return;
+        }
         const queryableLayers = INTERACTIVE_LAYER_IDS.filter((layerId) => map.getLayer(layerId));
         if (!queryableLayers.length) return;
         const tolerance = 16;
@@ -770,6 +822,11 @@ export function MapPanel({ context, assessment }: Props) {
   return (
     <section className="fireguard-map-panel">
       {mapboxConfigured ? <div ref={containerRef} className="absolute inset-0" /> : <MapboxTokenPending context={context} assessment={assessment} />}
+      {drawMode ? (
+        <div className="fg-draw-mode-badge absolute left-12 top-3 z-10">
+          DRAW MODE
+        </div>
+      ) : null}
       <div className="absolute right-4 top-4 max-w-[460px]">
         <div className="fireguard-map-layer-control shadow-lg">
           <div className="fireguard-map-style-row">

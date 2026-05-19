@@ -1256,3 +1256,25 @@ button {
 .react-flow__node:hover .react-flow__handle {
   opacity: 1;
 }
+
+/* ── Commander options panel ── */
+.fg-commander-options {
+  background: #0a1018;
+  border: 1px solid #1a2530;
+  border-left: 2px solid #2d72d2;
+  border-radius: 3px;
+  padding: 10px 12px;
+}
+
+/* ── Draw mode badge ── */
+.fg-draw-mode-badge {
+  background: #ff9800;
+  color: #000;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  padding: 3px 7px;
+  border-radius: 2px;
+  pointer-events: none;
+  animation: fg-blink 1.2s ease-in-out infinite;
+}
