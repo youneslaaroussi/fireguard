@@ -57,10 +57,13 @@ export async function startChatRun(
   sessionId: string,
   prompt: string,
   attachments: ChatAttachment[] = [],
+  sessionContext: Record<string, unknown> | null = null,
 ): Promise<WorkflowRun> {
+  const payload: Record<string, unknown> = { source: "chat", attachments };
+  if (sessionContext !== null) payload.session_context = sessionContext;
   return requestJson<WorkflowRun>(`/sessions/${sessionId}/chat/runs`, {
     method: "POST",
-    body: JSON.stringify({ prompt, payload: { source: "chat", attachments } }),
+    body: JSON.stringify({ prompt, payload }),
   });
 }
 

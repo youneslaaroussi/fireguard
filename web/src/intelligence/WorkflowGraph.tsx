@@ -1,4 +1,5 @@
 import "@xyflow/react/dist/style.css";
+import "./styles/graph.css";
 import {
   Background,
   BackgroundVariant,
@@ -65,7 +66,7 @@ export function WorkflowGraph({ run, selectedNodeId, edgePayloads, events, onSel
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={(_, node) => onSelectNode(node.id)}
-        defaultViewport={{ x: 40, y: 80, zoom: 0.9 }}
+        defaultViewport={{ x: 20, y: 20, zoom: 0.9 }}
         minZoom={0.25}
         maxZoom={2}
         nodesDraggable

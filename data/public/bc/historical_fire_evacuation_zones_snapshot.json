@@ -1,0 +1,76 @@
+{
+  "captured_at": "2026-05-06T00:00:00Z",
+  "source_name": "BC Historical Orders and Alerts",
+  "source_url": "https://delivery.maps.gov.bc.ca/arcgis/rest/services/whse/bcgw_pub_whse_human_cultural_economic/MapServer/22",
+  "query": "EMRG_OAAH_SYSID IN (186,2989,3011)",
+  "notes": "Official historical BC evacuation order/alert polygons selected for the FireGuard BC replay scenario. Geometries are simplified with ArcGIS maxAllowableOffset=0.05 and geometryPrecision=5 for compact web/demo use; source attributes remain unchanged.",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "EMRG_OAAH_SYSID": 186,
+        "EVENT_NAME": "Spokin Lake Road Wildfire",
+        "EVENT_TYPE": "Fire",
+        "ORDER_ALERT_NAME": "Central Cariboo Area #6 - McLeese Lake, Fraser River, Polley Lake, Moffat Creek 150 Mile",
+        "ORDER_ALERT_STATUS": "All Clear",
+        "ISSUING_AGENCY": "Cariboo Regional District",
+        "MUNICIPALITY": null,
+        "MULTI_SOURCED_POPULATION": 1292,
+        "MULTI_SOURCED_HOMES": 1061,
+        "EVENT_START_DATE": 1499428800000,
+        "ALL_CLEAR_DATE": 1503144000000
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[-122.09224, 52.71428], [-122.2569, 52.69331], [-122.23328, 52.48798], [-122.42138, 52.45673], [-122.3767, 52.36101], [-121.88925, 52.31988], [-121.93814, 52.18345], [-121.66653, 52.217], [-121.66648, 52.1206], [-121.94832, 52.15377], [-121.81546, 52.09269], [-121.463, 52.15534], [-121.4841, 52.4418], [-121.61847, 52.56579], [-121.75477, 52.66637], [-122.09224, 52.71428]],
+          [[-121.73511, 52.40991], [-121.80216, 52.48958], [-121.64323, 52.51977], [-121.63933, 52.41356], [-121.73511, 52.40991]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "EMRG_OAAH_SYSID": 2989,
+        "EVENT_NAME": "River Valley Wildfire",
+        "EVENT_TYPE": "Fire",
+        "ORDER_ALERT_NAME": "Williams Lake River Valley Wildfire",
+        "ORDER_ALERT_STATUS": "All Clear",
+        "ISSUING_AGENCY": "City of Williams Lake",
+        "MUNICIPALITY": "City of Williams Lake",
+        "MULTI_SOURCED_POPULATION": 1548,
+        "MULTI_SOURCED_HOMES": 618,
+        "EVENT_START_DATE": 1721563200000,
+        "ALL_CLEAR_DATE": 1721736000000
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[-122.17472, 52.16411], [-122.17109, 52.11405], [-122.13461, 52.1164], [-122.17472, 52.16411]]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "EMRG_OAAH_SYSID": 3011,
+        "EVENT_NAME": "Antler Creek Wildfire",
+        "EVENT_TYPE": "Fire",
+        "ORDER_ALERT_NAME": "Browntop Mountain Area",
+        "ORDER_ALERT_STATUS": "All Clear",
+        "ISSUING_AGENCY": "Cariboo Regional District",
+        "MUNICIPALITY": "CRD - Electoral Area F",
+        "MULTI_SOURCED_POPULATION": 18,
+        "MULTI_SOURCED_HOMES": 27,
+        "EVENT_START_DATE": 1721476800000,
+        "ALL_CLEAR_DATE": 1722081600000
+      },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [[-121.58626, 52.66141], [-121.28876, 52.57222], [-121.16695, 52.92237], [-121.72098, 52.93596], [-121.67789, 52.66007], [-121.58626, 52.66141]]
+        ]
+      }
+    }
+  ]
+}

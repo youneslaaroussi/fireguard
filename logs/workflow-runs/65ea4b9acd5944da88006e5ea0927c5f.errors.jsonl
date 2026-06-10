@@ -1,0 +1,2 @@
+{"id":"ffb58296ef244dd598ab643ea9c9f0b3","run_id":"65ea4b9acd5944da88006e5ea0927c5f","event":"node_failed","timestamp":"2026-06-08T22:48:27.582500+00:00","node_id":"gate-review","payload":{"error":"HTTP Error 400: Bad Request","attempt":1}}
+{"id":"70e056350b9c4c6683f39384e8214728","run_id":"65ea4b9acd5944da88006e5ea0927c5f","event":"run_failed","timestamp":"2026-06-08T22:48:28.290879+00:00","payload":{"error":"HTTP Error 400: Bad Request"}}

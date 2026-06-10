@@ -87,12 +87,12 @@ export const STATUS_TEXT: Record<string, string> = {
   skipped: "#4b6278",
 };
 
-/** Fixed positions for the primary pipeline row */
+/** Fixed positions for the primary pipeline column (top-to-bottom) */
 export const PRIMARY_POSITIONS: Record<string, XYPosition> = {
-  human_trigger: { x: 30, y: 120 },
-  chat_agent: { x: 252, y: 120 },
-  research_agent: { x: 474, y: 120 },
-  writer_agent: { x: 696, y: 120 },
-  style_agent: { x: 918, y: 120 },
-  terminal: { x: 1140, y: 120 },
+  human_trigger: { x: 90, y:   20 },
+  chat_agent:    { x: 90, y:  160 },
+  research_agent:{ x: 90, y:  300 },
+  writer_agent:  { x: 90, y:  440 },
+  style_agent:   { x: 90, y:  580 },
+  terminal:      { x: 90, y:  720 },
 };

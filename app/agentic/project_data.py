@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import tempfile
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -13,6 +14,7 @@ from .config import AppConfig
 from .docker_sandbox import DockerSandboxManager
 
 PROJECT_DATA_PATH = "/workspace/project_data"
+PROJECT_DATA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -21,6 +23,15 @@ class FireGuardDataset:
     suffix: str
     filename: str
     source_fields: list[str]
+    description: str
+
+
+@dataclass(frozen=True)
+class LocalFireGuardDataset:
+    name: str
+    source_path: Path
+    project_path: Path
+    format: str
     description: str
 
 
@@ -87,6 +98,58 @@ FIREGUARD_DATASETS = [
     ),
 ]
 
+LOCAL_FIREGUARD_DATASETS = [
+    LocalFireGuardDataset(
+        name="bc_historical_fire_evacuation_zones",
+        source_path=Path("data/public/bc/historical_fire_evacuation_zones_snapshot.json"),
+        project_path=Path("data/public/bc/historical_fire_evacuation_zones_snapshot.json"),
+        format="json",
+        description="Historical BC fire evacuation zones snapshot for the Cariboo/Williams Lake scenario.",
+    ),
+    LocalFireGuardDataset(
+        name="bc_official_policy_snippets",
+        source_path=Path("data/public/bc/official_policy_snippets.json"),
+        project_path=Path("data/public/bc/official_policy_snippets.json"),
+        format="json",
+        description="Official public safety policy snippets for the BC scenario.",
+    ),
+    LocalFireGuardDataset(
+        name="bc_public_emergency_context",
+        source_path=Path("data/public/bc/public_emergency_context_snapshot.json"),
+        project_path=Path("data/public/bc/public_emergency_context_snapshot.json"),
+        format="json",
+        description="BC public emergency context, including evacuation orders and ESS facilities.",
+    ),
+    LocalFireGuardDataset(
+        name="bc_cariboo_firms_snapshot",
+        source_path=Path("data/replay/bc_cariboo/firms_snapshot.csv"),
+        project_path=Path("data/replay/bc_cariboo/firms_snapshot.csv"),
+        format="csv",
+        description="FIRMS snapshot scoped to July 2024 Cariboo/Williams Lake replay.",
+    ),
+    LocalFireGuardDataset(
+        name="bc_cariboo_firms_snapshot_metadata",
+        source_path=Path("data/replay/bc_cariboo/firms_snapshot.metadata.json"),
+        project_path=Path("data/replay/bc_cariboo/firms_snapshot.metadata.json"),
+        format="json",
+        description="Source metadata for the July 2024 Cariboo/Williams Lake FIRMS snapshot.",
+    ),
+    LocalFireGuardDataset(
+        name="bc_cariboo_road_events",
+        source_path=Path("data/replay/bc_cariboo/road_events_snapshot.json"),
+        project_path=Path("data/replay/bc_cariboo/road_events_snapshot.json"),
+        format="json",
+        description="Road event snapshot for the July 2024 Cariboo/Williams Lake scenario.",
+    ),
+    LocalFireGuardDataset(
+        name="bc_cariboo_weather",
+        source_path=Path("data/replay/bc_cariboo/weather_snapshot.json"),
+        project_path=Path("data/replay/bc_cariboo/weather_snapshot.json"),
+        format="json",
+        description="Weather snapshot for the July 2024 Cariboo/Williams Lake scenario.",
+    ),
+]
+
 
 class ProjectDataBootstrapper:
     def __init__(self, config: AppConfig, sandbox_manager: DockerSandboxManager) -> None:
@@ -147,6 +210,8 @@ class ProjectDataBootstrapper:
             parsed = json.loads(stdout)
         except json.JSONDecodeError:
             return None
+        if not isinstance(parsed, dict) or parsed.get("data_version") != PROJECT_DATA_VERSION:
+            return None
         return parsed if isinstance(parsed, dict) else None
 
     async def _export_fireguard(self, export_dir: Path) -> dict[str, Any]:
@@ -158,9 +223,11 @@ class ProjectDataBootstrapper:
                 output_path = export_dir / dataset.filename
                 stats = await self._export_dataset(client, base_url, dataset, output_path)
                 datasets.append(stats)
+        local_datasets = self._copy_local_datasets(export_dir)
 
         manifest = {
             "scope": "fireguard",
+            "data_version": PROJECT_DATA_VERSION,
             "generated_at": datetime.now(UTC).isoformat(),
             "path": PROJECT_DATA_PATH,
             "index_prefix": self._config.fireguard_elasticsearch_index_prefix,
@@ -170,17 +237,41 @@ class ProjectDataBootstrapper:
                 "page_size": self._config.fireguard_data_bootstrap_page_size,
             },
             "datasets": datasets,
+            "local_datasets": local_datasets,
             "notes": [
                 "Files are newline-delimited JSON. Each row has _index, _id, and _source.",
                 "Large datasets may be truncated; check each dataset.truncated flag.",
+                "Local BC context files are copied under their manifest local_datasets paths.",
                 "Use Python, pandas, polars, or duckdb in the sandbox to inspect these files.",
             ],
         }
         (export_dir / "manifest.json").write_text(
             json.dumps(manifest, indent=2, default=str), encoding="utf-8"
         )
-        (export_dir / "README.md").write_text(_readme(datasets), encoding="utf-8")
+        (export_dir / "README.md").write_text(_readme(datasets, local_datasets), encoding="utf-8")
         return manifest
+
+    def _copy_local_datasets(self, export_dir: Path) -> list[dict[str, Any]]:
+        copied: list[dict[str, Any]] = []
+        for dataset in LOCAL_FIREGUARD_DATASETS:
+            source = Path.cwd() / dataset.source_path
+            target = export_dir / dataset.project_path
+            available = source.exists()
+            if available:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+            copied.append(
+                {
+                    "name": dataset.name,
+                    "description": dataset.description,
+                    "file": str(dataset.project_path),
+                    "format": dataset.format,
+                    "source_path": str(dataset.source_path),
+                    "bytes": source.stat().st_size if available else 0,
+                    "available": available,
+                }
+            )
+        return copied
 
     async def _export_dataset(
         self,
@@ -303,7 +394,7 @@ def _export_row(hit: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _readme(datasets: list[dict[str, Any]]) -> str:
+def _readme(datasets: list[dict[str, Any]], local_datasets: list[dict[str, Any]]) -> str:
     lines = [
         "# FireGuard Data",
         "",
@@ -318,6 +409,14 @@ def _readme(datasets: list[dict[str, Any]]) -> str:
             f"- `{dataset['file']}`: {dataset['name']} from `{dataset['index']}` "
             f"({dataset['exported_docs']}/{dataset['total_matches']} docs)."
         )
+    if len(local_datasets) > 0:
+        lines.extend(["", "## Local BC Context", ""])
+        for dataset in local_datasets:
+            status = "available" if dataset["available"] else "missing"
+            lines.append(
+                f"- `{dataset['file']}`: {dataset['name']} "
+                f"({dataset['format']}, {dataset['bytes']} bytes, {status})."
+            )
     lines.extend(
         [
             "",

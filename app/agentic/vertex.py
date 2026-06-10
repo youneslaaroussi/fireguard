@@ -8,6 +8,10 @@ from collections.abc import AsyncIterator
 from typing import Any
 
 import httpx
+from google.adk.models.google_llm import Gemini
+from google.adk.models.llm_request import LlmRequest
+from google.adk.models.llm_response import LlmResponse
+from google.genai import types
 
 from .config import AppConfig
 from .models import ChatMessage, MessageRole, ModelTier, TokenUsage, ToolDefinition
@@ -23,10 +27,10 @@ class VertexAIError(RuntimeError):
 class VertexAIClient:
     def __init__(self, config: AppConfig) -> None:
         self._config = config
-        self._client = httpx.AsyncClient(timeout=httpx.Timeout(config.http_timeout_seconds))
+        self._models: dict[str, Gemini] = {}
 
     async def close(self) -> None:
-        await self._client.aclose()
+        return None
 
     def model_for_tier(self, tier: ModelTier) -> str:
         if tier == ModelTier.light:
@@ -43,14 +47,15 @@ class VertexAIClient:
         emit_retry: RetryEmitter,
         response_format: dict[str, Any] | None = None,
     ) -> AsyncIterator[StreamChunk]:
-        del response_format
         if len(self._config.google_cloud_project.strip()) == 0:
             raise VertexAIError(
                 "GOOGLE_CLOUD_PROJECT must be set before running Vertex workflows",
                 status_code=401,
             )
         model = self.model_for_tier(model_tier)
-        payload = _request_payload(messages, tools, self._config.max_completion_tokens)
+        payload = _request_payload(
+            messages, tools, self._config.max_completion_tokens, response_format=response_format
+        )
         attempt = 1
         while True:
             try:
@@ -86,41 +91,32 @@ class VertexAIClient:
         model_tier: ModelTier,
         call_type: str,
     ) -> AsyncIterator[StreamChunk]:
-        token = await _gcloud_access_token()
         content_parts: list[str] = []
         function_calls: list[dict[str, Any]] = []
         usage: TokenUsage | None = None
-        headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
         try:
-            async with self._client.stream(
-                "POST",
-                self._endpoint(model),
-                params={"alt": "sse"},
-                headers=headers,
-                json=payload,
-            ) as response:
-                if response.status_code >= 400:
-                    text = await response.aread()
-                    raise VertexAIError(
-                        f"Vertex AI returned HTTP {response.status_code}: {text.decode(errors='replace')[:1000]}",
-                        status_code=response.status_code,
-                    )
-                async for line in response.aiter_lines():
-                    if not line.startswith("data: "):
-                        continue
-                    data = json.loads(line.removeprefix("data: "))
-                    chunk_usage = _usage_from_response(data, model, model_tier, call_type)
-                    if chunk_usage is not None:
-                        usage = chunk_usage
-                        yield chunk_usage
-                    for text in _text_parts(data):
+            async for response in self._model(model).generate_content_async(
+                _llm_request_from_payload(payload, model), stream=True
+            ):
+                chunk_usage = _usage_from_adk_response(response, model, model_tier, call_type)
+                if chunk_usage is not None:
+                    usage = chunk_usage
+                    yield chunk_usage
+                for text in _adk_text_parts(response):
+                    if response.partial:
                         content_parts.append(text)
                         yield ChatDelta(text)
-                    function_calls.extend(_function_calls(data))
+                if not response.partial:
+                    final_text = "".join(_adk_text_parts(response))
+                    if len(final_text) > 0:
+                        content_parts = [final_text]
+                    function_calls = _adk_function_calls(response)
         except httpx.TimeoutException as exc:
             raise VertexAIError("Vertex AI request timed out") from exc
         except httpx.HTTPError as exc:
             raise VertexAIError(f"Vertex AI request failed: {exc}") from exc
+        except Exception as exc:
+            raise VertexAIError(f"ADK Gemini request failed: {exc}") from exc
         message = ChatMessage(
             role=MessageRole.assistant,
             content="".join(content_parts),
@@ -128,14 +124,12 @@ class VertexAIClient:
         )
         yield ChatComplete(message=message, usage=usage)
 
-    def _endpoint(self, model: str) -> str:
-        location = self._config.google_cloud_location.strip()
-        project = self._config.google_cloud_project.strip()
-        host = "aiplatform.googleapis.com" if location == "global" else f"{location}-aiplatform.googleapis.com"
-        return (
-            f"https://{host}/v1/projects/{project}/locations/{location}/"
-            f"publishers/google/models/{model}:streamGenerateContent"
-        )
+    def _model(self, model: str) -> Gemini:
+        cached = self._models.get(model)
+        if cached is None:
+            cached = Gemini(model=model)
+            self._models[model] = cached
+        return cached
 
     def _retry_delay(self, exc: Exception, attempt: int) -> float | None:
         if attempt >= self._config.max_retries:
@@ -196,7 +190,10 @@ def _application_default_token() -> str | None:
 
 
 def _request_payload(
-    messages: list[ChatMessage], tools: list[ToolDefinition], max_output_tokens: int
+    messages: list[ChatMessage],
+    tools: list[ToolDefinition],
+    max_output_tokens: int,
+    response_format: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     system_parts: list[dict[str, Any]] = []
     contents: list[dict[str, Any]] = []
@@ -222,6 +219,7 @@ def _request_payload(
         "contents": contents,
         "generationConfig": {"temperature": 0.2, "maxOutputTokens": max_output_tokens},
     }
+    _apply_response_format(payload, response_format)
     if len(system_parts) > 0:
         payload["systemInstruction"] = {"parts": system_parts}
     if len(tools) > 0:
@@ -230,6 +228,186 @@ def _request_payload(
         ]
         payload["toolConfig"] = {"functionCallingConfig": {"mode": "AUTO"}}
     return payload
+
+
+def _llm_request_from_payload(payload: dict[str, Any], model: str) -> LlmRequest:
+    generation_config = payload.get("generationConfig")
+    if not isinstance(generation_config, dict):
+        generation_config = {}
+    system_instruction = payload.get("systemInstruction")
+    config = types.GenerateContentConfig(
+        temperature=generation_config.get("temperature"),
+        max_output_tokens=generation_config.get("maxOutputTokens"),
+        response_mime_type=generation_config.get("responseMimeType"),
+        response_schema=generation_config.get("responseSchema"),
+        system_instruction=_content_from_vertex_dict(system_instruction)
+        if isinstance(system_instruction, dict)
+        else None,
+        tools=_tools_from_vertex_payload(payload),
+        tool_config=_tool_config_from_vertex_payload(payload),
+    )
+    contents = [
+        _content_from_vertex_dict(item)
+        for item in payload.get("contents", [])
+        if isinstance(item, dict)
+    ]
+    return LlmRequest(model=model, contents=contents, config=config)
+
+
+def _content_from_vertex_dict(item: dict[str, Any]) -> types.Content:
+    parts = [
+        _part_from_vertex_dict(part)
+        for part in item.get("parts", [])
+        if isinstance(part, dict)
+    ]
+    return types.Content(role=item.get("role"), parts=parts)
+
+
+def _part_from_vertex_dict(item: dict[str, Any]) -> types.Part:
+    text = item.get("text")
+    if isinstance(text, str):
+        return types.Part(text=text)
+    inline_data = item.get("inlineData")
+    if isinstance(inline_data, dict):
+        return types.Part(
+            inline_data=types.Blob(
+                mime_type=str(inline_data.get("mimeType") or "application/octet-stream"),
+                data=inline_data.get("data"),
+            )
+        )
+    function_call = item.get("functionCall")
+    if isinstance(function_call, dict):
+        return types.Part(
+            function_call=types.FunctionCall(
+                name=str(function_call.get("name") or ""),
+                args=function_call.get("args") if isinstance(function_call.get("args"), dict) else {},
+            )
+        )
+    function_response = item.get("functionResponse")
+    if isinstance(function_response, dict):
+        return types.Part(
+            function_response=types.FunctionResponse(
+                name=str(function_response.get("name") or "tool_result"),
+                response=function_response.get("response")
+                if isinstance(function_response.get("response"), dict)
+                else {"content": function_response.get("response")},
+            )
+        )
+    return types.Part(text=json.dumps(item, default=str))
+
+
+def _tools_from_vertex_payload(payload: dict[str, Any]) -> list[types.Tool] | None:
+    tools: list[types.Tool] = []
+    for item in payload.get("tools", []):
+        if not isinstance(item, dict):
+            continue
+        declarations = item.get("functionDeclarations")
+        if not isinstance(declarations, list):
+            continue
+        functions = [
+            types.FunctionDeclaration(
+                name=str(declaration.get("name") or ""),
+                description=declaration.get("description"),
+                parameters_json_schema=declaration.get("parameters"),
+            )
+            for declaration in declarations
+            if isinstance(declaration, dict)
+        ]
+        if len(functions) > 0:
+            tools.append(types.Tool(function_declarations=functions))
+    return tools if len(tools) > 0 else None
+
+
+def _tool_config_from_vertex_payload(payload: dict[str, Any]) -> types.ToolConfig | None:
+    tool_config = payload.get("toolConfig")
+    if not isinstance(tool_config, dict):
+        return None
+    function_config = tool_config.get("functionCallingConfig")
+    if not isinstance(function_config, dict):
+        return None
+    mode = function_config.get("mode")
+    if not isinstance(mode, str):
+        return None
+    return types.ToolConfig(
+        function_calling_config=types.FunctionCallingConfig(mode=mode)
+    )
+
+
+def _apply_response_format(payload: dict[str, Any], response_format: dict[str, Any] | None) -> None:
+    if response_format is None:
+        return
+    if response_format.get("type") != "json_schema":
+        return
+    json_schema = response_format.get("json_schema")
+    if not isinstance(json_schema, dict):
+        return
+    schema = json_schema.get("schema")
+    if not isinstance(schema, dict):
+        return
+    generation_config = payload.setdefault("generationConfig", {})
+    generation_config["responseMimeType"] = "application/json"
+    generation_config["responseSchema"] = _response_schema_for_vertex(schema)
+
+
+def _response_schema_for_vertex(schema: Any) -> Any:
+    if isinstance(schema, list):
+        return [_response_schema_for_vertex(item) for item in schema]
+    if not isinstance(schema, dict):
+        return schema
+    nullable = False
+    any_of = schema.get("anyOf")
+    if isinstance(any_of, list):
+        non_null = [
+            item
+            for item in any_of
+            if not (isinstance(item, dict) and item.get("type") == "null")
+        ]
+        if len(non_null) == 1 and len(non_null) != len(any_of):
+            converted = _response_schema_for_vertex(non_null[0])
+            if isinstance(converted, dict):
+                converted["nullable"] = True
+                return converted
+        if len(non_null) == len(any_of):
+            return {"anyOf": [_response_schema_for_vertex(item) for item in any_of]}
+    allowed = {
+        "type",
+        "description",
+        "properties",
+        "required",
+        "items",
+        "enum",
+        "minimum",
+        "maximum",
+        "format",
+        "nullable",
+        "default",
+        "minItems",
+        "maxItems",
+        "minLength",
+        "maxLength",
+        "propertyOrdering",
+    }
+    cleaned: dict[str, Any] = {}
+    for key, value in schema.items():
+        if key not in allowed:
+            continue
+        if key == "properties" and isinstance(value, dict):
+            cleaned[key] = {
+                name: _response_schema_for_vertex(property_schema)
+                for name, property_schema in value.items()
+                if isinstance(name, str)
+            }
+            continue
+        if key == "type" and isinstance(value, str):
+            if value == "null":
+                nullable = True
+                continue
+            cleaned[key] = _vertex_schema_type(value)
+            continue
+        cleaned[key] = _response_schema_for_vertex(value)
+    if nullable:
+        cleaned["nullable"] = True
+    return cleaned
 
 
 def _content_for_message(
@@ -402,6 +580,51 @@ def _usage_from_response(
         total_tokens=_int_or_none(raw.get("totalTokenCount")),
         cached_tokens=_int_or_none(raw.get("cachedContentTokenCount")),
     )
+
+
+def _usage_from_adk_response(
+    response: LlmResponse,
+    model: str,
+    model_tier: ModelTier,
+    call_type: str,
+) -> TokenUsage | None:
+    raw = response.usage_metadata
+    if raw is None:
+        return None
+    return TokenUsage(
+        model=model,
+        model_tier=model_tier,
+        call_type=call_type,
+        prompt_tokens=_int_or_none(getattr(raw, "prompt_token_count", None)),
+        completion_tokens=_int_or_none(getattr(raw, "candidates_token_count", None)),
+        total_tokens=_int_or_none(getattr(raw, "total_token_count", None)),
+        cached_tokens=_int_or_none(getattr(raw, "cached_content_token_count", None)),
+    )
+
+
+def _adk_text_parts(response: LlmResponse) -> list[str]:
+    content = response.content
+    if content is None or content.parts is None:
+        return []
+    return [part.text for part in content.parts if isinstance(part.text, str) and len(part.text) > 0]
+
+
+def _adk_function_calls(response: LlmResponse) -> list[dict[str, Any]]:
+    content = response.content
+    if content is None or content.parts is None:
+        return []
+    calls: list[dict[str, Any]] = []
+    for part in content.parts:
+        call = part.function_call
+        if call is None:
+            continue
+        calls.append(
+            {
+                "name": call.name,
+                "args": call.args if isinstance(call.args, dict) else {},
+            }
+        )
+    return calls
 
 
 def _text_parts(data: dict[str, Any]) -> list[str]:

@@ -1,0 +1,24 @@
+[
+  {
+    "source": "DRIVEBC_OPEN511_SNAPSHOT",
+    "external_id": "drivebc.ca/DBC-90684",
+    "title": "Little Lake Quesnel River Road closed near Williams Lake",
+    "description": "Little Lake Quesnel River Road. Washout at West of Likely Road Turnoff near Williams Lake. Road closed. Geotechnical investigation. Assessment in progress. Road closed 10 km West of Likely Road Turnoff. No detour. Next update time Mon Jun 1 at 12:00 PM PDT. Last updated Thu Apr 30 at 3:28 PM PDT. (DBC-90684)",
+    "event_type": "INCIDENT",
+    "severity": "MAJOR",
+    "road_name": "Little Lake Quesnel River Road",
+    "location": { "lat": 52.623474, "lon": -121.761311 },
+    "geometry": {
+      "type": "Point",
+      "coordinates": [-121.761311, 52.623474]
+    },
+    "starts_at": "2026-04-30T15:28:34-07:00",
+    "ends_at": null,
+    "updated_at": "2026-04-30T15:28:34-07:00",
+    "source_url": "https://api.open511.gov.bc.ca/events/drivebc.ca/DBC-90684",
+    "raw": {
+      "source_snapshot": true,
+      "captured_from": "https://api.open511.gov.bc.ca/events/drivebc.ca/DBC-90684"
+    }
+  }
+]

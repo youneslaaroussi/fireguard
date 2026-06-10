@@ -229,20 +229,21 @@ function buildToolEdges(
 // Positioning
 
 function subagentPosition(index: number, total: number): XYPosition {
-  const cols = Math.min(total, 4);
+  // Two-column grid below research_agent (x:90, y:300); each column 192px wide, centered at x=90.
+  const cols = Math.min(total, 2);
   const col = index % cols;
   const row = Math.floor(index / cols);
   const nodeWidth = 172;
   const gap = 20;
   const totalWidth = cols * nodeWidth + (cols - 1) * gap;
-  // Center under research_agent.
-  const startX = 560 - totalWidth / 2;
-  return { x: startX + col * (nodeWidth + gap), y: 310 + row * 130 };
+  const startX = 90 - totalWidth / 2;
+  return { x: startX + col * (nodeWidth + gap), y: 440 + row * 140 };
 }
 
 function toolPosition(parentPos: XYPosition | undefined, siblingIndex: number): XYPosition {
-  const p = parentPos ?? { x: 474, y: 310 };
-  return { x: p.x + siblingIndex * 160, y: p.y + 112 };
+  const p = parentPos ?? { x: 90, y: 440 };
+  // Stack tools vertically below their parent subagent.
+  return { x: p.x, y: p.y + 130 + siblingIndex * 110 };
 }
 
 // Event parsing

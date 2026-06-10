@@ -1,4 +1,4 @@
-import { Card, Checkbox, FormGroup, HTMLSelect, InputGroup, NumericInput, Slider } from "@blueprintjs/core";
+import { Card, Checkbox, FormGroup, HTMLSelect, InputGroup, Slider } from "@blueprintjs/core";
 import type { ReplayRequest } from "../types";
 import { sources } from "./state";
 
@@ -22,15 +22,6 @@ export function Controls({ value, onChange }: Props) {
   return (
     <aside className="sidePane">
       <Card>
-        <FormGroup label="Latitude">
-          <NumericInput fill value={value.latitude} minorStepSize={0.000001} onValueChange={(n) => patch({ latitude: n })} />
-        </FormGroup>
-        <FormGroup label="Longitude">
-          <NumericInput fill value={value.longitude} minorStepSize={0.000001} onValueChange={(n) => patch({ longitude: n })} />
-        </FormGroup>
-        <FormGroup label="Radius km">
-          <NumericInput fill min={1} max={2000} value={value.radius_km} onValueChange={(n) => patch({ radius_km: n })} />
-        </FormGroup>
         <FormGroup label="Start">
           <InputGroup type="date" value={value.start_date} onChange={(e) => patch({ start_date: e.currentTarget.value })} />
         </FormGroup>

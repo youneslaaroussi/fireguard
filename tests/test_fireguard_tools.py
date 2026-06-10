@@ -146,6 +146,214 @@ def test_fireguard_search_events_builds_geo_and_date_filters() -> None:
     ]
 
 
+def test_fireguard_search_shelters_builds_geo_status_filter() -> None:
+    captured: dict[str, Any] = {}
+
+    async def elastic_stub(
+        base_url: str,
+        api_key: str,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        del base_url, api_key, method
+        captured["path"] = path
+        captured["body"] = body
+        return {
+            "hits": {
+                "hits": [
+                    {
+                        "_source": {
+                            "facility_id": "ESS-1",
+                            "name": "Reception Centre",
+                            "facility_type": "reception_centre",
+                            "address": "1 Main St",
+                            "community": "Kamloops",
+                            "municipality": "Kamloops",
+                            "status": "OPEN",
+                            "location": {"lat": 50.7, "lon": -120.4},
+                            "capacity": 120,
+                            "unused": "ignored",
+                        }
+                    }
+                ]
+            }
+        }
+
+    original = tools_module._elastic_request
+    tools_module._elastic_request = elastic_stub
+    try:
+        output = _invoke(
+            "fireguard_search_shelters",
+            {
+                "latitude": 50.7,
+                "longitude": -120.4,
+                "radius_km": 25,
+                "status_filter": "OPEN",
+                "size": 5,
+            },
+        )
+    finally:
+        tools_module._elastic_request = original
+
+    assert captured["path"] == "/fireguard-shelters/_search"
+    filters = captured["body"]["query"]["bool"]["filter"]
+    assert filters[0]["geo_distance"]["distance"] == "25.0km"
+    assert {"term": {"status": "OPEN"}} in filters
+    assert captured["body"]["sort"][0]["_geo_distance"]["order"] == "asc"
+    assert output["count"] == 1
+    assert output["shelters"] == [
+        {
+            "facility_id": "ESS-1",
+            "name": "Reception Centre",
+            "facility_type": "reception_centre",
+            "address": "1 Main St",
+            "community": "Kamloops",
+            "municipality": "Kamloops",
+            "status": "OPEN",
+            "location": {"lat": 50.7, "lon": -120.4},
+            "capacity": 120,
+            "distance_km": 0.0,
+        }
+    ]
+
+
+def test_fireguard_search_road_events_builds_geo_query() -> None:
+    captured: dict[str, Any] = {}
+
+    async def elastic_stub(
+        base_url: str,
+        api_key: str,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        del base_url, api_key, method
+        captured["path"] = path
+        captured["body"] = body
+        return {
+            "hits": {
+                "hits": [
+                    {
+                        "_source": {
+                            "event_id": "DBC-1",
+                            "title": "Highway 97 closed",
+                            "description": "Road closed in both directions",
+                            "road_name": "Highway 97",
+                            "event_type": "closure",
+                            "severity": "major",
+                            "status": "ACTIVE",
+                            "location": {"lat": 50.7, "lon": -120.4},
+                            "geometry": {"type": "Point", "coordinates": [-120.4, 50.7]},
+                            "unused": "ignored",
+                        }
+                    }
+                ]
+            }
+        }
+
+    original = tools_module._elastic_request
+    tools_module._elastic_request = elastic_stub
+    try:
+        output = _invoke(
+            "fireguard_search_road_events",
+            {"latitude": 50.7, "longitude": -120.4, "radius_km": 25, "size": 5},
+        )
+    finally:
+        tools_module._elastic_request = original
+
+    assert captured["path"] == "/fireguard-road-events/_search"
+    filters = captured["body"]["query"]["bool"]["filter"]
+    assert filters[0]["geo_distance"]["distance"] == "25.0km"
+    assert captured["body"]["sort"][0]["_geo_distance"]["order"] == "asc"
+    assert output["count"] == 1
+    assert output["road_events"][0]["event_id"] == "DBC-1"
+    assert output["road_events"][0]["distance_km"] == 0.0
+
+
+def test_fireguard_evaluate_route_checks_fires_road_events_and_hypotheticals() -> None:
+    calls: list[dict[str, Any]] = []
+
+    async def elastic_stub(
+        base_url: str,
+        api_key: str,
+        method: str,
+        path: str,
+        body: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        del base_url, api_key, method
+        calls.append({"path": path, "body": body})
+        if path == "/fireguard-firms/_search":
+            return {
+                "hits": {
+                    "hits": [
+                        {
+                            "_source": {
+                                "latitude": 50.0,
+                                "longitude": -119.5,
+                                "frp": 16.5,
+                                "acquired_at": "2026-06-01T12:00:00Z",
+                            }
+                        }
+                    ]
+                }
+            }
+        if path == "/fireguard-road-events/_search":
+            return {
+                "hits": {
+                    "hits": [
+                        {
+                            "_source": {
+                                "event_id": "DBC-1",
+                                "title": "Highway 97 closed",
+                                "description": "Road closed in both directions",
+                                "road_name": "Highway 97",
+                                "event_type": "closure",
+                                "severity": "major",
+                                "location": {"lat": 50.0, "lon": -119.5},
+                            }
+                        }
+                    ]
+                }
+            }
+        raise AssertionError(path)
+
+    original = tools_module._elastic_request
+    tools_module._elastic_request = elastic_stub
+    try:
+        output = _invoke(
+            "fireguard_evaluate_route",
+            {
+                "origin_lat": 50.0,
+                "origin_lon": -120.0,
+                "destination_lat": 50.0,
+                "destination_lon": -119.0,
+                "start_date": "2026-06-01",
+                "end_date": "2026-06-02",
+                "hypothetical_closures": [
+                    {"lat": 50.0, "lon": -119.25, "label": "Highway 97"}
+                ],
+            },
+        )
+    finally:
+        tools_module._elastic_request = original
+
+    assert [call["path"] for call in calls] == [
+        "/fireguard-firms/_search",
+        "/fireguard-road-events/_search",
+    ]
+    fire_filters = calls[0]["body"]["query"]["bool"]["filter"]
+    assert {"range": {"acquired_at": {"gte": "2026-06-01", "lte": "2026-06-02"}}} in fire_filters
+    assert output["route_source"] == "deterministic_straight_line"
+    assert output["safe"] is False
+    assert len(output["polyline"]) == 5
+    assert {item["type"] for item in output["evidence"]} == {
+        "fire",
+        "road_closure",
+        "hypothetical_closure",
+    }
+
+
 def test_fireguard_bcws_context_reads_incidents_and_perimeters() -> None:
     calls: list[dict[str, Any]] = []
 

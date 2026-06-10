@@ -14,6 +14,10 @@ from .models import (
 FIREGUARD_TOOLS = [
     "fireguard_stats",
     "fireguard_search_events",
+    "fireguard_search_zones",
+    "fireguard_search_shelters",
+    "fireguard_search_road_events",
+    "fireguard_evaluate_route",
     "fireguard_bcws_context",
 ]
 
@@ -25,6 +29,42 @@ RESEARCH_DIRECT_TOOLS = [
     "sandbox_list_files",
     "sandbox_export_asset",
 ]
+
+EVACUATION_TOOLS = [
+    "fireguard_stats",
+    "fireguard_search_events",
+    "fireguard_search_zones",
+    "fireguard_search_shelters",
+    "fireguard_search_road_events",
+    "fireguard_evaluate_route",
+    "fireguard_bcws_context",
+    "exa_search",
+    "emit_message",
+    "complete_workflow_node",
+]
+
+EVACUATION_RESEARCH_SYSTEM_PROMPT = (
+    "You are the FireGuard evacuation analyst. A satellite fire threat has been automatically "
+    "detected near a populated evacuation zone. Your job is to produce a complete, actionable "
+    "evacuation decision brief. Follow these steps in order:\n\n"
+    "1. ZONE ASSESSMENT: Call fireguard_search_zones with the hotspot coordinates and radius_km=100. "
+    "Identify affected zones by population and proximity.\n"
+    "2. SHELTER SCAN: Call fireguard_search_shelters with the hotspot coordinates and radius_km=300. "
+    "Note which facilities are CLOSED vs OPEN. Williams Lake ESS facilities may all be CLOSED — "
+    "if so, you must find the next available open facility further away.\n"
+    "3. ROAD CLOSURES: Call fireguard_search_road_events with the hotspot coordinates and radius_km=200. "
+    "Identify any active closures blocking evacuation corridors.\n"
+    "4. ROUTE EVALUATION: For the highest-priority zone (largest population), call "
+    "fireguard_evaluate_route to the 2-3 nearest open shelters. Use the zone centroid as origin "
+    "and each shelter location as destination. Include start_date and end_date matching the "
+    "replay window from session context.\n"
+    "5. FIRE CONTEXT: Call fireguard_search_events near the hotspot to characterize fire intensity "
+    "and spread direction.\n\n"
+    "Synthesize findings into compact research notes covering: affected zone (population/homes), "
+    "shelter availability (open vs closed with names), best route (distance, duration, risk flags), "
+    "any blocked routes with reason, and the single recommended evacuation action. "
+    "Be specific with names, distances, and times. Do not summarize schema or field names."
+)
 
 CHAT_AGENT_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -118,9 +158,107 @@ CHAT_AGENT_RESPONSE_FORMAT = {
 
 
 def built_in_workflow(workflow_id: str) -> WorkflowDefinition:
-    if workflow_id != "fireguard_intelligence":
-        raise KeyError(f"unknown workflow {workflow_id}")
+    if workflow_id == "fireguard_evacuation":
+        return built_in_evacuation_workflow()
+    if workflow_id == "fireguard_intelligence":
+        return _built_in_intelligence_workflow()
+    raise KeyError(f"unknown workflow {workflow_id}")
 
+
+def built_in_evacuation_workflow() -> WorkflowDefinition:
+    research = AgentDefinition(
+        agent_id="evacuation_research",
+        name="Evacuation Research Agent",
+        model_tier=ModelTier.pro,
+        tool_names=EVACUATION_TOOLS,
+        system_prompt=EVACUATION_RESEARCH_SYSTEM_PROMPT,
+    )
+    writer = AgentDefinition(
+        agent_id="evacuation_writer",
+        name="Evacuation Writer Agent",
+        model_tier=ModelTier.pro,
+        tool_names=["emit_message", "complete_workflow_node"],
+        system_prompt=(
+            "You are the FireGuard evacuation writer. Turn the research notes into a concise "
+            "operational evacuation brief. Structure:\n"
+            "## Threat Detection\n"
+            "One sentence: what fired, where, FRP, time.\n"
+            "## Affected Zone\n"
+            "Zone name, population, homes, distance to hotspot.\n"
+            "## Shelter Status\n"
+            "Table or short list: facility name, community, status (OPEN/CLOSED), distance from zone.\n"
+            "## Recommended Evacuation Route\n"
+            "Origin → Destination. Distance, estimated drive time, route safety (SAFE/UNSAFE + reason).\n"
+            "## Blocked Routes\n"
+            "Any routes evaluated and rejected, with reason.\n"
+            "## Recommended Action\n"
+            "One clear sentence: what the incident commander should do right now.\n\n"
+            "STRICT RULES: No preamble. No conclusion. No next-step offers. Start immediately with "
+            "## Threat Detection. End after ## Recommended Action."
+        ),
+    )
+    style = AgentDefinition(
+        agent_id="evacuation_style",
+        name="Evacuation Style Agent",
+        model_tier=ModelTier.pro,
+        tool_names=["emit_message", "complete_workflow_node"],
+        system_prompt=(
+            "You are the FireGuard style agent. Apply minimal polish to this evacuation brief: "
+            "clean up formatting, ensure the table is readable, add a :::callout block around "
+            "## Recommended Action. Do NOT change any facts, distances, times, or names. "
+            "Output the complete revised markdown. No preamble."
+        ),
+    )
+    return WorkflowDefinition(
+        workflow_id="fireguard_evacuation",
+        name="FireGuard Evacuation Analysis",
+        start_node_id="human_trigger",
+        agents=[research, writer, style],
+        nodes=[
+            WorkflowNode(node_id="human_trigger", label="Human Trigger", config=HumanTriggerNode()),
+            WorkflowNode(
+                node_id="research_agent",
+                label="Research Agent",
+                config=AgentNode(agent_id="evacuation_research"),
+            ),
+            WorkflowNode(
+                node_id="writer_agent",
+                label="Writer Agent",
+                config=AgentNode(agent_id="evacuation_writer"),
+            ),
+            WorkflowNode(
+                node_id="style_agent",
+                label="Style Agent",
+                config=AgentNode(agent_id="evacuation_style"),
+            ),
+            WorkflowNode(node_id="terminal", label="Terminal", config=TerminalNode()),
+        ],
+        edges=[
+            NodeEdge(
+                edge_id="e_trigger_research",
+                from_node_id="human_trigger",
+                to_node_id="research_agent",
+            ),
+            NodeEdge(
+                edge_id="e_research_writer",
+                from_node_id="research_agent",
+                to_node_id="writer_agent",
+            ),
+            NodeEdge(
+                edge_id="e_writer_style",
+                from_node_id="writer_agent",
+                to_node_id="style_agent",
+            ),
+            NodeEdge(
+                edge_id="e_style_terminal",
+                from_node_id="style_agent",
+                to_node_id="terminal",
+            ),
+        ],
+    )
+
+
+def _built_in_intelligence_workflow() -> WorkflowDefinition:
     chat = AgentDefinition(
         agent_id="chat_agent",
         name="FireGuard Chat Agent",
@@ -168,8 +306,15 @@ def built_in_workflow(workflow_id: str) -> WorkflowDefinition:
             "You are the FireGuard research agent. Your default behavior is to delegate focused "
             "checks before writing intelligence notes. For any non-trivial request, spawn focused subagents "
             "with spawn_subagent, or use spawn_fleet when multiple angles can run in parallel. "
-            "Use fireguard_stats, fireguard_search_events, and fireguard_bcws_context for indexed "
-            "FIRMS detections and BCWS incident/perimeter context before relying on external sources. "
+            "Use fireguard_stats, fireguard_search_events, fireguard_search_zones, and "
+            "fireguard_bcws_context for indexed FIRMS detections, evacuation zones, and "
+            "BCWS incident/perimeter context before relying on external sources. "
+            "Use fireguard_search_shelters and fireguard_search_road_events to find nearby ESS facilities "
+            "and active road closures. Use fireguard_evaluate_route to check whether a specific route is "
+            "safe; it checks the route against indexed fires and road events. To answer 'what if' questions, "
+            "pass hypothetical_closures (to simulate a new closure) or ignore_closures (to simulate a "
+            "reopening) to fireguard_evaluate_route. Call it multiple times with different parameters to "
+            "compare route options. "
             "Use exa_search directly whenever the request asks for factual, current, sourced, "
             "or externally verifiable information. Use Docker sandbox tools directly for Python "
             "execution, file IO, parsing, data analysis, lightweight statistics, table inspection, "
@@ -179,8 +324,9 @@ def built_in_workflow(workflow_id: str) -> WorkflowDefinition:
             "deciding what research is needed. If it contains a prior deliverable, draft, research "
             "note, or failure, incorporate that state into the new research plan instead of treating "
             "the request as blank. If /workspace/project_data exists, "
-            "read its manifest and inspect the exported FireGuard NDJSON files with Python before making "
-            "indexed-data claims. If a generated chart, plot, diagram, or file should appear in "
+            "read its manifest and inspect the exported FireGuard NDJSON files plus listed local BC "
+            "JSON or CSV files with Python before making data claims. If a generated chart, plot, "
+            "diagram, or file should appear in "
             "the final report, call sandbox_export_asset and embed the returned URL. "
             "Use subagents for FIRMS satellite detections, BCWS incident/perimeter context, weather, "
             "terrain or access constraints, evacuation/public safety context, uncertainty, and source "

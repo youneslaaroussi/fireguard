@@ -2,143 +2,587 @@ html,
 body,
 #root {
   height: 100%;
+  font-family: 'Courier New', monospace;
 }
 
 body {
   margin: 0;
-  background: #10161d;
+  background: #040810;
+  color: #8aaec4;
 }
 
-.shell {
-  min-height: 100%;
-  display: grid;
-  grid-template-rows: auto 72px 1fr;
-}
+/* ================================================================
+   SHELL
+   ================================================================ */
 
-.topbar {
-  border-bottom: 1px solid #2f3b47;
-}
-
-.timeline {
-  display: grid;
-  grid-template-columns: 1fr 84px;
-  border-bottom: 1px solid #2f3b47;
-  background: #151c24;
-}
-
-.tickRail {
+.shell--replay {
+  display: block;
   position: relative;
-  display: grid;
-  grid-template-columns: repeat(8, 1fr);
-  align-items: end;
-  gap: 1px;
-  padding: 12px 18px;
+  height: 100vh;
+  overflow: hidden;
 }
 
-.playhead {
+.shell--intelligence {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #040810;
+}
+
+.mapFullScreen {
   position: absolute;
-  top: 8px;
-  bottom: 8px;
-  width: 2px;
-  background: #ff6b4a;
-  box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.18);
-  transform: translateX(18px);
-  z-index: 2;
+  inset: 0;
+  z-index: 0;
 }
 
-.playhead::before {
-  content: "";
+/* ================================================================
+   APP HEADER — gradient Palantir bar
+   ================================================================ */
+
+.appHeader {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: linear-gradient(180deg, #030918 0%, #050e20 60%, rgba(4, 11, 22, 0.97) 100%);
+  border-top: 1px solid rgba(40, 110, 220, 0.5);
+  border-bottom: 1px solid rgba(20, 60, 130, 0.4);
+  box-shadow: 0 6px 40px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(50, 130, 255, 0.06);
+  backdrop-filter: blur(14px);
+}
+
+/* Intelligence view header — no absolute positioning */
+.appHeader--minimal {
+  position: relative;
+  flex-shrink: 0;
+}
+
+/* ── Header row ─────────────────────────────────────────────── */
+
+.headerRow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 14px;
+  height: 44px;
+  border-bottom: 1px solid rgba(15, 45, 90, 0.5);
+}
+
+/* ── Brand ───────────────────────────────────────────────────── */
+
+.brandMark {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  padding-right: 4px;
+}
+
+.brandFlame {
+  width: 16px;
+  height: 20px;
+  filter: drop-shadow(0 0 6px rgba(255, 107, 74, 0.6));
+}
+
+.brandText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.brandName {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: #d0e4f4;
+  line-height: 1;
+  font-family: 'Courier New', monospace;
+}
+
+.brandSub {
+  font-size: 7.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #254a6a;
+  line-height: 1;
+  font-family: 'Courier New', monospace;
+}
+
+.headerSep {
+  width: 1px;
+  height: 26px;
+  background: rgba(20, 60, 120, 0.6);
+  margin: 0 14px;
+  flex-shrink: 0;
+}
+
+.headerFill {
+  flex: 1;
+}
+
+/* ── Acquisition status chip ────────────────────────────────── */
+
+@keyframes acqPulse {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
+}
+
+.acqChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border: 1px solid rgba(20, 60, 100, 0.6);
+  background: rgba(10, 25, 50, 0.5);
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: #2a5878;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+.acqDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #1e4a6a;
+  flex-shrink: 0;
+}
+
+.acqChip--on {
+  border-color: rgba(60, 180, 100, 0.5);
+  color: #3ab870;
+  background: rgba(20, 60, 30, 0.4);
+}
+
+.acqChip--on .acqDot {
+  background: #3ab870;
+  box-shadow: 0 0 6px rgba(58, 184, 112, 0.7);
+  animation: acqPulse 1.4s ease-in-out infinite;
+}
+
+/* ── Threat chip ─────────────────────────────────────────────── */
+
+@keyframes threatPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(200, 40, 40, 0.5); }
+  50% { box-shadow: 0 0 0 4px rgba(200, 40, 40, 0); }
+}
+
+.threatChip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border: 1px solid rgba(200, 60, 60, 0.6);
+  background: rgba(100, 15, 15, 0.5);
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #e08080;
+  flex-shrink: 0;
+  margin-left: 8px;
+  animation: threatPulse 1.8s ease-out infinite;
+}
+
+.threatDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #e04040;
+  box-shadow: 0 0 6px rgba(220, 60, 60, 0.8);
+  flex-shrink: 0;
+}
+
+.threatViewBtn {
+  border: none;
+  background: transparent;
+  color: #e0a0a0;
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.18em;
+  cursor: pointer;
+  padding: 0 0 0 4px;
+  border-left: 1px solid rgba(200, 60, 60, 0.4);
+  margin-left: 4px;
+  transition: color 0.15s;
+}
+
+.threatViewBtn:hover { color: #f0c0c0; }
+
+/* ── Nav chips (intelligence view) ──────────────────────────── */
+
+.navChip {
+  padding: 3px 10px;
+  border: 1px solid rgba(20, 60, 110, 0.6);
+  background: transparent;
+  color: #3a6888;
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  margin-left: 6px;
+}
+
+.navChip:hover {
+  color: #6aaad0;
+  border-color: rgba(50, 120, 200, 0.6);
+  background: rgba(20, 60, 110, 0.2);
+}
+
+/* ── Error bar ───────────────────────────────────────────────── */
+
+.errorBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px;
+  background: rgba(120, 15, 15, 0.6);
+  border-top: 1px solid rgba(180, 40, 40, 0.4);
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+}
+
+.errorLabel {
+  color: #e06060;
+  letter-spacing: 0.2em;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.errorMsg {
+  color: #c08080;
+  flex: 1;
+}
+
+.errorClose {
+  border: none;
+  background: transparent;
+  color: #804040;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 0;
+  flex-shrink: 0;
+  transition: color 0.15s;
+}
+
+.errorClose:hover { color: #e08080; }
+
+/* ================================================================
+   STATS ROW — source icons + data pills
+   ================================================================ */
+
+.statsRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.statPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid rgba(20, 55, 100, 0.5);
+  background: rgba(10, 25, 50, 0.4);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.statPill--dim {
+  color: #2a4a62;
+  font-size: 10px;
+}
+
+.statPillVal {
+  font-size: 11px;
+  color: #90b8d4;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.05em;
+}
+
+.statPillLabel {
+  font-size: 8.5px;
+  color: #2a4f70;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+
+/* Source divider */
+.srcDivider {
+  width: 1px;
+  height: 16px;
+  background: rgba(20, 55, 100, 0.5);
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* Source pills */
+.srcPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  background: rgba(8, 20, 40, 0.5);
+  border: 1px solid rgba(15, 45, 85, 0.5);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.srcPillLabel {
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+}
+
+.srcPillCount {
+  font-size: 10px;
+  color: #3a6080;
+  font-family: 'Courier New', monospace;
+}
+
+/* ================================================================
+   TIMELINE
+   ================================================================ */
+
+.tlBar {
+  display: flex;
+  align-items: stretch;
+  height: 46px;
+}
+
+/* ── Track area ──────────────────────────────────────────────── */
+
+.tlTrackArea {
+  flex: 1;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 20px;
+  overflow: hidden;
+}
+
+/* Tick labels above track */
+.tlTickRow {
+  position: relative;
+  height: 14px;
+  margin-bottom: 4px;
+}
+
+.tlTick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tlTickLabel {
+  font-size: 8px;
+  font-family: 'Courier New', monospace;
+  color: #1e3e60;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+/* Track line */
+.tlTrack {
+  position: relative;
+  height: 2px;
+  background: rgba(15, 45, 90, 0.6);
+}
+
+/* Elapsed fill — gradient from blue to hot orange */
+.tlElapsed {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(to right, #1a5aaa, #ff6b4a);
+  box-shadow: 0 0 10px rgba(255, 107, 74, 0.35), 0 0 4px rgba(26, 90, 170, 0.4);
+  transition: width 0.08s linear;
+}
+
+/* Tick marks on track */
+.tlTickMark {
   position: absolute;
   top: -3px;
-  left: -5px;
-  width: 12px;
-  height: 12px;
-  border-radius: 50%;
-  background: #ff6b4a;
+  width: 1px;
+  height: 8px;
+  background: rgba(20, 55, 110, 0.7);
+  transform: translateX(-50%);
 }
 
-.tick {
-  min-height: 34px;
-  border-left: 1px solid #526170;
-  color: #a7b6c5;
-  font-size: 12px;
-  padding-left: 8px;
-}
-
-.liveEdge {
-  display: grid;
-  place-items: center;
-  background: #f2b84b;
-  color: #18130a;
-  font-weight: 800;
-}
-
-.workspace {
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 340px minmax(0, 1fr);
-}
-
-.sidePane {
-  border-right: 1px solid #2f3b47;
-  padding: 16px;
-  overflow: auto;
-}
-
-.mainPane {
-  min-width: 0;
-  display: grid;
-  gap: 12px;
-  align-content: start;
-  padding: 16px;
-  overflow: auto;
-}
-
-.statsStrip {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(132px, auto)) minmax(220px, 1fr);
-  gap: 10px;
-  align-items: stretch;
-}
-
-.statItem {
-  min-height: 58px;
-  display: grid;
-  align-content: center;
-  gap: 4px;
-  padding: 10px 12px;
-  border: 1px solid #2f3b47;
-  background: #151c24;
-}
-
-.statItem span {
-  color: #a7b6c5;
-  font-size: 12px;
-}
-
-.statItem strong {
-  color: #f5f8fa;
-  font-size: 18px;
-  line-height: 1.1;
-}
-
-.sourceStats {
-  min-height: 58px;
+/* Playhead */
+.tlPlayhead {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  align-content: center;
-  padding: 10px 12px;
-  border: 1px solid #2f3b47;
-  background: #151c24;
+  flex-direction: column;
+  align-items: center;
 }
 
-.mapPane {
-  height: 420px;
-  padding: 0;
-  overflow: hidden;
-  position: relative;
+/* Diamond marker */
+.tlPlayheadDiamond {
+  width: 7px;
+  height: 7px;
+  background: #ff6b4a;
+  transform: rotate(45deg);
+  box-shadow: 0 0 8px rgba(255, 107, 74, 0.9), 0 0 20px rgba(255, 107, 74, 0.4);
+  flex-shrink: 0;
 }
+
+/* Vertical needle below diamond */
+.tlPlayheadNeedle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  height: 20px;
+  background: linear-gradient(to bottom, rgba(255, 107, 74, 0.7), transparent);
+}
+
+/* Status label under track */
+.tlStatus {
+  font-size: 8px;
+  color: #1e3a58;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.1em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 4px;
+}
+
+/* ── Replay button ───────────────────────────────────────────── */
+
+@keyframes tlBusy {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.tlReplayBtn {
+  flex-shrink: 0;
+  width: 110px;
+  border: none;
+  border-left: 1px solid rgba(15, 50, 100, 0.5);
+  background: transparent;
+  color: #2a6a40;
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 0.15s, color 0.15s;
+}
+
+.tlReplayBtn:hover:not(:disabled) {
+  background: rgba(20, 80, 40, 0.2);
+  color: #4a9a60;
+}
+
+.tlReplayBtn--busy {
+  color: #1a4a28;
+  cursor: default;
+  animation: tlBusy 1.2s ease-in-out infinite;
+}
+
+.tlBusyDots {
+  letter-spacing: 0.3em;
+}
+
+/* ================================================================
+   EVENT FEED — bottom-left HUD overlay
+   ================================================================ */
+
+.eventFeed {
+  position: absolute;
+  left: 12px;
+  bottom: 70px;
+  width: 400px;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.eventLines {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 28px 0 4px;
+  background: linear-gradient(to bottom, transparent 0%, rgba(4, 9, 20, 0.45) 100%);
+}
+
+.eventLine {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 1px 4px;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  line-height: 1.55;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.evTime {
+  color: #1e3a52;
+  min-width: 34px;
+  flex-shrink: 0;
+}
+
+.evSrc {
+  color: #2a6080;
+  min-width: 34px;
+  flex-shrink: 0;
+  letter-spacing: 0.04em;
+}
+
+.evCoord {
+  color: #162a3a;
+  min-width: 108px;
+  flex-shrink: 0;
+}
+
+.evFrp {
+  color: rgba(255, 140, 60, 0.7);
+  flex-shrink: 0;
+}
+
+.evBcws {
+  color: rgba(190, 80, 80, 0.65);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.eventCounter {
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #1a3050;
+  letter-spacing: 0.14em;
+  padding: 3px 4px 0;
+  text-transform: uppercase;
+}
+
+/* ================================================================
+   MAP
+   ================================================================ */
 
 .mapCanvas {
   width: 100%;
@@ -153,17 +597,24 @@ body {
   flex-wrap: wrap;
   gap: 10px;
   align-items: center;
-  padding: 8px 10px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(16, 22, 29, 0.82);
-  color: #d7e2ee;
-  font-size: 12px;
+  padding: 7px 10px;
+  border: 1px solid rgba(26, 51, 82, 0.7);
+  background: rgba(4, 9, 20, 0.88);
+  backdrop-filter: blur(4px);
+  color: #4a6880;
+  font-size: 11px;
+  letter-spacing: 0.04em;
 }
 
 .mapLegend span {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
+}
+
+.mapLegend svg {
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 3px currentColor);
 }
 
 .legendDot {
@@ -173,66 +624,488 @@ body {
   display: inline-block;
 }
 
-.firmsDot {
-  background: #f15b43;
+.firmsDot  { background: #f15b43; }
+.bcwsDot   { background: #f2b84b; border: 2px solid #040910; }
+.essDot    { background: #43d9ad; border: 2px solid #040910; }
+.roadDot   { background: #f6f08d; border: 2px solid #1b1c0d; }
+
+.legendLine { width: 18px; height: 2px; display: inline-block; background: #ffd27f; }
+.evacLine   { background: #e7a8ff; }
+.windLine   { background: #6bbcff; }
+
+/* ================================================================
+   MAP GIZMO MARKERS
+   ================================================================ */
+
+.mapMarkerCenter {
+  width: 44px;
+  height: 44px;
+  position: relative;
+  cursor: grab;
 }
 
-.bcwsDot {
-  background: #f2b84b;
-  border: 2px solid #10161d;
+.mapMarkerCenter:active { cursor: grabbing; }
+
+.markerRing {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1.5px solid #4aaeff;
+  opacity: 0.85;
+  box-shadow: 0 0 12px rgba(74, 170, 255, 0.5), inset 0 0 6px rgba(74, 170, 255, 0.08);
 }
 
-.legendLine {
-  width: 18px;
-  height: 2px;
-  display: inline-block;
-  background: #ffd27f;
+.markerCross { position: absolute; background: #4aaeff; opacity: 0.6; }
+.markerCrossH { width: 100%; height: 1px; top: calc(50% - 0.5px); left: 0; }
+.markerCrossV { width: 1px; height: 100%; left: calc(50% - 0.5px); top: 0; }
+
+.markerDot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  background: #4aaeff;
+  border-radius: 50%;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 6px rgba(74, 170, 255, 0.8);
 }
 
-.windLine {
-  background: #6bbcff;
+.mapMarkerEdge {
+  width: 12px;
+  height: 12px;
+  background: rgba(74, 170, 255, 0.25);
+  border: 1.5px solid #4aaeff;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  cursor: ew-resize;
+  box-shadow: 0 0 8px rgba(74, 170, 255, 0.5);
 }
 
-.eventPane {
-  min-height: 540px;
+/* ================================================================
+   AGENT BAR — bottom-center wide input + expandable history
+   ================================================================ */
+
+@keyframes agentSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-.eventHeader {
+@keyframes agentPulse {
+  0%   { box-shadow: 0 -2px 24px rgba(74, 200, 130, 0.18); }
+  60%  { box-shadow: 0 -2px 36px rgba(74, 200, 130, 0.38); }
+  100% { box-shadow: 0 -2px 24px rgba(74, 200, 130, 0.18); }
+}
+
+.agentBar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 300;
+  width: min(760px, calc(100vw - 32px));
   display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  flex-direction: column;
+  border: 1px solid #1a3352;
+  border-bottom: none;
+  background: rgba(4, 9, 20, 0.97);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.6);
+}
+
+.agentBar--active {
+  border-color: #1a4a30;
+  animation: agentPulse 2s ease-in-out infinite;
+}
+
+.agentHistory {
+  display: flex;
+  flex-direction: column;
+  max-height: 52vh;
+  border-bottom: 1px solid #0e2030;
+  animation: agentSlideUp 0.16s ease-out;
+  overflow: hidden;
+}
+
+.agentSessionRow {
+  display: flex;
+  gap: 4px;
+  padding: 6px 10px;
+  border-bottom: 1px solid #0e2030;
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+}
+
+.agentSessionRow::-webkit-scrollbar { display: none; }
+
+.agentSessionChip {
+  flex-shrink: 0;
+  padding: 2px 8px;
+  border: 1px solid #1a3352;
+  background: rgba(26, 51, 82, 0.2);
+  color: #4a6880;
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  white-space: nowrap;
+  border-radius: 2px;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.agentSessionChip:hover:not(:disabled) {
+  border-color: #2a5878;
+  color: #7aacc8;
+  background: rgba(26, 51, 82, 0.45);
+}
+
+.agentSessionChip.active {
+  border-color: #2a7aaa;
+  color: #7acce0;
+  background: rgba(26, 80, 120, 0.3);
+}
+
+.agentSessionChip:disabled { opacity: 0.4; cursor: default; }
+
+.agentError {
+  padding: 4px 12px;
+  background: rgba(140, 20, 20, 0.45);
+  border-bottom: 1px solid #4a1a1a;
+  color: #f0a0a0;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+}
+
+.agentMessages {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 14px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: thin;
+  scrollbar-color: #1a3352 transparent;
+}
+
+.agentMessages::-webkit-scrollbar { width: 4px; }
+.agentMessages::-webkit-scrollbar-thumb { background: #1a3352; }
+
+.agentMsg { display: flex; flex-direction: column; gap: 3px; max-width: 86%; }
+.agentMsg--user { align-self: flex-end; align-items: flex-end; }
+.agentMsg--assistant { align-self: flex-start; align-items: flex-start; }
+
+.agentMsgRole {
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.agentMsg--user .agentMsgRole     { color: #2a5878; }
+.agentMsg--assistant .agentMsgRole { color: #2a5040; }
+
+.agentMsgContent {
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  border-radius: 2px;
+}
+
+.agentMsg--user .agentMsgContent {
+  background: rgba(26, 80, 120, 0.3);
+  border: 1px solid #1a4a6a;
+  color: #90c0dc;
+}
+
+.agentMsg--assistant .agentMsgContent {
+  background: rgba(18, 48, 30, 0.35);
+  border: 1px solid #183828;
+  color: #78c098;
+}
+
+.agentInputRow {
+  display: flex;
   align-items: center;
-  margin-bottom: 14px;
 }
 
-.eventHeader h2 {
-  margin: 0 0 4px;
+.agentHistoryToggle {
+  flex-shrink: 0;
+  padding: 0 10px;
+  border: none;
+  border-right: 1px solid #0e2030;
+  background: transparent;
+  color: #2a4a60;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
-.eventTable {
-  width: 100%;
+.agentHistoryToggle:hover { color: #5a8aaa; }
+.agentHistoryToggle.active { color: #4a7aaa; }
+
+.agentInput {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: #90b8d0;
+  font-size: 13px;
+  font-family: inherit;
+  padding: 10px 12px;
+  resize: none;
+  outline: none;
+  line-height: 1.5;
+  max-height: 96px;
+  overflow-y: auto;
 }
 
-.shell > .agenticIntelligence {
-  grid-row: 2 / 4;
+.agentInput::placeholder { color: #1e3a52; }
+.agentInput:disabled { opacity: 0.45; }
+
+.agentSendBtn {
+  flex-shrink: 0;
+  width: 40px;
+  align-self: stretch;
+  border: none;
+  border-left: 1px solid #0e2030;
+  background: transparent;
+  color: #2a5878;
+  font-size: 18px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.agentSendBtn:hover:not(:disabled) {
+  background: rgba(26, 80, 120, 0.3);
+  color: #6aaed0;
+}
+
+.agentSendBtn:disabled { opacity: 0.25; cursor: default; }
+
+/* ================================================================
+   WORKFLOW PANEL — floating right-side graph panel
+   ================================================================ */
+
+@keyframes wfSlideIn {
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.wfPanel {
+  position: fixed;
+  right: 16px;
+  top: 94px;     /* clear the header (44px headerRow + 46px timeline + 4px border) */
+  bottom: 46px;  /* clear the agent bar input row */
+  width: 360px;
+  z-index: 200;
+  display: flex;
+  flex-direction: column;
+  background: rgba(3, 8, 18, 0.97);
+  border: 1px solid rgba(26, 80, 160, 0.4);
+  border-right: none;
+  box-shadow: -6px 0 40px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(16px);
+  animation: wfSlideIn 0.18s ease-out;
+}
+
+/* ── Header ──────────────────────────────────────────────────── */
+
+.wfPanelHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid rgba(15, 45, 90, 0.6);
+  flex-shrink: 0;
+}
+
+.wfPanelTitle {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex: 1;
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #3a6888;
+}
+
+.wfRunStatus {
+  font-size: 8px;
+  letter-spacing: 0.18em;
+  border-left: 1px solid rgba(20, 60, 110, 0.5);
+  padding-left: 7px;
+}
+
+.wfNodeCounts {
+  display: flex;
+  gap: 8px;
+  font-size: 9px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.1em;
+}
+
+.wfPanelClose {
+  flex-shrink: 0;
+  border: none;
+  background: transparent;
+  color: #1e3a58;
+  font-size: 11px;
+  cursor: pointer;
+  padding: 0 2px;
+  transition: color 0.15s;
+}
+
+.wfPanelClose:hover { color: #5a8aaa; }
+
+/* ── Node list ───────────────────────────────────────────────── */
+
+.wfNodeList {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  max-height: 160px;
+  overflow-y: auto;
+  flex-shrink: 0;
+  border-bottom: 1px solid rgba(15, 45, 90, 0.4);
+  scrollbar-width: thin;
+  scrollbar-color: #1a3352 transparent;
+}
+
+.wfNodeList::-webkit-scrollbar { width: 3px; }
+.wfNodeList::-webkit-scrollbar-thumb { background: #1a3352; }
+
+.wfNodeItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+  border-bottom: 1px solid rgba(10, 30, 60, 0.4);
+}
+
+.wfNodeItem:hover { background: rgba(20, 55, 100, 0.2); }
+
+.wfNodeItem--active {
+  background: rgba(20, 60, 110, 0.2);
+}
+
+.wfNodeItem--selected {
+  background: rgba(26, 80, 140, 0.25);
+  border-left: 2px solid rgba(70, 140, 220, 0.6);
+}
+
+.wfNodeDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: box-shadow 0.3s;
+}
+
+.wfNodeLabel {
+  flex: 1;
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+  color: #5a8aaa;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.wfNodeStatus {
+  font-size: 8px;
+  font-family: 'Courier New', monospace;
+  color: #1e3a58;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+/* ── Graph body ──────────────────────────────────────────────── */
+
+.wfGraphBody {
+  flex: 1 1 0px;
   min-height: 0;
+  overflow: hidden;
+  position: relative;
 }
+
+/* React Flow must have an absolutely-pinned container to measure correctly */
+.wfGraphBody .workflow-graph {
+  position: absolute !important;
+  inset: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: 0;
+}
+
+/* ── Graph toggle button in agent bar ───────────────────────── */
+
+@keyframes graphBtnPulse {
+  0%, 100% { color: #2a6040; }
+  50% { color: #3ab870; }
+}
+
+.agentGraphBtn {
+  flex-shrink: 0;
+  width: 38px;
+  align-self: stretch;
+  border: none;
+  border-left: 1px solid #0e2030;
+  background: transparent;
+  color: #3a7aaa;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+
+.agentGraphBtn:hover {
+  background: rgba(20, 60, 100, 0.3);
+  color: #5a9ac0;
+}
+
+.agentGraphBtn.active {
+  background: rgba(20, 55, 100, 0.3);
+  color: #4a90d0;
+  border-left-color: rgba(40, 100, 180, 0.4);
+}
+
+.agentGraphBtn--live {
+  animation: graphBtnPulse 1.4s ease-in-out infinite;
+}
+
+.agentGraphBtn--live.active {
+  animation: none;
+  color: #4a90d0;
+}
+
+/* ================================================================
+   RESPONSIVE
+   ================================================================ */
 
 @media (max-width: 900px) {
-  .statsStrip {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .sourceStats {
-    grid-column: 1 / -1;
-  }
-
-  .workspace {
-    grid-template-columns: 1fr;
-  }
-
-  .sidePane {
-    border-right: 0;
-    border-bottom: 1px solid #2f3b47;
-  }
+  .statsRow { display: none; }
+  .brandSub { display: none; }
 }

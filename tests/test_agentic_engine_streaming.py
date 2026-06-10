@@ -1313,6 +1313,31 @@ def test_chat_structured_output_parse_failure_is_not_respond(tmp_path: Path) -> 
         asyncio.run(engine.close())
 
 
+def test_chat_structured_output_accepts_fenced_vertex_route_shape(tmp_path: Path) -> None:
+    engine, _ = _make_engine(tmp_path, [])
+    workflow = built_in_workflow("fireguard_intelligence")
+    chat_agent = next(agent for agent in workflow.agents if agent.agent_id == "chat_agent")
+
+    try:
+        output = engine._structured_chat_output(
+            chat_agent,
+            (
+                "```json\n"
+                "{\n"
+                '  "route": "respond",\n'
+                '  "respond": {"message": "Hello from FireGuard."}\n'
+                "}\n"
+                "```"
+            ),
+            {"prompt": "hi"},
+        )
+
+        assert output["action"] == "respond"
+        assert output["user_response"] == "Hello from FireGuard."
+    finally:
+        asyncio.run(engine.close())
+
+
 def test_empty_chat_handoff_is_not_replayed_as_visible_history() -> None:
     assert (
         _assistant_visible_content(

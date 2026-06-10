@@ -49,6 +49,10 @@ MAX_SESSION_CONTEXT_CHARS = 120_000
 RESEARCH_CHILD_TOOLS = [
     "fireguard_stats",
     "fireguard_search_events",
+    "fireguard_search_zones",
+    "fireguard_search_shelters",
+    "fireguard_search_road_events",
+    "fireguard_evaluate_route",
     "fireguard_bcws_context",
     "exa_search",
     "sandbox_exec",
@@ -63,12 +67,15 @@ RESEARCH_CHILD_TOOLS = [
 RESEARCH_CHILD_TOOL_POLICY = (
     "Runtime tool policy for this FireGuard intelligence child:\n"
     "- You have local indexed FireGuard tools through fireguard_stats, fireguard_search_events, "
-    "and fireguard_bcws_context for FIRMS detections and BCWS incident/perimeter context.\n"
+    "fireguard_search_zones, fireguard_search_shelters, fireguard_search_road_events, "
+    "fireguard_evaluate_route, and fireguard_bcws_context for FIRMS detections, evacuation "
+    "zones, ESS facilities, road events, route checks, and BCWS incident/perimeter context.\n"
     "- You have live web search through exa_search and a persistent Docker sandbox through "
     "sandbox_exec/sandbox_write_file/sandbox_read_file/sandbox_list_files/sandbox_export_asset.\n"
     "- If /workspace/project_data exists in the sandbox, it contains FireGuard Elasticsearch "
-    "exports for the current session. Read /workspace/project_data/manifest.json first, then "
-    "inspect the NDJSON files with Python before making indexed-data claims.\n"
+    "exports for the current session plus local BC scenario files listed in the manifest. "
+    "Read /workspace/project_data/manifest.json first, then inspect the NDJSON, JSON, or CSV "
+    "files with Python before making data claims.\n"
     "- You MUST call exa_search at least once before producing your final answer. Use it to "
     "verify sources, resources, facts, terminology, or examples relevant to your delegated objective.\n"
     "- You MUST call sandbox_exec at least once before producing your final answer. Use it for a "
@@ -1446,7 +1453,7 @@ class WorkflowEngine:
         if agent.agent_id != "chat_agent":
             return {"user_response": content}
         try:
-            parsed = json.loads(content)
+            parsed = _loads_chat_json(content)
         except json.JSONDecodeError as exc:
             raise RuntimeError("chat_agent returned invalid structured output JSON") from exc
         if not isinstance(parsed, dict):
@@ -1456,6 +1463,7 @@ class WorkflowEngine:
                 "handoff": None,
                 "questions": None,
             }
+        parsed = _normalize_chat_route(parsed)
         action = parsed.get("action")
         if action == "final_answer":
             action = "respond"
@@ -1913,6 +1921,30 @@ def _structured_questions(raw: Any) -> list[dict[str, Any]]:
             }
         )
     return questions
+
+
+def _loads_chat_json(content: str) -> Any:
+    text = content.strip()
+    if text.startswith("```"):
+        lines = text.splitlines()
+        if len(lines) >= 2 and lines[0].startswith("```") and lines[-1].strip() == "```":
+            text = "\n".join(lines[1:-1]).strip()
+    return json.loads(text)
+
+
+def _normalize_chat_route(parsed: dict[str, Any]) -> dict[str, Any]:
+    if "action" in parsed:
+        return parsed
+    route = parsed.get("route")
+    if route == "respond" and isinstance(parsed.get("respond"), dict):
+        message = parsed["respond"].get("message")
+        return {
+            "action": "respond",
+            "user_response": message if isinstance(message, str) else "",
+            "handoff": None,
+            "questions": None,
+        }
+    return parsed
 
 
 def _agent_user_message(payload: dict[str, Any]) -> ChatMessage:

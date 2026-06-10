@@ -1,0 +1,552 @@
+{
+  "session_id": "ses_0622af352d7e4bce8e2fdc44df9410d2",
+  "run_id": "run_1afdeb327a1d4869ace42213bb82fbb9",
+  "workflow": {
+    "workflow_id": "fireguard_intelligence",
+    "name": "FireGuard Chat Research Writer Style",
+    "start_node_id": "human_trigger",
+    "nodes": [
+      {
+        "node_id": "human_trigger",
+        "label": "Human Trigger",
+        "config": {
+          "kind": "human_trigger"
+        }
+      },
+      {
+        "node_id": "chat_agent",
+        "label": "Chat Agent",
+        "config": {
+          "kind": "agent",
+          "agent_id": "chat_agent"
+        }
+      },
+      {
+        "node_id": "research_agent",
+        "label": "Research Agent",
+        "config": {
+          "kind": "agent",
+          "agent_id": "research_agent"
+        }
+      },
+      {
+        "node_id": "writer_agent",
+        "label": "Writer Agent",
+        "config": {
+          "kind": "agent",
+          "agent_id": "writer_agent"
+        }
+      },
+      {
+        "node_id": "style_agent",
+        "label": "Style Agent",
+        "config": {
+          "kind": "agent",
+          "agent_id": "style_agent"
+        }
+      },
+      {
+        "node_id": "terminal",
+        "label": "Terminal",
+        "config": {
+          "kind": "terminal"
+        }
+      }
+    ],
+    "edges": [
+      {
+        "edge_id": "edge_trigger_to_chat",
+        "from_node_id": "human_trigger",
+        "to_node_id": "chat_agent",
+        "condition": "default"
+      },
+      {
+        "edge_id": "edge_chat_to_research",
+        "from_node_id": "chat_agent",
+        "to_node_id": "research_agent",
+        "condition": "handoff_to_research"
+      },
+      {
+        "edge_id": "edge_chat_to_writer",
+        "from_node_id": "chat_agent",
+        "to_node_id": "writer_agent",
+        "condition": "handoff_to_writer"
+      },
+      {
+        "edge_id": "edge_chat_ask_to_terminal",
+        "from_node_id": "chat_agent",
+        "to_node_id": "terminal",
+        "condition": "ask_user"
+      },
+      {
+        "edge_id": "edge_chat_respond_to_terminal",
+        "from_node_id": "chat_agent",
+        "to_node_id": "terminal",
+        "condition": "respond"
+      },
+      {
+        "edge_id": "edge_chat_failure_to_terminal",
+        "from_node_id": "chat_agent",
+        "to_node_id": "terminal",
+        "condition": "report_failure"
+      },
+      {
+        "edge_id": "edge_research_to_writer",
+        "from_node_id": "research_agent",
+        "to_node_id": "writer_agent",
+        "condition": "default"
+      },
+      {
+        "edge_id": "edge_research_error_to_chat",
+        "from_node_id": "research_agent",
+        "to_node_id": "chat_agent",
+        "condition": "error"
+      },
+      {
+        "edge_id": "edge_writer_to_style",
+        "from_node_id": "writer_agent",
+        "to_node_id": "style_agent",
+        "condition": "default"
+      },
+      {
+        "edge_id": "edge_writer_error_to_chat",
+        "from_node_id": "writer_agent",
+        "to_node_id": "chat_agent",
+        "condition": "error"
+      },
+      {
+        "edge_id": "edge_style_to_terminal",
+        "from_node_id": "style_agent",
+        "to_node_id": "terminal",
+        "condition": "default"
+      },
+      {
+        "edge_id": "edge_style_error_to_chat",
+        "from_node_id": "style_agent",
+        "to_node_id": "chat_agent",
+        "condition": "error"
+      }
+    ],
+    "agents": [
+      {
+        "agent_id": "chat_agent",
+        "name": "FireGuard Chat Agent",
+        "system_prompt": "You are the user-facing routing agent for FireGuard intelligence. Produce an object matching the provided response schema. Choose respond for greetings, normal chat, simple answers, acknowledgements, and anything that does not need an intelligence workflow. Choose ask_user only when the user clearly wants an intelligence workflow but essential details are missing; in that case questions must be a non-empty array of objects with id, question, and options. Do not choose ask_user without questions. Choose handoff_to_research only when the request is actionable enough for wildfire intelligence analysis. Choose handoff_to_writer when session_context.active_result.kind is deliverable and the request only edits the existing report, such as shortening, expanding, reformatting, translating, retitling, or changing tone without new analysis. Choose report_failure when the input contains a downstream failure payload. handoff must be a clean task contract with objective, user_request, constraints, questions_to_answer, context_summary, and attachments_summary when files/images are present. Include location, time range, data source, confidence, and uncertainty requirements when the user supplied them. Do not put conversational prose in handoff except where it is the original user request. The user payload may include session_context with latest_run metadata and active_result from the previous run. Treat that as first-class context. For follow-up work over an existing result, choose the narrowest handoff route that can complete the request; the runtime will attach session_context to the handoff. If session_context contains a concrete prior result, do not answer with placeholders or invented replacement values. Route from the provided session state and the user's request, not from app-side keyword rules.",
+        "model_tier": "light",
+        "tool_names": [],
+        "response_format": {
+          "type": "json_schema",
+          "json_schema": {
+            "name": "fireguard_chat_route",
+            "strict": true,
+            "schema": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "action": {
+                  "type": "string",
+                  "enum": [
+                    "respond",
+                    "ask_user",
+                    "handoff_to_research",
+                    "handoff_to_writer",
+                    "report_failure"
+                  ]
+                },
+                "user_response": {
+                  "type": "string"
+                },
+                "handoff": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "objective": {
+                          "type": "string"
+                        },
+                        "user_request": {
+                          "type": "string"
+                        },
+                        "constraints": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "questions_to_answer": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "context_summary": {
+                          "type": "string"
+                        },
+                        "attachments_summary": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "media_type": {
+                                "type": "string"
+                              },
+                              "size": {
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "name",
+                              "media_type",
+                              "size"
+                            ]
+                          }
+                        }
+                      },
+                      "required": [
+                        "objective",
+                        "user_request",
+                        "constraints",
+                        "questions_to_answer",
+                        "context_summary",
+                        "attachments_summary"
+                      ]
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "questions": {
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "question": {
+                            "type": "string"
+                          },
+                          "options": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "question",
+                          "options"
+                        ]
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "action",
+                "user_response",
+                "handoff",
+                "questions"
+              ]
+            }
+          }
+        },
+        "max_turns": null,
+        "timeout_seconds": null,
+        "max_parallel_tool_calls": null
+      },
+      {
+        "agent_id": "research_agent",
+        "name": "FireGuard Research Agent",
+        "system_prompt": "You are the FireGuard research agent. Your default behavior is to delegate focused checks before writing intelligence notes. For any non-trivial request, spawn focused subagents with spawn_subagent, or use spawn_fleet when multiple angles can run in parallel. Use fireguard_stats, fireguard_search_events, and fireguard_bcws_context for indexed FIRMS detections and BCWS incident/perimeter context before relying on external sources. Use exa_search directly whenever the request asks for factual, current, sourced, or externally verifiable information. Use Docker sandbox tools directly for Python execution, file IO, parsing, data analysis, lightweight statistics, table inspection, and reproducible checks. The subagents you spawn have the same source discovery, FireGuard indexed-data, and Docker sandbox tools; explicitly instruct them to use those tools when useful. When handoff.context.session_context exists, read it before deciding what research is needed. If it contains a prior deliverable, draft, research note, or failure, incorporate that state into the new research plan instead of treating the request as blank. If /workspace/project_data exists, read its manifest and inspect the exported FireGuard NDJSON files with Python before making indexed-data claims. If a generated chart, plot, diagram, or file should appear in the final report, call sandbox_export_asset and embed the returned URL. Use subagents for FIRMS satellite detections, BCWS incident/perimeter context, weather, terrain or access constraints, evacuation/public safety context, uncertainty, and source quality. After collecting subagent results, synthesize compact, source-backed notes for the writer. Write the notes as narrative observations: what is happening, where it is happening, what patterns exist, and what the findings mean operationally. Do not list field names, schema details, or raw database values. Group related detections, incidents, and source details into a single observation; do not itemize every row or bullet every field value. Ground every factual claim, statistic, distribution, example, and quote in inspected sandbox data, returned tool output, or cited source material. When computing grouped statistics, reconcile group totals against the base row count and report missing, null, or unparsed rows. Before bucketing dates, inspect timestamp formats and handle ISO strings plus numeric Unix seconds or milliseconds as separate cases. Do not invent missing data, labels, computations, examples, citations, or results. If requested analysis is not supported by the exported fields or available tools, say exactly what is missing and provide a concrete next analysis step. Label assumptions, gaps, and uncertainty. When you export a chart or image with sandbox_export_asset, include it in your research notes as a markdown image: ![descriptive alt text](url) where url is the value returned by the tool. Place it near the data it visualizes so the writer can embed it in context. When the request has a visual angle, such as geographic coverage, perimeter context, trend data, evacuation context, or infrastructure exposure, run an image-focused exa_search with extras={\"imageLinks\": 5}. Each result can include a top-level image field and result.extras.imageLinks. Include the strongest relevant map, chart, or figure URLs in research notes as ![alt](url), and ask subagents to do the same when they investigate a visual topic. Keep the output compact.",
+        "model_tier": "pro",
+        "tool_names": [
+          "fireguard_stats",
+          "fireguard_search_events",
+          "fireguard_bcws_context",
+          "exa_search",
+          "sandbox_exec",
+          "sandbox_write_file",
+          "sandbox_read_file",
+          "sandbox_list_files",
+          "sandbox_export_asset",
+          "spawn_subagent",
+          "spawn_fleet",
+          "emit_message",
+          "complete_workflow_node"
+        ],
+        "response_format": null,
+        "max_turns": null,
+        "timeout_seconds": null,
+        "max_parallel_tool_calls": null
+      },
+      {
+        "agent_id": "writer_agent",
+        "name": "FireGuard Writer Agent",
+        "system_prompt": "You are the FireGuard writer agent, not a chatbot. Your ONLY job is to output the final intelligence body. STRICT RULES - no exceptions: Output ONLY the report content itself. NO preamble: do not start with 'Here is...', 'Below is...', 'Sure!', 'Based on...', or any opening sentence that is not part of the report. NO conclusion section: do not add 'Conclusion', 'Summary', 'In summary', 'Final thoughts', or any closing wrap-up paragraph. NO next-step suggestions: do not add offers to continue, choices for what to do next, or follow-up prompts. NO meta-commentary: never describe what you are about to write or what you just wrote. Begin immediately with the first heading or first sentence of the report. End immediately after the last substantive content item. Violating any of these rules is a failure. The output must be cut-and-paste ready with zero editing required. Scale length and structure to the request complexity. A simple factual query or data summary should be a short, direct answer, one or two sections at most. Do not pad simple findings into a long structured document, and do not restate findings in multiple formats when one is enough. Only use elaborate multi-section structure for genuinely complex, multi-topic reports. Turn the chat request and research notes into the final deliverable. Your job is narrative, not data extraction. Lead each section with the finding, not with how the data is structured. Do not list internal field names, raw database values, row inventories, index names, sandbox paths, API identifiers, or file names unless the user's request explicitly asks for a technical file-level or engineering audit. Translate technical details into operational language for a non-technical audience. If the task includes session_context with active_result.kind equal to deliverable, update that report instead of starting from scratch; preserve unchanged sections unless the research notes specify changes. If session_context describes a failed previous run, use the last successful result and recovery notes as the starting point. Preserve uncertainty labels, data-quality limits, and unsupported-result notes from research. Do not upgrade tentative analysis into stronger claims, and do not invent missing statistics, examples, or citations. If research notes contain markdown images (![alt](url)), embed them where they best fit the surrounding content. Do not drop or replace image references; copy the exact markdown image syntax.",
+        "model_tier": "pro",
+        "tool_names": [
+          "emit_message",
+          "complete_workflow_node"
+        ],
+        "response_format": null,
+        "max_turns": null,
+        "timeout_seconds": null,
+        "max_parallel_tool_calls": null
+      },
+      {
+        "agent_id": "style_agent",
+        "name": "FireGuard Style Agent",
+        "system_prompt": "You are the FireGuard style agent: an editorial designer for wildfire intelligence reports. You receive a completed markdown draft. Your job is to make it read and look like a polished operational intelligence report, not raw research notes.\nCore contract: improve presentation, hierarchy, and readability; must NOT change factual content. Preserve every statistic, date, named entity, quote, citation, data-quality caveat, uncertainty label, unsupported-result note, source, assumption, and gap. Do not invent findings, examples, recommendations, sources, or computations. If a sentence is factually unclear, make it plainer without strengthening it.\nEditorial principles:\n  - Lead with the bottom line. The opening should quickly answer what matters, why it matters, and how confident the report is.\n  - Use meaningful section headings that can stand alone in the table of contents. Avoid vague headings when a finding-specific heading is possible.\n  - Prefer short narrative paragraphs over walls of bullets. One paragraph should carry one idea, usually 2-4 sentences.\n  - Use bullets only for genuinely parallel lists, actions, risks, or takeaways. Keep most bullet lists to 3-5 items, avoid nested bullets, and do not stack many bullet lists back-to-back.\n  - Convert inventory/count sections into compact markdown tables when rows share the same fields. Keep tables concise and readable.\n  - Use callouts for the one or two observations the reader should not miss, not for ordinary lists.\n  - Remove duplicated setup language, repetitive labels, filler transitions, and raw-note clutter when a cleaner sentence can say the same thing.\n  - Keep technical detail when the user asked for a technical inventory, audit, or data-footprint report. Otherwise, rephrase implementation-level detail for an operational audience.\nSanitization rules: remove or neutrally rephrase internal data-source names, API identifiers, raw index names, file paths, NDJSON filenames, manifest fields, and sandbox paths only when they are not directly relevant to the requested deliverable. For data-inventory or engineering reports, preserve those details but present them cleanly in a table or concise method note.\nAvailable layout directives:\n  ::pagebreak\n    - standalone page break. Put it on its own line before a major section.\n  :::callout\n  <content>\n  :::\n    - wraps key takeaways or warnings in a highlighted callout box.\n  :::summary\n  <content>\n  :::\n    - wraps a section summary in a distinct summary box.\n  :::full-width\n  <content>\n  :::\n    - makes wide tables or large code blocks span both columns.\nRules for placement:\n  - Add ::pagebreak only in long, multi-section reports where a section clearly warrants its own page. Short reports and simple summaries must have zero page breaks. When in doubt, omit ::pagebreak.\n  - Wrap wide tables, large code blocks, or large images in :::full-width.\n  - Use :::callout sparingly, only for genuinely critical warnings or key observations.\n  - Use :::summary only if the report has an explicit summary section that should stand out visually.\n  - Do not nest directives.\nQuality bar: the final report should have an executive rhythm: a strong title, a brief opening synthesis, clear sections, restrained lists, clean tables where useful, and no raw-note clutter. Output the complete revised markdown. Start immediately with the report content. No preamble, no commentary.",
+        "model_tier": "pro",
+        "tool_names": [
+          "emit_message",
+          "complete_workflow_node"
+        ],
+        "response_format": null,
+        "max_turns": null,
+        "timeout_seconds": null,
+        "max_parallel_tool_calls": null
+      }
+    ]
+  },
+  "status": "completed",
+  "created_at": "2026-06-10T21:00:40.859111Z",
+  "updated_at": "2026-06-10T21:00:45.002285Z",
+  "current_node_id": "terminal",
+  "node_states": {
+    "human_trigger": {
+      "node_id": "human_trigger",
+      "status": "completed",
+      "input_payload": {
+        "prompt": "hi",
+        "payload": {
+          "source": "chat",
+          "attachments": [],
+          "conversation_history": [],
+          "previous_user_message": null
+        }
+      },
+      "output_payload": {
+        "prompt": "hi",
+        "payload": {
+          "source": "chat",
+          "attachments": [],
+          "conversation_history": [],
+          "previous_user_message": null
+        }
+      },
+      "error": null,
+      "started_at": "2026-06-10T21:00:40.866335Z",
+      "completed_at": "2026-06-10T21:00:40.870969Z"
+    },
+    "chat_agent": {
+      "node_id": "chat_agent",
+      "status": "completed",
+      "input_payload": {
+        "handoff": {
+          "from_node_id": "human_trigger",
+          "from_label": "Human Trigger",
+          "from_agent_id": null,
+          "to_node_id": "chat_agent",
+          "to_label": "Chat Agent",
+          "to_agent_id": "chat_agent",
+          "condition": "default",
+          "user_request": {
+            "prompt": "hi",
+            "payload": {
+              "source": "chat",
+              "attachments": [],
+              "conversation_history": [],
+              "previous_user_message": null
+            }
+          },
+          "task": {
+            "objective": "Continue workflow from human_trigger to chat_agent.",
+            "condition": "default",
+            "user_request": {
+              "prompt": "hi",
+              "payload": {
+                "source": "chat",
+                "attachments": [],
+                "conversation_history": [],
+                "previous_user_message": null
+              }
+            },
+            "upstream_result": {
+              "agent_id": null,
+              "message": null
+            }
+          }
+        }
+      },
+      "output_payload": {
+        "agent_id": "chat_agent",
+        "message": "Hello! How can I assist you with FireGuard intelligence today?",
+        "payload": {
+          "handoff": {
+            "from_node_id": "human_trigger",
+            "from_label": "Human Trigger",
+            "from_agent_id": null,
+            "to_node_id": "chat_agent",
+            "to_label": "Chat Agent",
+            "to_agent_id": "chat_agent",
+            "condition": "default",
+            "user_request": {
+              "prompt": "hi",
+              "payload": {
+                "source": "chat",
+                "attachments": [],
+                "conversation_history": [],
+                "previous_user_message": null
+              }
+            },
+            "task": {
+              "objective": "Continue workflow from human_trigger to chat_agent.",
+              "condition": "default",
+              "user_request": {
+                "prompt": "hi",
+                "payload": {
+                  "source": "chat",
+                  "attachments": [],
+                  "conversation_history": [],
+                  "previous_user_message": null
+                }
+              },
+              "upstream_result": {
+                "agent_id": null,
+                "message": null
+              }
+            }
+          }
+        },
+        "structured": {
+          "action": "respond",
+          "user_response": "Hello! How can I assist you with FireGuard intelligence today?",
+          "handoff": null,
+          "questions": []
+        },
+        "workflow_control": {
+          "route": "respond"
+        },
+        "turns": 1
+      },
+      "error": null,
+      "started_at": "2026-06-10T21:00:40.877404Z",
+      "completed_at": "2026-06-10T21:00:44.990629Z"
+    },
+    "research_agent": {
+      "node_id": "research_agent",
+      "status": "pending",
+      "input_payload": null,
+      "output_payload": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "writer_agent": {
+      "node_id": "writer_agent",
+      "status": "pending",
+      "input_payload": null,
+      "output_payload": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "style_agent": {
+      "node_id": "style_agent",
+      "status": "pending",
+      "input_payload": null,
+      "output_payload": null,
+      "error": null,
+      "started_at": null,
+      "completed_at": null
+    },
+    "terminal": {
+      "node_id": "terminal",
+      "status": "completed",
+      "input_payload": {
+        "message": "Hello! How can I assist you with FireGuard intelligence today?",
+        "action": "respond",
+        "user_request": {
+          "prompt": "hi",
+          "payload": {
+            "source": "chat",
+            "attachments": [],
+            "conversation_history": [],
+            "previous_user_message": null
+          }
+        },
+        "questions": []
+      },
+      "output_payload": {
+        "message": "Hello! How can I assist you with FireGuard intelligence today?",
+        "action": "respond",
+        "user_request": {
+          "prompt": "hi",
+          "payload": {
+            "source": "chat",
+            "attachments": [],
+            "conversation_history": [],
+            "previous_user_message": null
+          }
+        },
+        "questions": []
+      },
+      "error": null,
+      "started_at": "2026-06-10T21:00:44.995962Z",
+      "completed_at": "2026-06-10T21:00:44.999428Z"
+    }
+  },
+  "approvals": {},
+  "usage": [
+    {
+      "model": "gemini-3.1-pro-preview",
+      "model_tier": "light",
+      "call_type": "agent:chat_agent",
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "total_tokens": null,
+      "reasoning_tokens": null,
+      "cached_tokens": null,
+      "cost": null
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "model_tier": "light",
+      "call_type": "agent:chat_agent",
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "total_tokens": null,
+      "reasoning_tokens": null,
+      "cached_tokens": null,
+      "cost": null
+    },
+    {
+      "model": "gemini-3.1-pro-preview",
+      "model_tier": "light",
+      "call_type": "agent:chat_agent",
+      "prompt_tokens": 1093,
+      "completion_tokens": 32,
+      "total_tokens": 1401,
+      "reasoning_tokens": null,
+      "cached_tokens": null,
+      "cost": null
+    }
+  ],
+  "attempt": 1,
+  "parent_run_id": null
+}

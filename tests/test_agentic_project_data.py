@@ -9,6 +9,7 @@ from app.agentic.config import AppConfig
 from app.agentic.project_data import (
     FIREGUARD_DATASETS,
     PROJECT_DATA_PATH,
+    PROJECT_DATA_VERSION,
     ProjectDataBootstrapper,
 )
 
@@ -128,6 +129,7 @@ class ExportingBootstrapper(ProjectDataBootstrapper):
     async def _export_fireguard(self, export_dir: Path) -> dict[str, Any]:
         manifest = {
             "scope": "fireguard",
+            "data_version": PROJECT_DATA_VERSION,
             "path": PROJECT_DATA_PATH,
             "index_prefix": self._config.fireguard_elasticsearch_index_prefix,
             "datasets": [],
@@ -199,6 +201,7 @@ def test_project_data_bootstrap_reuses_existing_manifest(tmp_path: Path) -> None
     async def exercise() -> None:
         existing = {
             "scope": "fireguard",
+            "data_version": PROJECT_DATA_VERSION,
             "path": PROJECT_DATA_PATH,
             "index_prefix": "fireguard",
             "datasets": [],
@@ -224,6 +227,7 @@ def test_project_data_bootstrap_copies_export_to_sandbox(tmp_path: Path) -> None
 
         assert manifest == {
             "scope": "fireguard",
+            "data_version": PROJECT_DATA_VERSION,
             "path": PROJECT_DATA_PATH,
             "index_prefix": "fireguard",
             "datasets": [],

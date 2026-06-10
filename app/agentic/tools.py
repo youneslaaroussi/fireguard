@@ -4,12 +4,15 @@ import asyncio
 import json
 import math
 import mimetypes
+import os
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
 import httpx
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 from .models import ToolDefinition, ToolInvocation, ToolResult
 
@@ -330,6 +333,547 @@ def build_base_tool_registry(
             timeout_seconds=60,
         ),
         fireguard_search_events,
+    )
+
+    async def fireguard_search_zones(invocation: ToolInvocation) -> dict[str, Any]:
+        latitude = _required_float(invocation.args, "latitude", minimum=-90, maximum=90)
+        longitude = _required_float(invocation.args, "longitude", minimum=-180, maximum=180)
+        radius_km = _optional_float(invocation.args, "radius_km", default=150, minimum=1, maximum=2000)
+        size = _optional_int(invocation.args, "size", default=50, minimum=1, maximum=500)
+        body = {
+            "size": size,
+            "sort": [
+                {
+                    "_geo_distance": {
+                        "location": {"lat": latitude, "lon": longitude},
+                        "order": "asc",
+                        "unit": "km",
+                        "distance_type": "arc",
+                    }
+                }
+            ],
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "geo_distance": {
+                                "distance": f"{radius_km}km",
+                                "location": {"lat": latitude, "lon": longitude},
+                            }
+                        }
+                    ]
+                }
+            },
+            "_source": [
+                "zone_id",
+                "name",
+                "population",
+                "homes",
+                "issuing_agency",
+                "event_name",
+                "location",
+            ],
+        }
+        result = await _elastic_request(
+            fireguard_elasticsearch_url,
+            fireguard_elasticsearch_api_key,
+            "POST",
+            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'zones')}/_search",
+            body,
+        )
+        hits = result.get("hits", {}).get("hits", [])
+        zones = []
+        for hit in hits:
+            if not isinstance(hit, dict):
+                continue
+            source = hit.get("_source", {})
+            if not isinstance(source, dict):
+                continue
+            zones.append(_compact_zone(source, latitude, longitude))
+        return {
+            "query": {
+                "latitude": latitude,
+                "longitude": longitude,
+                "radius_km": radius_km,
+                "size": size,
+            },
+            "count": len(zones),
+            "zones": zones,
+        }
+
+    registry.register(
+        ToolDefinition(
+            name="fireguard_search_zones",
+            description="Search seeded BC evacuation zones by point and radius.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "latitude": {"type": "number", "minimum": -90, "maximum": 90},
+                    "longitude": {"type": "number", "minimum": -180, "maximum": 180},
+                    "radius_km": {"type": "number", "minimum": 1, "maximum": 2000},
+                    "size": {"type": "integer", "minimum": 1, "maximum": 500},
+                },
+                "required": ["latitude", "longitude"],
+                "additionalProperties": False,
+            },
+            mutating=False,
+            concurrency_safe=True,
+            timeout_seconds=60,
+        ),
+        fireguard_search_zones,
+    )
+
+    async def fireguard_search_shelters(invocation: ToolInvocation) -> dict[str, Any]:
+        latitude = _required_float(invocation.args, "latitude", minimum=-90, maximum=90)
+        longitude = _required_float(invocation.args, "longitude", minimum=-180, maximum=180)
+        radius_km = _optional_float(invocation.args, "radius_km", default=200, minimum=1, maximum=2000)
+        size = _optional_int(invocation.args, "size", default=50, minimum=1, maximum=500)
+        status_filter = _optional_string(invocation.args, "status_filter")
+        filters: list[dict[str, Any]] = [
+            {
+                "geo_distance": {
+                    "distance": f"{radius_km}km",
+                    "location": {"lat": latitude, "lon": longitude},
+                }
+            }
+        ]
+        if status_filter is not None:
+            filters.append({"term": {"status": status_filter}})
+        body = {
+            "size": size,
+            "sort": [
+                {
+                    "_geo_distance": {
+                        "location": {"lat": latitude, "lon": longitude},
+                        "order": "asc",
+                        "unit": "km",
+                        "distance_type": "arc",
+                    }
+                }
+            ],
+            "query": {"bool": {"filter": filters}},
+            "_source": [
+                "facility_id",
+                "name",
+                "facility_type",
+                "address",
+                "community",
+                "municipality",
+                "status",
+                "location",
+                "capacity",
+            ],
+        }
+        result = await _elastic_request(
+            fireguard_elasticsearch_url,
+            fireguard_elasticsearch_api_key,
+            "POST",
+            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'shelters')}/_search",
+            body,
+        )
+        hits = result.get("hits", {}).get("hits", [])
+        shelters = []
+        for hit in hits:
+            if not isinstance(hit, dict):
+                continue
+            source = hit.get("_source", {})
+            if not isinstance(source, dict):
+                continue
+            shelters.append(_compact_shelter(source, latitude, longitude))
+        return {
+            "query": {
+                "latitude": latitude,
+                "longitude": longitude,
+                "radius_km": radius_km,
+                "status_filter": status_filter,
+                "size": size,
+            },
+            "count": len(shelters),
+            "shelters": shelters,
+        }
+
+    registry.register(
+        ToolDefinition(
+            name="fireguard_search_shelters",
+            description="Search indexed ESS facilities by point, radius, and optional status.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "latitude": {"type": "number", "minimum": -90, "maximum": 90},
+                    "longitude": {"type": "number", "minimum": -180, "maximum": 180},
+                    "radius_km": {"type": "number", "minimum": 1, "maximum": 2000},
+                    "size": {"type": "integer", "minimum": 1, "maximum": 500},
+                    "status_filter": {"type": "string"},
+                },
+                "required": ["latitude", "longitude"],
+                "additionalProperties": False,
+            },
+            mutating=False,
+            concurrency_safe=True,
+            timeout_seconds=60,
+        ),
+        fireguard_search_shelters,
+    )
+
+    async def fireguard_search_road_events(invocation: ToolInvocation) -> dict[str, Any]:
+        latitude = _required_float(invocation.args, "latitude", minimum=-90, maximum=90)
+        longitude = _required_float(invocation.args, "longitude", minimum=-180, maximum=180)
+        radius_km = _optional_float(invocation.args, "radius_km", default=200, minimum=1, maximum=2000)
+        size = _optional_int(invocation.args, "size", default=50, minimum=1, maximum=500)
+        body = {
+            "size": size,
+            "sort": [
+                {
+                    "_geo_distance": {
+                        "location": {"lat": latitude, "lon": longitude},
+                        "order": "asc",
+                        "unit": "km",
+                        "distance_type": "arc",
+                    }
+                }
+            ],
+            "query": {
+                "bool": {
+                    "filter": [
+                        {
+                            "geo_distance": {
+                                "distance": f"{radius_km}km",
+                                "location": {"lat": latitude, "lon": longitude},
+                            }
+                        }
+                    ]
+                }
+            },
+            "_source": [
+                "event_id",
+                "title",
+                "description",
+                "road_name",
+                "event_type",
+                "severity",
+                "status",
+                "location",
+                "geometry",
+            ],
+        }
+        result = await _elastic_request(
+            fireguard_elasticsearch_url,
+            fireguard_elasticsearch_api_key,
+            "POST",
+            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'road-events')}/_search",
+            body,
+        )
+        hits = result.get("hits", {}).get("hits", [])
+        road_events = []
+        for hit in hits:
+            if not isinstance(hit, dict):
+                continue
+            source = hit.get("_source", {})
+            if not isinstance(source, dict):
+                continue
+            road_events.append(_compact_road_event(source, latitude, longitude))
+        return {
+            "query": {
+                "latitude": latitude,
+                "longitude": longitude,
+                "radius_km": radius_km,
+                "size": size,
+            },
+            "count": len(road_events),
+            "road_events": road_events,
+        }
+
+    registry.register(
+        ToolDefinition(
+            name="fireguard_search_road_events",
+            description="Search indexed road events by point and radius.",
+            parameters={
+                "type": "object",
+                "properties": {
+                    "latitude": {"type": "number", "minimum": -90, "maximum": 90},
+                    "longitude": {"type": "number", "minimum": -180, "maximum": 180},
+                    "radius_km": {"type": "number", "minimum": 1, "maximum": 2000},
+                    "size": {"type": "integer", "minimum": 1, "maximum": 500},
+                },
+                "required": ["latitude", "longitude"],
+                "additionalProperties": False,
+            },
+            mutating=False,
+            concurrency_safe=True,
+            timeout_seconds=60,
+        ),
+        fireguard_search_road_events,
+    )
+
+    async def fireguard_evaluate_route(invocation: ToolInvocation) -> dict[str, Any]:
+        from ..geo import haversine_km, min_distance_to_polyline_km
+
+        origin_lat = _required_float(invocation.args, "origin_lat", minimum=-90, maximum=90)
+        origin_lon = _required_float(invocation.args, "origin_lon", minimum=-180, maximum=180)
+        destination_lat = _required_float(
+            invocation.args, "destination_lat", minimum=-90, maximum=90
+        )
+        destination_lon = _required_float(
+            invocation.args, "destination_lon", minimum=-180, maximum=180
+        )
+        start_date = _optional_string(invocation.args, "start_date")
+        end_date = _optional_string(invocation.args, "end_date")
+        fire_buffer_km = _optional_float(
+            invocation.args, "fire_buffer_km", default=5.0, minimum=0, maximum=2000
+        )
+        road_closure_buffer_km = _optional_float(
+            invocation.args, "road_closure_buffer_km", default=2.0, minimum=0, maximum=2000
+        )
+        hypothetical_closures = _optional_hypothetical_closures(
+            invocation.args, "hypothetical_closures"
+        )
+        ignore_closures = _optional_string_list(invocation.args, "ignore_closures")
+
+        origin = {"lat": origin_lat, "lon": origin_lon}
+        destination = {"lat": destination_lat, "lon": destination_lon}
+        points = _interpolate_route(origin, destination, segments=4)
+        distance_km = sum(haversine_km(a, b) for a, b in zip(points, points[1:]))
+        duration_minutes = max(5, round(distance_km / 55 * 60))
+
+        route_center_lat = (origin_lat + destination_lat) / 2
+        route_center_lon = (origin_lon + destination_lon) / 2
+        corridor_radius = (distance_km / 2) + fire_buffer_km + 20
+
+        fire_filters: list[dict[str, Any]] = [
+            {
+                "geo_distance": {
+                    "distance": f"{corridor_radius}km",
+                    "location": {"lat": route_center_lat, "lon": route_center_lon},
+                }
+            }
+        ]
+        if start_date is not None or end_date is not None:
+            date_range: dict[str, str] = {}
+            if start_date is not None:
+                date_range["gte"] = start_date
+            if end_date is not None:
+                date_range["lte"] = end_date
+            fire_filters.append({"range": {"acquired_at": date_range}})
+        fires_result = await _elastic_request(
+            fireguard_elasticsearch_url,
+            fireguard_elasticsearch_api_key,
+            "POST",
+            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'firms')}/_search",
+            {
+                "size": 200,
+                "sort": [
+                    {
+                        "_geo_distance": {
+                            "location": {"lat": route_center_lat, "lon": route_center_lon},
+                            "order": "asc",
+                            "unit": "km",
+                            "distance_type": "arc",
+                        }
+                    }
+                ],
+                "query": {"bool": {"filter": fire_filters}},
+                "_source": [
+                    "source",
+                    "acquired_at",
+                    "latitude",
+                    "longitude",
+                    "confidence",
+                    "frp",
+                    "location",
+                ],
+            },
+        )
+        road_result = await _elastic_request(
+            fireguard_elasticsearch_url,
+            fireguard_elasticsearch_api_key,
+            "POST",
+            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'road-events')}/_search",
+            {
+                "size": 100,
+                "sort": [
+                    {
+                        "_geo_distance": {
+                            "location": {"lat": route_center_lat, "lon": route_center_lon},
+                            "order": "asc",
+                            "unit": "km",
+                            "distance_type": "arc",
+                        }
+                    }
+                ],
+                "query": {
+                    "bool": {
+                        "filter": [
+                            {
+                                "geo_distance": {
+                                    "distance": f"{corridor_radius}km",
+                                    "location": {
+                                        "lat": route_center_lat,
+                                        "lon": route_center_lon,
+                                    },
+                                }
+                            }
+                        ]
+                    }
+                },
+                "_source": [
+                    "event_id",
+                    "title",
+                    "description",
+                    "road_name",
+                    "event_type",
+                    "severity",
+                    "status",
+                    "location",
+                    "geometry",
+                ],
+            },
+        )
+
+        risk_flags: list[str] = []
+        evidence: list[dict[str, Any]] = []
+        safe = True
+
+        for hit in fires_result.get("hits", {}).get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            fire_hit = hit.get("_source", {})
+            if not isinstance(fire_hit, dict):
+                continue
+            fire_lat = fire_hit.get("latitude")
+            fire_lon = fire_hit.get("longitude")
+            if not isinstance(fire_lat, (int, float)) or not isinstance(fire_lon, (int, float)):
+                continue
+            fire_loc = {"lat": float(fire_lat), "lon": float(fire_lon)}
+            dist = min_distance_to_polyline_km(fire_loc, points)
+            if dist <= fire_buffer_km:
+                frp = fire_hit.get("frp", 0)
+                risk_flags.append(
+                    f"Route passes within {round(dist, 1)} km of active fire (FRP {frp})"
+                )
+                safe = False
+                evidence.append(
+                    {
+                        "type": "fire",
+                        "lat": fire_loc["lat"],
+                        "lon": fire_loc["lon"],
+                        "frp": frp,
+                        "distance_km": round(dist, 1),
+                        "acquired_at": fire_hit.get("acquired_at"),
+                    }
+                )
+
+        for hit in road_result.get("hits", {}).get("hits", []):
+            if not isinstance(hit, dict):
+                continue
+            road_hit = hit.get("_source", {})
+            if not isinstance(road_hit, dict):
+                continue
+            event_id = road_hit.get("event_id", "")
+            if isinstance(event_id, str) and event_id in ignore_closures:
+                continue
+            if not _is_closure(road_hit):
+                continue
+            road_loc = road_hit.get("location", {})
+            if not isinstance(road_loc, dict):
+                continue
+            rlat = road_loc.get("lat")
+            rlon = road_loc.get("lon")
+            if not isinstance(rlat, (int, float)) or not isinstance(rlon, (int, float)):
+                continue
+            dist = min_distance_to_polyline_km({"lat": float(rlat), "lon": float(rlon)}, points)
+            if dist <= road_closure_buffer_km:
+                label = road_hit.get("road_name") or road_hit.get("title") or "road event"
+                risk_flags.append(f"Route passes within {round(dist, 1)} km of closure: {label}")
+                safe = False
+                evidence.append(
+                    {
+                        "type": "road_closure",
+                        "event_id": event_id,
+                        "label": label,
+                        "distance_km": round(dist, 1),
+                    }
+                )
+
+        for hyp in hypothetical_closures:
+            hyp_loc = {"lat": hyp["lat"], "lon": hyp["lon"]}
+            dist = min_distance_to_polyline_km(hyp_loc, points)
+            if dist <= road_closure_buffer_km:
+                label = hyp.get("label", "hypothetical closure")
+                risk_flags.append(
+                    f"Route passes within {round(dist, 1)} km of hypothetical closure: {label}"
+                )
+                safe = False
+                evidence.append(
+                    {
+                        "type": "hypothetical_closure",
+                        "label": label,
+                        "distance_km": round(dist, 1),
+                    }
+                )
+
+        return {
+            "origin": origin,
+            "destination": destination,
+            "distance_km": round(distance_km, 1),
+            "duration_minutes": duration_minutes,
+            "route_source": "deterministic_straight_line",
+            "safe": safe,
+            "risk_flags": risk_flags,
+            "evidence": evidence,
+            "polyline": [{"lat": p["lat"], "lon": p["lon"]} for p in points],
+            "assumptions": [
+                "Straight-line route at 55 kph average speed",
+                f"Fire buffer: {fire_buffer_km} km",
+                f"Road closure buffer: {road_closure_buffer_km} km",
+            ],
+        }
+
+    registry.register(
+        ToolDefinition(
+            name="fireguard_evaluate_route",
+            description=(
+                "Evaluate route safety between two points. Checks against indexed fire detections "
+                "and road closures. Supports hypothetical_closures for 'what if' analysis "
+                "(e.g., 'what if Highway 97 closes') and ignore_closures to simulate reopenings."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "origin_lat": {"type": "number", "minimum": -90, "maximum": 90},
+                    "origin_lon": {"type": "number", "minimum": -180, "maximum": 180},
+                    "destination_lat": {"type": "number", "minimum": -90, "maximum": 90},
+                    "destination_lon": {"type": "number", "minimum": -180, "maximum": 180},
+                    "start_date": {"type": "string"},
+                    "end_date": {"type": "string"},
+                    "fire_buffer_km": {"type": "number", "minimum": 0, "maximum": 2000},
+                    "road_closure_buffer_km": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 2000,
+                    },
+                    "hypothetical_closures": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "lat": {"type": "number", "minimum": -90, "maximum": 90},
+                                "lon": {"type": "number", "minimum": -180, "maximum": 180},
+                                "label": {"type": "string"},
+                            },
+                            "required": ["lat", "lon", "label"],
+                            "additionalProperties": False,
+                        },
+                    },
+                    "ignore_closures": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["origin_lat", "origin_lon", "destination_lat", "destination_lon"],
+                "additionalProperties": False,
+            },
+            mutating=False,
+            concurrency_safe=True,
+            timeout_seconds=60,
+        ),
+        fireguard_evaluate_route,
     )
 
     async def fireguard_bcws_context(invocation: ToolInvocation) -> dict[str, Any]:
@@ -876,25 +1420,78 @@ async def _elastic_request(
     path: str,
     body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    if method == "GET" and path.endswith("/_count") and body is None:
+        index = path.removeprefix("/").removesuffix("/_count")
+        data = await _elastic_mcp_search(base_url, api_key, index, {"size": 0, "track_total_hits": True})
+        total = data.get("hits", {}).get("total", 0)
+        total_value = total.get("value", 0) if isinstance(total, dict) else total
+        return {"count": int(total_value or 0)}
+    if method == "POST" and path.endswith("/_search") and body is not None:
+        index = path.removeprefix("/").removesuffix("/_search")
+        data = await _elastic_mcp_search(base_url, api_key, index, body)
+    else:
+        raise RuntimeError(f"Elastic MCP adapter does not support {method} {path}")
+    if not isinstance(data, dict):
+        raise RuntimeError("Elastic MCP search response must be an object")
+    return data
+
+
+async def _elastic_mcp_search(
+    base_url: str,
+    api_key: str,
+    index: str,
+    query_body: dict[str, Any],
+) -> dict[str, Any]:
     if len(base_url.strip()) == 0:
         raise RuntimeError("ELASTICSEARCH_URL is not configured")
-    if len(api_key.strip()) == 0:
-        raise RuntimeError("ELASTICSEARCH_API_KEY is not configured")
-    headers = {"Authorization": f"ApiKey {api_key}"}
-    if body is not None:
-        headers["Content-Type"] = "application/json"
-    async with httpx.AsyncClient(timeout=60) as client:
-        response = await client.request(
-            method,
-            f"{base_url.rstrip('/')}{path}",
-            headers=headers,
-            json=body,
-        )
-        response.raise_for_status()
-        data = response.json()
-    if not isinstance(data, dict):
-        raise RuntimeError("Elasticsearch response must be an object")
-    return data
+    image = os.environ.get("ELASTICSEARCH_MCP_IMAGE", "mcp/elasticsearch")
+    env = {"ES_URL": _mcp_elasticsearch_url(base_url)}
+    if len(api_key.strip()) > 0:
+        env["ES_API_KEY"] = api_key
+    server = StdioServerParameters(
+        command="docker",
+        args=["run", "-i", "--rm", "-e", "ES_URL", "-e", "ES_API_KEY", image, "stdio"],
+        env=env,
+    )
+    async with stdio_client(server) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            result = await session.call_tool(
+                "search", {"index": index, "query_body": query_body}
+            )
+    return _mcp_tool_result_object(result)
+
+
+def _mcp_elasticsearch_url(base_url: str) -> str:
+    url = base_url.strip().rstrip("/")
+    return (
+        url.replace("http://127.0.0.1:", "http://host.docker.internal:", 1)
+        .replace("http://localhost:", "http://host.docker.internal:", 1)
+    )
+
+
+def _mcp_tool_result_object(result: Any) -> dict[str, Any]:
+    content = getattr(result, "content", None)
+    if not isinstance(content, list):
+        raise RuntimeError("Elastic MCP tool returned no content")
+    texts: list[str] = []
+    for item in content:
+        text = getattr(item, "text", None)
+        if isinstance(text, str):
+            texts.append(text)
+            continue
+        if hasattr(item, "model_dump"):
+            dumped = item.model_dump()
+            raw_text = dumped.get("text") if isinstance(dumped, dict) else None
+            if isinstance(raw_text, str):
+                texts.append(raw_text)
+    text = "\n".join(texts).strip()
+    if len(text) == 0:
+        raise RuntimeError("Elastic MCP tool returned empty content")
+    parsed = json.loads(text)
+    if not isinstance(parsed, dict):
+        raise RuntimeError("Elastic MCP tool content must decode to an object")
+    return parsed
 
 
 def _required_float(
@@ -964,6 +1561,33 @@ def _optional_string_list(payload: dict[str, Any], key: str) -> list[str]:
     return out
 
 
+def _optional_hypothetical_closures(payload: dict[str, Any], key: str) -> list[dict[str, Any]]:
+    value = payload.get(key)
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        raise ValueError(f"{key} must be a list")
+    out: list[dict[str, Any]] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise ValueError(f"{key}[{index}] must be an object")
+        lat = item.get("lat")
+        lon = item.get("lon")
+        label = item.get("label", "hypothetical closure")
+        if not isinstance(lat, int | float) or isinstance(lat, bool):
+            raise ValueError(f"{key}[{index}].lat must be a number")
+        if not isinstance(lon, int | float) or isinstance(lon, bool):
+            raise ValueError(f"{key}[{index}].lon must be a number")
+        if float(lat) < -90 or float(lat) > 90:
+            raise ValueError(f"{key}[{index}].lat must be between -90 and 90")
+        if float(lon) < -180 or float(lon) > 180:
+            raise ValueError(f"{key}[{index}].lon must be between -180 and 180")
+        if not isinstance(label, str) or len(label.strip()) == 0:
+            raise ValueError(f"{key}[{index}].label must be a non-empty string")
+        out.append({"lat": float(lat), "lon": float(lon), "label": label})
+    return out
+
+
 def _bbox(lat: float, lon: float, radius_km: float) -> tuple[float, float, float, float]:
     lat_delta = radius_km / 111.0
     lon_delta = radius_km / max(1.0, 111.0 * math.cos(math.radians(lat)))
@@ -994,3 +1618,118 @@ def _compact_public_event(payload: dict[str, Any]) -> dict[str, Any]:
         "place",
     ]
     return _compact({key: payload.get(key) for key in keys})
+
+
+def _compact_zone(payload: dict[str, Any], latitude: float, longitude: float) -> dict[str, Any]:
+    location = payload.get("location") if isinstance(payload.get("location"), dict) else {}
+    zone_lat = location.get("lat") if isinstance(location, dict) else None
+    zone_lon = location.get("lon") if isinstance(location, dict) else None
+    distance = None
+    if isinstance(zone_lat, (int, float)) and isinstance(zone_lon, (int, float)):
+        distance = _distance_km(latitude, longitude, float(zone_lat), float(zone_lon))
+    return _compact(
+        {
+            "zone_id": payload.get("zone_id"),
+            "name": payload.get("name"),
+            "population": payload.get("population"),
+            "homes": payload.get("homes"),
+            "issuing_agency": payload.get("issuing_agency"),
+            "event_name": payload.get("event_name"),
+            "distance_km": round(distance, 2) if distance is not None else None,
+        }
+    )
+
+
+def _compact_shelter(payload: dict[str, Any], latitude: float, longitude: float) -> dict[str, Any]:
+    location = payload.get("location") if isinstance(payload.get("location"), dict) else {}
+    shelter_lat = location.get("lat") if isinstance(location, dict) else None
+    shelter_lon = location.get("lon") if isinstance(location, dict) else None
+    distance = None
+    if isinstance(shelter_lat, (int, float)) and isinstance(shelter_lon, (int, float)):
+        distance = _distance_km(latitude, longitude, float(shelter_lat), float(shelter_lon))
+    return _compact(
+        {
+            "facility_id": payload.get("facility_id"),
+            "name": payload.get("name"),
+            "facility_type": payload.get("facility_type"),
+            "address": payload.get("address"),
+            "community": payload.get("community"),
+            "municipality": payload.get("municipality"),
+            "status": payload.get("status"),
+            "location": payload.get("location"),
+            "capacity": payload.get("capacity"),
+            "distance_km": round(distance, 2) if distance is not None else None,
+        }
+    )
+
+
+def _compact_road_event(payload: dict[str, Any], latitude: float, longitude: float) -> dict[str, Any]:
+    location = payload.get("location") if isinstance(payload.get("location"), dict) else {}
+    event_lat = location.get("lat") if isinstance(location, dict) else None
+    event_lon = location.get("lon") if isinstance(location, dict) else None
+    distance = None
+    if isinstance(event_lat, (int, float)) and isinstance(event_lon, (int, float)):
+        distance = _distance_km(latitude, longitude, float(event_lat), float(event_lon))
+    return _compact(
+        {
+            "event_id": payload.get("event_id"),
+            "title": payload.get("title"),
+            "description": payload.get("description"),
+            "road_name": payload.get("road_name"),
+            "event_type": payload.get("event_type"),
+            "severity": payload.get("severity"),
+            "status": payload.get("status"),
+            "location": payload.get("location"),
+            "geometry": payload.get("geometry"),
+            "distance_km": round(distance, 2) if distance is not None else None,
+        }
+    )
+
+
+def _distance_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    radius = 6371.0
+    dlat = math.radians(lat2 - lat1)
+    dlon = math.radians(lon2 - lon1)
+    a = (
+        math.sin(dlat / 2) ** 2
+        + math.cos(math.radians(lat1))
+        * math.cos(math.radians(lat2))
+        * math.sin(dlon / 2) ** 2
+    )
+    return radius * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+
+def _interpolate_route(
+    origin: dict[str, float], destination: dict[str, float], *, segments: int = 4
+) -> list[dict[str, float]]:
+    if segments < 1:
+        raise ValueError("segments must be at least 1")
+    return [
+        {
+            "lat": origin["lat"]
+            + (destination["lat"] - origin["lat"]) * (index / segments),
+            "lon": origin["lon"]
+            + (destination["lon"] - origin["lon"]) * (index / segments),
+        }
+        for index in range(segments + 1)
+    ]
+
+
+def _is_closure(event: dict[str, Any]) -> bool:
+    blob = " ".join(
+        str(event.get(field, ""))
+        for field in ["event_type", "severity", "title", "description"]
+    ).lower()
+    closure_phrases = [
+        "road closed",
+        "full closure",
+        "closed in both directions",
+        "no detour",
+        "detour unavailable",
+    ]
+    if any(phrase in blob for phrase in closure_phrases):
+        return True
+    return "closure" in blob and not any(
+        phrase in blob
+        for phrase in ["lane closure", "right lane", "left lane", "centre lane", "shoulder closed"]
+    )

@@ -577,7 +577,11 @@ function formatBytes(size: number): string {
   return `${(size / 1024 / 1024).toFixed(1)} MB`;
 }
 
-export function AgenticIntelligenceApp() {
+type AgenticIntelligenceAppProps = {
+  autoPrompt?: string | null;
+};
+
+export function AgenticIntelligenceApp({ autoPrompt = null }: AgenticIntelligenceAppProps) {
   const [busy, setBusy] = useState(false);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [currentSession, setCurrentSession] = useState<SessionRecord | null>(null);
@@ -603,6 +607,7 @@ export function AgenticIntelligenceApp() {
   const selectedNodeIdRef = useRef<string | null>(null);
   const modalOpenRef = useRef(false);
   const detailRefreshTimerRef = useRef<number | null>(null);
+  const lastAutoPromptRef = useRef<string | null>(null);
 
   useEffect(() => {
     selectedNodeIdRef.current = selectedNodeId;
@@ -1165,6 +1170,15 @@ export function AgenticIntelligenceApp() {
     setChatAttachments([]);
     await sendChatMessage(message, attachments);
   }
+
+  useEffect(() => {
+    if (autoPrompt === null || autoPrompt.trim().length === 0) return;
+    if (lastAutoPromptRef.current === autoPrompt) return;
+    if (busy || isActive(run)) return;
+    lastAutoPromptRef.current = autoPrompt;
+    setChatInput(autoPrompt);
+    void sendChatMessage(autoPrompt);
+  }, [autoPrompt, busy, run]);
 
   async function reloadChatHistory(currentRun: WorkflowRun) {
     const history = await getChatHistory(currentRun.session_id, currentRun.run_id, true);

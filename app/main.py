@@ -32,11 +32,16 @@ def load_env():
             os.environ.setdefault(key, value)
 
 
-FIRMS_SOURCES = ("VIIRS_NOAA20_NRT", "VIIRS_SNPP_NRT", "VIIRS_NOAA21_NRT", "MODIS_NRT")
+FIRMS_SOURCES = ("VIIRS_NOAA20_NRT", "VIIRS_SNPP_NRT", "VIIRS_NOAA21_NRT", "MODIS_NRT", "VIIRS_NOAA20_SP", "VIIRS_SNPP_SP", "VIIRS_NOAA21_SP", "MODIS_SP")
 MAX_DAYS = 5
 BCWS_CACHE_SECONDS = 60 * 60
 BCWS_ACTIVE_FIRES_URL = "https://services6.arcgis.com/ubm4tcTYICKBpist/arcgis/rest/services/BCWS_ActiveFires_PublicView/FeatureServer/0/query"
 BCWS_PERIMETERS_URL = "https://services6.arcgis.com/ubm4tcTYICKBpist/ArcGIS/rest/services/BCWS_FirePerimeters_PublicView/FeatureServer/0/query"
+BC_EVACUATION_ZONES_PATH = ROOT / "data/public/bc/historical_fire_evacuation_zones_snapshot.json"
+BC_PUBLIC_CONTEXT_PATH = ROOT / "data/public/bc/public_emergency_context_snapshot.json"
+BC_POLICY_SNIPPETS_PATH = ROOT / "data/public/bc/official_policy_snippets.json"
+BC_ROAD_EVENTS_PATH = ROOT / "data/replay/bc_cariboo/road_events_snapshot.json"
+BC_WEATHER_SNAPSHOT_PATH = ROOT / "data/replay/bc_cariboo/weather_snapshot.json"
 load_env()
 agentic_app = create_agentic_app()
 
@@ -111,6 +116,10 @@ def bcws_perimeter_index_name():
 
 def bcws_cache_index_name():
     return f"{env('ELASTICSEARCH_INDEX_PREFIX')}-bcws-cache"
+
+
+def zones_index_name():
+    return f"{env('ELASTICSEARCH_INDEX_PREFIX')}-zones"
 
 
 def event_mapping():
@@ -217,18 +226,35 @@ def create_indices():
             }
         },
     }
+    zones_body = {
+        "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+        "mappings": {
+            "properties": {
+                "zone_id": {"type": "keyword"},
+                "name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
+                "population": {"type": "integer"},
+                "homes": {"type": "integer"},
+                "issuing_agency": {"type": "keyword"},
+                "event_name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
+                "location": {"type": "geo_point"},
+                "geometry": {"type": "geo_shape"},
+            }
+        },
+    }
     for name, body in (
         (index_name(), event_body),
         (cache_index_name(), cache_body),
         (bcws_incident_index_name(), bcws_incident_body),
         (bcws_perimeter_index_name(), bcws_perimeter_body),
         (bcws_cache_index_name(), bcws_cache_body),
+        (zones_index_name(), zones_body),
     ):
         try:
             es("PUT", f"/{name}", body)
         except urllib.error.HTTPError as exc:
             if exc.code != 400:
                 raise
+    seed_evacuation_zones()
     try:
         es("PUT", f"/{index_name()}/_mapping", {"properties": event_mapping()})
     except urllib.error.HTTPError as exc:
@@ -356,6 +382,96 @@ def iso_from_ms(value):
 
 def compact_doc(doc):
     return {key: value for key, value in doc.items() if value is not None}
+
+
+def ring_centroid(ring):
+    if not ring:
+        return None
+    points = ring[:-1] if len(ring) > 1 and ring[0] == ring[-1] else ring
+    if len(points) < 3:
+        lon = sum(point[0] for point in points) / max(1, len(points))
+        lat = sum(point[1] for point in points) / max(1, len(points))
+        return lon, lat, 0.0
+    twice_area = 0.0
+    cx = 0.0
+    cy = 0.0
+    for index, point in enumerate(points):
+        next_point = points[(index + 1) % len(points)]
+        cross = point[0] * next_point[1] - next_point[0] * point[1]
+        twice_area += cross
+        cx += (point[0] + next_point[0]) * cross
+        cy += (point[1] + next_point[1]) * cross
+    if abs(twice_area) < 1e-12:
+        lon = sum(point[0] for point in points) / len(points)
+        lat = sum(point[1] for point in points) / len(points)
+        return lon, lat, 0.0
+    return cx / (3 * twice_area), cy / (3 * twice_area), twice_area / 2
+
+
+def geometry_centroid(geometry):
+    if not isinstance(geometry, dict):
+        return None
+    weighted_lon = 0.0
+    weighted_lat = 0.0
+    total_area = 0.0
+    polygons = []
+    if geometry.get("type") == "Polygon":
+        polygons = [geometry.get("coordinates") or []]
+    elif geometry.get("type") == "MultiPolygon":
+        polygons = geometry.get("coordinates") or []
+    for polygon in polygons:
+        if not polygon:
+            continue
+        centroid = ring_centroid(polygon[0])
+        if centroid is None:
+            continue
+        lon, lat, area = centroid
+        weight = abs(area) if area else 1.0
+        weighted_lon += lon * weight
+        weighted_lat += lat * weight
+        total_area += weight
+    if total_area <= 0:
+        return None
+    return {"lon": weighted_lon / total_area, "lat": weighted_lat / total_area}
+
+
+def zone_doc_from_feature(feature):
+    props = feature.get("properties") or {}
+    geometry = feature.get("geometry")
+    zone_id = props.get("EMRG_OAAH_SYSID")
+    centroid = geometry_centroid(geometry)
+    if zone_id is None or centroid is None or geometry is None:
+        return None
+    return compact_doc(
+        {
+            "zone_id": str(zone_id),
+            "name": props.get("ORDER_ALERT_NAME"),
+            "population": props.get("MULTI_SOURCED_POPULATION"),
+            "homes": props.get("MULTI_SOURCED_HOMES"),
+            "issuing_agency": props.get("ISSUING_AGENCY"),
+            "event_name": props.get("EVENT_NAME"),
+            "location": centroid,
+            "geometry": geometry,
+        }
+    )
+
+
+def seed_evacuation_zones():
+    existing = es("GET", f"/{zones_index_name()}/_count")
+    if int(existing.get("count", 0)) > 0:
+        return {"seeded": False, "count": existing.get("count", 0)}
+    snapshot = load_json_file(BC_EVACUATION_ZONES_PATH, {})
+    features = snapshot.get("features") if isinstance(snapshot, dict) else []
+    docs = []
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        doc = zone_doc_from_feature(feature)
+        if doc is not None:
+            docs.append((doc["zone_id"], doc))
+    indexed = bulk(docs, zones_index_name())
+    es("POST", f"/{zones_index_name()}/_refresh")
+    return {"seeded": True, "count": indexed}
 
 
 def arcgis_features(url, area_bounds, fields):
@@ -510,6 +626,193 @@ def collect_bcws_context(area, area_bounds):
     bulk([(bcws_doc_id(area, "perimeter", doc), doc) for doc in perimeters], bcws_perimeter_index_name())
     bcws_cache_put(area, len(incidents), len(perimeters))
     return {"cached": False, "incidents": incidents, "perimeters": perimeters}
+
+
+def load_json_file(path, default):
+    if not path.exists():
+        return default
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def in_replay_radius(record, req):
+    lat = record.get("latitude")
+    lon = record.get("longitude")
+    if lat is None or lon is None:
+        return False
+    return distance_km(req.latitude, req.longitude, lat, lon) <= req.radius_km
+
+
+def public_evacuation_zone(feature, source_url):
+    props = feature.get("properties") or {}
+    return compact_doc(
+        {
+            "id": props.get("EMRG_OAAH_SYSID"),
+            "event_name": props.get("EVENT_NAME"),
+            "event_type": props.get("EVENT_TYPE"),
+            "order_alert_name": props.get("ORDER_ALERT_NAME"),
+            "status": props.get("ORDER_ALERT_STATUS"),
+            "issuing_agency": props.get("ISSUING_AGENCY"),
+            "municipality": props.get("MUNICIPALITY"),
+            "population": props.get("MULTI_SOURCED_POPULATION"),
+            "homes": props.get("MULTI_SOURCED_HOMES"),
+            "event_start_date": iso_from_ms(props.get("EVENT_START_DATE")),
+            "all_clear_date": iso_from_ms(props.get("ALL_CLEAR_DATE")),
+            "geometry": feature.get("geometry"),
+            "source": "BC_EVACUATION_ZONES_SNAPSHOT",
+            "source_url": source_url,
+        }
+    )
+
+
+def public_evacuation_record(record, source, source_url):
+    location = record.get("location") or {}
+    return compact_doc(
+        {
+            "order_alert_id": record.get("order_alert_id"),
+            "event_name": record.get("event_name"),
+            "event_type": record.get("event_type"),
+            "order_alert_name": record.get("order_alert_name"),
+            "status": record.get("status"),
+            "issuing_agency": record.get("issuing_agency"),
+            "population": record.get("population"),
+            "homes": record.get("homes"),
+            "latitude": location.get("lat"),
+            "longitude": location.get("lon"),
+            "event_start_date": record.get("event_start_date"),
+            "updated_at": record.get("updated_at"),
+            "source": source,
+            "source_url": source_url,
+        }
+    )
+
+
+def public_ess_facility(record, source, source_url):
+    location = record.get("location") or {}
+    return compact_doc(
+        {
+            "facility_id": record.get("facility_id"),
+            "name": record.get("name"),
+            "facility_type": record.get("facility_type"),
+            "address": record.get("address"),
+            "community": record.get("community"),
+            "municipality": record.get("municipality"),
+            "status": record.get("status"),
+            "latitude": location.get("lat"),
+            "longitude": location.get("lon"),
+            "updated_at": record.get("updated_at"),
+            "source": source,
+            "source_url": source_url,
+        }
+    )
+
+
+def public_road_event(record):
+    location = record.get("location") or {}
+    return compact_doc(
+        {
+            "source": record.get("source"),
+            "external_id": record.get("external_id"),
+            "title": record.get("title"),
+            "description": record.get("description"),
+            "event_type": record.get("event_type"),
+            "severity": record.get("severity"),
+            "road_name": record.get("road_name"),
+            "latitude": location.get("lat"),
+            "longitude": location.get("lon"),
+            "geometry": record.get("geometry"),
+            "starts_at": record.get("starts_at"),
+            "ends_at": record.get("ends_at"),
+            "updated_at": record.get("updated_at"),
+            "source_url": record.get("source_url"),
+        }
+    )
+
+
+def public_weather_snapshot(record):
+    location = record.get("location") or {}
+    return compact_doc(
+        {
+            "source": record.get("source"),
+            "latitude": location.get("lat"),
+            "longitude": location.get("lon"),
+            "wind_speed_kph": record.get("wind_speed_kph"),
+            "wind_direction_degrees": record.get("wind_direction_degrees"),
+            "wind_gusts_kph": record.get("wind_gusts_kph"),
+            "forecast_horizon_hours": record.get("forecast_horizon_hours"),
+        }
+    )
+
+
+def load_replay_local_context(req):
+    zones_snapshot = load_json_file(BC_EVACUATION_ZONES_PATH, {})
+    public_context = load_json_file(BC_PUBLIC_CONTEXT_PATH, {})
+    policy_snapshot = load_json_file(BC_POLICY_SNIPPETS_PATH, {})
+    road_snapshot = load_json_file(BC_ROAD_EVENTS_PATH, [])
+    weather_snapshot = load_json_file(BC_WEATHER_SNAPSHOT_PATH, {})
+
+    zone_source_url = zones_snapshot.get("source_url") if isinstance(zones_snapshot, dict) else None
+    zone_features = zones_snapshot.get("features") if isinstance(zones_snapshot, dict) else []
+    evacuation_zones = [
+        public_evacuation_zone(feature, zone_source_url)
+        for feature in zone_features
+        if isinstance(feature, dict) and feature.get("geometry")
+    ]
+
+    evacuation_source = public_context.get("evacuation_orders_alerts") if isinstance(public_context, dict) else {}
+    if not isinstance(evacuation_source, dict):
+        evacuation_source = {}
+    ess_source = public_context.get("ess_facilities") if isinstance(public_context, dict) else {}
+    if not isinstance(ess_source, dict):
+        ess_source = {}
+    evacuation_records = [
+        item
+        for item in (
+            public_evacuation_record(record, evacuation_source.get("source"), evacuation_source.get("source_url"))
+            for record in evacuation_source.get("records", [])
+            if isinstance(record, dict)
+        )
+        if in_replay_radius(item, req)
+    ]
+    ess_facilities = [
+        item
+        for item in (
+            public_ess_facility(record, ess_source.get("source"), ess_source.get("source_url"))
+            for record in ess_source.get("records", [])
+            if isinstance(record, dict)
+        )
+        if in_replay_radius(item, req)
+    ]
+    road_events = [
+        item
+        for item in (public_road_event(record) for record in road_snapshot if isinstance(record, dict))
+        if in_replay_radius(item, req)
+    ]
+    weather = public_weather_snapshot(weather_snapshot) if isinstance(weather_snapshot, dict) else {}
+    if weather and not in_replay_radius(weather, req):
+        weather = {}
+    policies = policy_snapshot.get("records") if isinstance(policy_snapshot, dict) else []
+
+    return {
+        "evacuation_zones": evacuation_zones,
+        "evacuation_records": evacuation_records,
+        "ess_facilities": ess_facilities,
+        "road_events": road_events,
+        "weather_snapshot": weather or None,
+        "policy_snippets": [
+            compact_doc(
+                {
+                    "policy_id": record.get("policy_id"),
+                    "title": record.get("title"),
+                    "source": record.get("source"),
+                    "source_url": record.get("source_url"),
+                    "body": record.get("body"),
+                    "applies_to": record.get("applies_to"),
+                }
+            )
+            for record in policies
+            if isinstance(record, dict)
+        ],
+    }
 
 
 def distance_km(lat1, lon1, lat2, lon2):
@@ -777,6 +1080,68 @@ def query_events(req, start, days, area_bounds, remaining, source=None):
     return [hit["_source"] for hit in hits]
 
 
+def load_zone_centroids():
+    body = {
+        "size": 1000,
+        "query": {"match_all": {}},
+        "_source": ["zone_id", "name", "population", "homes", "issuing_agency", "event_name", "location"],
+    }
+    hits = es("POST", f"/{zones_index_name()}/_search", body)["hits"]["hits"]
+    zones = []
+    for hit in hits:
+        source = hit.get("_source") or {}
+        location = source.get("location") or {}
+        zone_lat = location.get("lat")
+        zone_lon = location.get("lon")
+        if zone_lat is None or zone_lon is None:
+            continue
+        zones.append(
+            {
+                "name": source.get("name"),
+                "population": source.get("population"),
+                "homes": source.get("homes"),
+                "latitude": zone_lat,
+                "longitude": zone_lon,
+            }
+        )
+    return zones
+
+
+def threat_for_event(event, zones):
+    frp = event.get("frp")
+    lat = event.get("latitude")
+    lon = event.get("longitude")
+    if frp is None or frp < 50 or lat is None or lon is None:
+        return None
+    nearest = None
+    for zone in zones:
+        distance = distance_km(lat, lon, zone["latitude"], zone["longitude"])
+        if distance > 150:
+            continue
+        if nearest is None or distance < nearest[1]:
+            nearest = (zone, distance)
+    if nearest is None:
+        return None
+    zone, distance = nearest
+    return {
+        "type": "threat",
+        "hotspot": {
+            "lat": lat,
+            "lon": lon,
+            "frp": frp,
+            "confidence": event.get("confidence"),
+            "source": event.get("source"),
+            "acquired_at": event.get("acquired_at"),
+        },
+        "zone": {
+            "name": zone.get("name"),
+            "population": zone.get("population"),
+            "homes": zone.get("homes"),
+            "distance_km": round(distance, 2),
+        },
+    }
+
+
 def ndjson(payload):
     return json.dumps(payload, separators=(",", ":")) + "\n"
 
@@ -787,10 +1152,12 @@ def replay_lines(req):
     area = ",".join(f"{value:.6f}" for value in area_bounds)
     weather_cache = {}
     place_cache = {}
-    base_at = None
     emitted = 0
+    threat_emitted = False
+    zones = load_zone_centroids()
     yield ndjson({"type": "started", "area": area})
     bcws_context = {"incidents": [], "perimeters": [], "cached": False}
+    local_context = load_replay_local_context(req)
     try:
         bcws_context = collect_bcws_context(area, area_bounds)
         yield ndjson(
@@ -799,10 +1166,20 @@ def replay_lines(req):
                 "cached": bcws_context["cached"],
                 "incidents": [public_incident(doc) for doc in bcws_context["incidents"]],
                 "perimeters": [public_perimeter(doc) for doc in bcws_context["perimeters"]],
+                **local_context,
             }
         )
     except Exception as exc:
         yield ndjson({"type": "error", "error": f"BCWS context failed: {exc}"})
+        yield ndjson(
+            {
+                "type": "context",
+                "cached": False,
+                "incidents": [],
+                "perimeters": [],
+                **local_context,
+            }
+        )
     for start, days in ranges(req.start_date, req.end_date):
         for source in req.sources:
             if source not in FIRMS_SOURCES:
@@ -817,7 +1194,16 @@ def replay_lines(req):
                     "cached": cache_get(source, area, start, days) is not None,
                 }
             )
-            indexed, cached = collect_chunk(source, area, start, days, weather_cache, place_cache)
+            try:
+                indexed, cached = collect_chunk(source, area, start, days, weather_cache, place_cache)
+            except Exception as exc:
+                yield ndjson(
+                    {
+                        "type": "error",
+                        "error": f"{source} {start.isoformat()} collection failed: {exc}",
+                    }
+                )
+                continue
             yield ndjson(
                 {
                     "type": "chunk",
@@ -829,37 +1215,34 @@ def replay_lines(req):
                 }
             )
             time.sleep(0.1)
-            remaining = req.limit - emitted
-            if remaining <= 0:
-                break
-            events = query_events(req, start, days, area_bounds, remaining, source=source)
-            if events and base_at is None:
-                base_at = datetime.fromisoformat(events[0]["acquired_at"])
-            if base_at:
-                for event in events:
-                    event_at = datetime.fromisoformat(event["acquired_at"])
-                    event["replay_second"] = (event_at - base_at).total_seconds() / req.speed
-                    attach_bcws(event, bcws_context)
-            emitted += len(events)
-            yield ndjson(
-                {
-                    "type": "events",
-                    "source": source,
-                    "start_date": start.isoformat(),
-                    "days": days,
-                    "cached": cached,
-                    "indexed": indexed,
-                    "events": events,
-                }
-            )
-        if emitted >= req.limit:
-            break
+
+    replay_days = (req.end_date - req.start_date).days + 1
+    events = query_events(req, req.start_date, replay_days, area_bounds, req.limit)
+    if events:
+        base_at = datetime.fromisoformat(events[0]["acquired_at"])
+        sim_clock = base_at
+        for event in events:
+            event_at = datetime.fromisoformat(event["acquired_at"])
+            wait_seconds = max(0, (event_at - sim_clock).total_seconds() / req.speed)
+            if wait_seconds:
+                time.sleep(wait_seconds)
+            sim_clock = event_at
+            event["replay_second"] = (event_at - base_at).total_seconds() / req.speed
+            attach_bcws(event, bcws_context)
+            if not threat_emitted:
+                threat = threat_for_event(event, zones)
+                if threat is not None:
+                    yield ndjson(threat)
+                    threat_emitted = True
+            emitted += 1
+            yield ndjson({"type": "event", "event": event})
     yield ndjson({"type": "done", "events": emitted})
 
 
 @app.on_event("startup")
 def startup():
     load_env()
+    create_indices()
 
 
 @app.on_event("startup")

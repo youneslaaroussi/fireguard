@@ -1,23 +1,84 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Card, NonIdealState } from "@blueprintjs/core";
+import { NonIdealState } from "@blueprintjs/core";
 import mapboxgl, { type GeoJSONSource, type Map } from "mapbox-gl";
 import type { BcwsContext, FireEvent } from "../types";
+
+// ── Icon SVGs (white on transparent → SDF-tintable at runtime) ──────────────
+
+const ICON_FLAME = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="30" viewBox="0 0 24 30">
+  <path d="M12 1C10.4 6.5 7 10 7 16a5 5 0 0 0 10 0c0-3.2-1.6-5.6-2.6-7.2-.45 2.4-1.5 3.8-2 4.4C12.2 10.8 11.7 6.2 12 1z" fill="white"/>
+</svg>`;
+
+const ICON_SHELTER = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 26 26">
+  <path d="M13 2L1 12h3.5v12h6v-6h5v6h6V12H25L13 2z" fill="white"/>
+</svg>`;
+
+const ICON_WARNING = `<svg xmlns="http://www.w3.org/2000/svg" width="26" height="24" viewBox="0 0 26 24">
+  <path d="M13 2L1 23h24L13 2z" fill="white"/>
+</svg>`;
+
+const ICON_SHIELD = `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="28" viewBox="0 0 24 28">
+  <path d="M12 1L1 5.5v10c0 6 5 10.5 11 12 6-1.5 11-6 11-12v-10L12 1z" fill="white"/>
+</svg>`;
+
+async function loadMapIcons(m: Map): Promise<void> {
+  await Promise.all([
+    loadSvgIcon(m, "icon-flame",   ICON_FLAME,   24, 30),
+    loadSvgIcon(m, "icon-shelter", ICON_SHELTER, 26, 26),
+    loadSvgIcon(m, "icon-warning", ICON_WARNING, 26, 24),
+    loadSvgIcon(m, "icon-shield",  ICON_SHIELD,  24, 28),
+  ]);
+}
+
+function loadSvgIcon(m: Map, id: string, svg: string, w: number, h: number): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const img = new Image(w, h);
+    const blob = new Blob([svg], { type: "image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      if (!m.hasImage(id)) m.addImage(id, img, { sdf: true });
+      resolve();
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
+}
 
 type Props = {
   token: string;
   events: FireEvent[];
   context: BcwsContext;
+  lat: number;
+  lon: number;
+  radiusKm: number;
+  onAreaChange: (lat: number, lon: number, radiusKm: number) => void;
 };
 
-export function MapPanel({ token, events, context }: Props) {
+export function MapPanel({ token, events, context, lat, lon, radiusKm, onAreaChange }: Props) {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<Map | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const centerMarker = useRef<mapboxgl.Marker | null>(null);
+  const edgeMarker = useRef<mapboxgl.Marker | null>(null);
+  const areaRef = useRef({ lat, lon, radiusKm });
+  const isDragging = useRef(false);
+  const onAreaChangeRef = useRef(onAreaChange);
+
   const data = useMemo(() => toFeatureCollection(events), [events]);
   const incidentData = useMemo(() => toIncidentCollection(context), [context]);
   const perimeterData = useMemo(() => toPerimeterCollection(context), [context]);
+  const evacuationZoneData = useMemo(() => toEvacuationZoneCollection(context), [context]);
+  const evacuationRecordData = useMemo(() => toEvacuationRecordCollection(context), [context]);
+  const essData = useMemo(() => toEssCollection(context), [context]);
+  const roadData = useMemo(() => toRoadEventCollection(context), [context]);
   const windLines = useMemo(() => toWindLineCollection(events), [events]);
   const windHeads = useMemo(() => toWindHeadCollection(events), [events]);
+  const snapshotWindLines = useMemo(() => toSnapshotWindLineCollection(context), [context]);
+  const snapshotWindHeads = useMemo(() => toSnapshotWindHeadCollection(context), [context]);
+
+  useEffect(() => { areaRef.current = { lat, lon, radiusKm }; }, [lat, lon, radiusKm]);
+  useEffect(() => { onAreaChangeRef.current = onAreaChange; }, [onAreaChange]);
 
   useEffect(() => {
     if (!token || !container.current || map.current) return;
@@ -25,166 +86,359 @@ export function MapPanel({ token, events, context }: Props) {
     map.current = new mapboxgl.Map({
       container: container.current,
       style: "mapbox://styles/mapbox/dark-v11",
-      center: [-123.1207, 49.2827],
+      center: [areaRef.current.lon, areaRef.current.lat],
       zoom: 5.5,
       attributionControl: true
     });
     map.current.addControl(new mapboxgl.NavigationControl({ showCompass: false }), "top-right");
     map.current.on("load", () => {
       if (!map.current) return;
-      map.current.addSource("firms-events", {
+      void loadMapIcons(map.current).then(() => setupLayers(map.current!));
+    });
+    function setupLayers(m: Map) {
+
+      // Area circle — render below fire data
+      m.addSource("area-circle", {
         type: "geojson",
-        data
+        data: makeCircleGeoJSON(areaRef.current.lat, areaRef.current.lon, areaRef.current.radiusKm)
       });
-      map.current.addSource("bcws-perimeters", {
-        type: "geojson",
-        data: perimeterData
-      });
-      map.current.addSource("bcws-incidents", {
-        type: "geojson",
-        data: incidentData
-      });
-      map.current.addLayer({
-        id: "bcws-perimeters-fill",
-        type: "fill",
-        source: "bcws-perimeters",
-        paint: {
-          "fill-color": "#ffb366",
-          "fill-opacity": 0.18
-        }
-      });
-      map.current.addLayer({
-        id: "bcws-perimeters-outline",
-        type: "line",
-        source: "bcws-perimeters",
-        paint: {
-          "line-color": "#ffd27f",
-          "line-width": 2,
-          "line-opacity": 0.9
-        }
-      });
-      map.current.addLayer({
+      m.addLayer({ id: "area-circle-fill", type: "fill", source: "area-circle", paint: { "fill-color": "#4aaeff", "fill-opacity": 0.06 } });
+      m.addLayer({ id: "area-circle-outline", type: "line", source: "area-circle", paint: { "line-color": "#4aaeff", "line-width": 1.5, "line-opacity": 0.7, "line-dasharray": [4, 3] } });
+
+      m.addSource("firms-events",           { type: "geojson", data });
+      m.addSource("bcws-perimeters",        { type: "geojson", data: perimeterData });
+      m.addSource("bcws-incidents",         { type: "geojson", data: incidentData });
+      m.addSource("evacuation-zones",       { type: "geojson", data: evacuationZoneData });
+      m.addSource("evacuation-records",     { type: "geojson", data: evacuationRecordData });
+      m.addSource("ess-facilities",         { type: "geojson", data: essData });
+      m.addSource("road-events",            { type: "geojson", data: roadData });
+      m.addSource("wind-vectors",           { type: "geojson", data: windLines });
+      m.addSource("wind-vector-heads",      { type: "geojson", data: windHeads });
+      m.addSource("snapshot-wind-vectors",  { type: "geojson", data: snapshotWindLines });
+      m.addSource("snapshot-wind-vector-heads", { type: "geojson", data: snapshotWindHeads });
+
+      // Polygon layers first (bottom of stack)
+      m.addLayer({ id: "evacuation-zones-fill",    type: "fill", source: "evacuation-zones",  paint: { "fill-color": "#d982ff", "fill-opacity": 0.14 } });
+      m.addLayer({ id: "evacuation-zones-outline",  type: "line", source: "evacuation-zones",  paint: { "line-color": "#e7a8ff", "line-width": 1.8, "line-opacity": 0.9 } });
+      m.addLayer({ id: "bcws-perimeters-fill",     type: "fill", source: "bcws-perimeters",   paint: { "fill-color": "#ffb366", "fill-opacity": 0.18 } });
+      m.addLayer({ id: "bcws-perimeters-outline",   type: "line", source: "bcws-perimeters",   paint: { "line-color": "#ffd27f", "line-width": 2,   "line-opacity": 0.9 } });
+
+      // FIRMS heatmap (overview)
+      m.addLayer({
         id: "firms-events-heat",
         type: "heatmap",
         source: "firms-events",
+        maxzoom: 10,
         paint: {
-          "heatmap-weight": ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 0], 0, 0.2, 50, 1],
-          "heatmap-intensity": 0.85,
-          "heatmap-radius": 22,
-          "heatmap-opacity": 0.65
+          "heatmap-weight":     ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 0], 0, 0.2, 50, 1],
+          "heatmap-intensity":  0.85,
+          "heatmap-radius":     22,
+          "heatmap-opacity":    ["interpolate", ["linear"], ["zoom"], 8, 0.65, 10, 0]
         }
       });
-      map.current.addLayer({
+
+      // FIRMS circles at mid zoom
+      m.addLayer({
         id: "firms-events-points",
         type: "circle",
         source: "firms-events",
+        minzoom: 7,
+        maxzoom: 10,
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 0], 0, 4, 50, 10],
-          "circle-color": "#f15b43",
-          "circle-stroke-width": 1,
-          "circle-stroke-color": "#ffd7a1",
-          "circle-opacity": 0.9
+          "circle-radius":        ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 0], 0, 3, 50, 8],
+          "circle-color":         "#f15b43",
+          "circle-stroke-width":  0,
+          "circle-opacity":       0.85
         }
       });
-      map.current.addLayer({
-        id: "bcws-incidents",
-        type: "circle",
-        source: "bcws-incidents",
+
+      // FIRMS flame icons at high zoom
+      m.addLayer({
+        id: "firms-events-symbols",
+        type: "symbol",
+        source: "firms-events",
+        minzoom: 10,
+        layout: {
+          "icon-image":           "icon-flame",
+          "icon-size":            ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 0], 0, 0.55, 100, 1.2],
+          "icon-allow-overlap":   true,
+          "icon-anchor":          "bottom"
+        },
         paint: {
-          "circle-radius": 7,
-          "circle-color": [
-            "match",
-            ["get", "status"],
-            "Out of Control",
-            "#e5484d",
-            "Being Held",
-            "#f2b84b",
-            "Under Control",
-            "#2dcc70",
-            "Out",
-            "#7f8b99",
-            "#ffffff"
+          "icon-color": ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 0],
+            0, "#f4a060", 30, "#f15b43", 100, "#ff2200"
           ],
-          "circle-stroke-width": 2,
-          "circle-stroke-color": "#10161d",
-          "circle-opacity": 0.95
+          "icon-halo-color":  "#1a0500",
+          "icon-halo-width":  1.5
         }
       });
-      map.current.addSource("wind-vectors", {
-        type: "geojson",
-        data: windLines
-      });
-      map.current.addSource("wind-vector-heads", {
-        type: "geojson",
-        data: windHeads
-      });
-      map.current.addLayer({
-        id: "wind-vectors",
-        type: "line",
-        source: "wind-vectors",
+
+      // BCWS incidents — flame icon, colored by fire status
+      m.addLayer({
+        id: "bcws-incidents",
+        type: "symbol",
+        source: "bcws-incidents",
+        layout: {
+          "icon-image":         "icon-flame",
+          "icon-size":          1.1,
+          "icon-allow-overlap": true,
+          "icon-anchor":        "bottom"
+        },
         paint: {
-          "line-color": "#6bbcff",
-          "line-width": 2,
-          "line-opacity": 0.85
+          "icon-color": ["match", ["get", "status"],
+            "Out of Control", "#e5484d",
+            "Being Held",     "#f2b84b",
+            "Under Control",  "#3acc7a",
+            "Out",            "#6a7a8a",
+            "#ff8844"
+          ],
+          "icon-halo-color": "#080808",
+          "icon-halo-width": 1.5
         }
       });
-      map.current.addLayer({
-        id: "wind-vector-heads",
-        type: "circle",
-        source: "wind-vector-heads",
+
+      // Evacuation records — shield icon, colored by alert level
+      m.addLayer({
+        id: "evacuation-records",
+        type: "symbol",
+        source: "evacuation-records",
+        layout: {
+          "icon-image":         "icon-shield",
+          "icon-size":          0.9,
+          "icon-allow-overlap": true,
+          "icon-anchor":        "bottom"
+        },
         paint: {
-          "circle-radius": 3,
-          "circle-color": "#9fd4ff",
-          "circle-opacity": 0.95
+          "icon-color": ["match", ["get", "status"],
+            "Order", "#ff5555",
+            "Alert", "#ffca5c",
+            "#d982ff"
+          ],
+          "icon-halo-color": "#0a0005",
+          "icon-halo-width": 1.5
         }
       });
+
+      // ESS emergency shelters — house icon
+      m.addLayer({
+        id: "ess-facilities",
+        type: "symbol",
+        source: "ess-facilities",
+        layout: {
+          "icon-image":         "icon-shelter",
+          "icon-size":          0.95,
+          "icon-allow-overlap": true,
+          "icon-anchor":        "bottom"
+        },
+        paint: {
+          "icon-color":       "#43d9ad",
+          "icon-halo-color":  "#011a10",
+          "icon-halo-width":  1.5
+        }
+      });
+
+      // Road events — warning triangle icon
+      m.addLayer({
+        id: "road-events",
+        type: "symbol",
+        source: "road-events",
+        layout: {
+          "icon-image":         "icon-warning",
+          "icon-size":          0.9,
+          "icon-allow-overlap": true,
+          "icon-anchor":        "center"
+        },
+        paint: {
+          "icon-color":       "#f6f08d",
+          "icon-halo-color":  "#141400",
+          "icon-halo-width":  1
+        }
+      });
+
+      // Wind vectors
+      m.addLayer({ id: "wind-vectors",           type: "line",   source: "wind-vectors",           paint: { "line-color": "#6bbcff", "line-width": 2,   "line-opacity": 0.85 } });
+      m.addLayer({ id: "wind-vector-heads",       type: "circle", source: "wind-vector-heads",       paint: { "circle-radius": 3, "circle-color": "#9fd4ff", "circle-opacity": 0.95 } });
+      m.addLayer({ id: "snapshot-wind-vectors",   type: "line",   source: "snapshot-wind-vectors",   paint: { "line-color": "#34e7ff", "line-width": 2.5, "line-opacity": 0.9, "line-dasharray": [2, 2] } });
+      m.addLayer({ id: "snapshot-wind-vector-heads", type: "circle", source: "snapshot-wind-vector-heads", paint: { "circle-radius": 4, "circle-color": "#34e7ff", "circle-opacity": 0.95 } });
+
       setLoaded(true);
-    });
+    }
     return () => {
+      centerMarker.current?.remove();
+      centerMarker.current = null;
+      edgeMarker.current?.remove();
+      edgeMarker.current = null;
       map.current?.remove();
       map.current = null;
       setLoaded(false);
     };
   }, [token]);
 
+  // Create draggable gizmo markers once the map is ready
+  useEffect(() => {
+    if (!map.current || !loaded) return;
+
+    const { lat: iLat, lon: iLon, radiusKm: iR } = areaRef.current;
+
+    // Center — targeting reticle
+    const centerEl = document.createElement("div");
+    centerEl.className = "mapMarkerCenter";
+    centerEl.innerHTML =
+      '<div class="markerRing"></div>' +
+      '<div class="markerCross markerCrossH"></div>' +
+      '<div class="markerCross markerCrossV"></div>' +
+      '<div class="markerDot"></div>';
+    centerMarker.current = new mapboxgl.Marker({ element: centerEl, draggable: true, anchor: "center" })
+      .setLngLat([iLon, iLat])
+      .addTo(map.current!);
+
+    // Edge — diamond handle at due-east of circle
+    const edgeEl = document.createElement("div");
+    edgeEl.className = "mapMarkerEdge";
+    edgeMarker.current = new mapboxgl.Marker({ element: edgeEl, draggable: true, anchor: "center" })
+      .setLngLat(edgeLngLat(iLat, iLon, iR))
+      .addTo(map.current!);
+
+    centerMarker.current.on("drag", () => {
+      isDragging.current = true;
+      const { lat: cLat, lng: cLon } = centerMarker.current!.getLngLat();
+      const r = areaRef.current.radiusKm;
+      edgeMarker.current?.setLngLat(edgeLngLat(cLat, cLon, r));
+      setCircleSource(map.current, cLat, cLon, r);
+    });
+
+    centerMarker.current.on("dragend", () => {
+      const { lat: cLat, lng: cLon } = centerMarker.current!.getLngLat();
+      onAreaChangeRef.current(cLat, cLon, areaRef.current.radiusKm);
+      isDragging.current = false;
+    });
+
+    edgeMarker.current.on("drag", () => {
+      isDragging.current = true;
+      const { lat: eLat, lng: eLon } = edgeMarker.current!.getLngLat();
+      const { lat: cLat, lon: cLon } = areaRef.current;
+      setCircleSource(map.current, cLat, cLon, haversineKm(cLat, cLon, eLat, eLon));
+    });
+
+    edgeMarker.current.on("dragend", () => {
+      const { lat: eLat, lng: eLon } = edgeMarker.current!.getLngLat();
+      const { lat: cLat, lon: cLon } = areaRef.current;
+      onAreaChangeRef.current(cLat, cLon, haversineKm(cLat, cLon, eLat, eLon));
+      isDragging.current = false;
+    });
+
+    return () => {
+      centerMarker.current?.remove();
+      centerMarker.current = null;
+      edgeMarker.current?.remove();
+      edgeMarker.current = null;
+    };
+  }, [loaded]);
+
+  // Sync markers + circle when lat/lon/radius props change (not during drag)
+  useEffect(() => {
+    if (isDragging.current || !loaded) return;
+    centerMarker.current?.setLngLat([lon, lat]);
+    edgeMarker.current?.setLngLat(edgeLngLat(lat, lon, radiusKm));
+    setCircleSource(map.current, lat, lon, radiusKm);
+  }, [lat, lon, radiusKm, loaded]);
+
+  // Update fire / weather data sources
   useEffect(() => {
     const instance = map.current;
     if (!instance || !loaded || !instance.isStyleLoaded()) return;
-    const source = instance.getSource("firms-events") as GeoJSONSource | undefined;
-    const incidentSource = instance.getSource("bcws-incidents") as GeoJSONSource | undefined;
-    const perimeterSource = instance.getSource("bcws-perimeters") as GeoJSONSource | undefined;
-    const windSource = instance.getSource("wind-vectors") as GeoJSONSource | undefined;
-    const windHeadSource = instance.getSource("wind-vector-heads") as GeoJSONSource | undefined;
-    source?.setData(data);
-    incidentSource?.setData(incidentData);
-    perimeterSource?.setData(perimeterData);
-    windSource?.setData(windLines);
-    windHeadSource?.setData(windHeads);
+    (instance.getSource("firms-events") as GeoJSONSource | undefined)?.setData(data);
+    (instance.getSource("bcws-incidents") as GeoJSONSource | undefined)?.setData(incidentData);
+    (instance.getSource("bcws-perimeters") as GeoJSONSource | undefined)?.setData(perimeterData);
+    (instance.getSource("evacuation-zones") as GeoJSONSource | undefined)?.setData(evacuationZoneData);
+    (instance.getSource("evacuation-records") as GeoJSONSource | undefined)?.setData(evacuationRecordData);
+    (instance.getSource("ess-facilities") as GeoJSONSource | undefined)?.setData(essData);
+    (instance.getSource("road-events") as GeoJSONSource | undefined)?.setData(roadData);
+    (instance.getSource("wind-vectors") as GeoJSONSource | undefined)?.setData(windLines);
+    (instance.getSource("wind-vector-heads") as GeoJSONSource | undefined)?.setData(windHeads);
+    (instance.getSource("snapshot-wind-vectors") as GeoJSONSource | undefined)?.setData(snapshotWindLines);
+    (instance.getSource("snapshot-wind-vector-heads") as GeoJSONSource | undefined)?.setData(snapshotWindHeads);
     const bounds = boundsFor(events, context);
     if (bounds) {
       instance.fitBounds(bounds, { padding: 48, maxZoom: 9, duration: 400 });
     }
-  }, [context, data, events, incidentData, loaded, perimeterData, windHeads, windLines]);
+  }, [context, data, essData, evacuationRecordData, evacuationZoneData, events, incidentData, loaded, perimeterData, roadData, snapshotWindHeads, snapshotWindLines, windHeads, windLines]);
 
   if (!token) {
     return (
-      <Card className="mapPane">
+      <div className="mapFullScreen">
         <NonIdealState icon="map" title="Mapbox token missing" />
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card className="mapPane">
+    <div className="mapFullScreen">
       <div ref={container} className="mapCanvas" />
       <div className="mapLegend">
-        <span><i className="legendDot firmsDot" />FIRMS</span>
-        <span><i className="legendDot bcwsDot" />BCWS incident</span>
-        <span><i className="legendLine" />BCWS perimeter</span>
+        <span>
+          <svg width="10" height="13" viewBox="0 0 24 30"><path d="M12 1C10.4 6.5 7 10 7 16a5 5 0 0 0 10 0c0-3.2-1.6-5.6-2.6-7.2-.45 2.4-1.5 3.8-2 4.4C12.2 10.8 11.7 6.2 12 1z" fill="#f15b43"/></svg>
+          FIRMS hotspot
+        </span>
+        <span>
+          <svg width="10" height="13" viewBox="0 0 24 30"><path d="M12 1C10.4 6.5 7 10 7 16a5 5 0 0 0 10 0c0-3.2-1.6-5.6-2.6-7.2-.45 2.4-1.5 3.8-2 4.4C12.2 10.8 11.7 6.2 12 1z" fill="#e5484d"/></svg>
+          Fire incident
+        </span>
+        <span><i className="legendLine" />Perimeter</span>
+        <span>
+          <svg width="11" height="11" viewBox="0 0 24 28"><path d="M12 1L1 5.5v10c0 6 5 10.5 11 12 6-1.5 11-6 11-12v-10L12 1z" fill="#ff5555"/></svg>
+          Evac order
+        </span>
+        <span>
+          <svg width="11" height="11" viewBox="0 0 26 26"><path d="M13 2L1 12h3.5v12h6v-6h5v6h6V12H25L13 2z" fill="#43d9ad"/></svg>
+          Shelter
+        </span>
+        <span>
+          <svg width="11" height="10" viewBox="0 0 26 24"><path d="M13 2L1 23h24L13 2z" fill="#f6f08d"/></svg>
+          Road closure
+        </span>
         <span><i className="legendLine windLine" />Wind</span>
       </div>
-    </Card>
+    </div>
   );
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+
+function setCircleSource(mapInstance: Map | null, cLat: number, cLon: number, r: number) {
+  if (!mapInstance || !mapInstance.isStyleLoaded()) return;
+  (mapInstance.getSource("area-circle") as GeoJSONSource | undefined)
+    ?.setData(makeCircleGeoJSON(cLat, cLon, r));
+}
+
+function makeCircleGeoJSON(lat: number, lon: number, radiusKm: number, steps = 72): GeoJSON.FeatureCollection {
+  const cosLat = Math.cos(lat * Math.PI / 180);
+  const coords: [number, number][] = [];
+  for (let i = 0; i <= steps; i++) {
+    const angle = (i / steps) * 2 * Math.PI;
+    coords.push([
+      lon + Math.sin(angle) * (radiusKm / (111 * cosLat)),
+      lat + Math.cos(angle) * (radiusKm / 111)
+    ]);
+  }
+  return {
+    type: "FeatureCollection",
+    features: [{ type: "Feature", geometry: { type: "Polygon", coordinates: [coords] }, properties: {} }]
+  };
+}
+
+function edgeLngLat(lat: number, lon: number, radiusKm: number): [number, number] {
+  return [lon + radiusKm / (111 * Math.cos(lat * Math.PI / 180)), lat];
+}
+
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function toIncidentCollection(context: BcwsContext): GeoJSON.FeatureCollection {
@@ -192,21 +446,16 @@ function toIncidentCollection(context: BcwsContext): GeoJSON.FeatureCollection {
     type: "FeatureCollection",
     features: context.incidents.flatMap((incident) => {
       if (incident.latitude == null || incident.longitude == null) return [];
-      return [
-        {
-          type: "Feature" as const,
-          geometry: {
-            type: "Point" as const,
-            coordinates: [incident.longitude, incident.latitude]
-          },
-          properties: {
-            number: incident.fire_number ?? "",
-            name: incident.incident_name ?? "",
-            status: incident.fire_status ?? "",
-            size: incident.current_size_ha ?? 0
-          }
+      return [{
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [incident.longitude, incident.latitude] },
+        properties: {
+          number: incident.fire_number ?? "",
+          name: incident.incident_name ?? "",
+          status: incident.fire_status ?? "",
+          size: incident.current_size_ha ?? 0
         }
-      ];
+      }];
     })
   };
 }
@@ -216,17 +465,101 @@ function toPerimeterCollection(context: BcwsContext): GeoJSON.FeatureCollection 
     type: "FeatureCollection",
     features: context.perimeters.flatMap((perimeter) => {
       if (!perimeter.geometry) return [];
-      return [
-        {
-          type: "Feature" as const,
-          geometry: perimeter.geometry,
-          properties: {
-            number: perimeter.fire_number ?? "",
-            status: perimeter.fire_status ?? "",
-            size: perimeter.fire_size_hectares ?? 0
-          }
+      return [{
+        type: "Feature" as const,
+        geometry: perimeter.geometry,
+        properties: {
+          number: perimeter.fire_number ?? "",
+          status: perimeter.fire_status ?? "",
+          size: perimeter.fire_size_hectares ?? 0
         }
-      ];
+      }];
+    })
+  };
+}
+
+function toEvacuationZoneCollection(context: BcwsContext): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: context.evacuation_zones.flatMap((zone) => {
+      if (!zone.geometry) return [];
+      return [{
+        type: "Feature" as const,
+        geometry: zone.geometry,
+        properties: {
+          id: zone.id ?? "",
+          name: zone.order_alert_name ?? zone.event_name ?? "",
+          status: zone.status ?? "",
+          agency: zone.issuing_agency ?? "",
+          population: zone.population ?? 0,
+          homes: zone.homes ?? 0
+        }
+      }];
+    })
+  };
+}
+
+function toEvacuationRecordCollection(context: BcwsContext): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: context.evacuation_records.flatMap((record) => {
+      if (record.latitude == null || record.longitude == null) return [];
+      return [{
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [record.longitude, record.latitude] },
+        properties: {
+          id: record.order_alert_id ?? "",
+          name: record.order_alert_name ?? record.event_name ?? "",
+          status: record.status ?? "",
+          agency: record.issuing_agency ?? "",
+          population: record.population ?? 0,
+          homes: record.homes ?? 0
+        }
+      }];
+    })
+  };
+}
+
+function toEssCollection(context: BcwsContext): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: context.ess_facilities.flatMap((facility) => {
+      if (facility.latitude == null || facility.longitude == null) return [];
+      return [{
+        type: "Feature" as const,
+        geometry: { type: "Point" as const, coordinates: [facility.longitude, facility.latitude] },
+        properties: {
+          id: facility.facility_id ?? "",
+          name: facility.name ?? "",
+          type: facility.facility_type ?? "",
+          community: facility.community ?? "",
+          status: facility.status ?? ""
+        }
+      }];
+    })
+  };
+}
+
+function toRoadEventCollection(context: BcwsContext): GeoJSON.FeatureCollection {
+  return {
+    type: "FeatureCollection",
+    features: context.road_events.flatMap((event) => {
+      const geometry = event.geometry ?? (
+        event.latitude == null || event.longitude == null
+          ? null
+          : { type: "Point" as const, coordinates: [event.longitude, event.latitude] }
+      );
+      if (!geometry) return [];
+      return [{
+        type: "Feature" as const,
+        geometry,
+        properties: {
+          id: event.external_id ?? "",
+          title: event.title ?? "",
+          severity: event.severity ?? "",
+          road: event.road_name ?? ""
+        }
+      }];
     })
   };
 }
@@ -238,20 +571,11 @@ function toWindLineCollection(events: FireEvent[]): GeoJSON.FeatureCollection {
       const weather = event.weather;
       if (!weather || weather.wind_speed_10m == null || weather.wind_direction_10m == null) return [];
       const end = windEndpoint(event.longitude, event.latitude, weather.wind_direction_10m, weather.wind_speed_10m);
-      return [
-        {
-          type: "Feature" as const,
-          geometry: {
-            type: "LineString" as const,
-            coordinates: [[event.longitude, event.latitude], end]
-          },
-          properties: {
-            speed: weather.wind_speed_10m,
-            direction: weather.wind_direction_10m,
-            source: weather.source
-          }
-        }
-      ];
+      return [{
+        type: "Feature" as const,
+        geometry: { type: "LineString" as const, coordinates: [[event.longitude, event.latitude], end] },
+        properties: { speed: weather.wind_speed_10m, direction: weather.wind_direction_10m, source: weather.source }
+      }];
     })
   };
 }
@@ -262,20 +586,14 @@ function toWindHeadCollection(events: FireEvent[]): GeoJSON.FeatureCollection {
     features: events.flatMap((event) => {
       const weather = event.weather;
       if (!weather || weather.wind_speed_10m == null || weather.wind_direction_10m == null) return [];
-      return [
-        {
-          type: "Feature" as const,
-          geometry: {
-            type: "Point" as const,
-            coordinates: windEndpoint(event.longitude, event.latitude, weather.wind_direction_10m, weather.wind_speed_10m)
-          },
-          properties: {
-            speed: weather.wind_speed_10m,
-            direction: weather.wind_direction_10m,
-            source: weather.source
-          }
-        }
-      ];
+      return [{
+        type: "Feature" as const,
+        geometry: {
+          type: "Point" as const,
+          coordinates: windEndpoint(event.longitude, event.latitude, weather.wind_direction_10m, weather.wind_speed_10m)
+        },
+        properties: { speed: weather.wind_speed_10m, direction: weather.wind_direction_10m, source: weather.source }
+      }];
     })
   };
 }
@@ -288,15 +606,54 @@ function windEndpoint(lon: number, lat: number, directionFrom: number, speed: nu
   return [lon2, lat2];
 }
 
+function toSnapshotWindLineCollection(context: BcwsContext): GeoJSON.FeatureCollection {
+  const weather = context.weather_snapshot;
+  if (!weather || weather.latitude == null || weather.longitude == null || weather.wind_speed_kph == null || weather.wind_direction_degrees == null) {
+    return { type: "FeatureCollection", features: [] };
+  }
+  const end = windEndpoint(weather.longitude, weather.latitude, weather.wind_direction_degrees, weather.wind_speed_kph);
+  return {
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      geometry: { type: "LineString", coordinates: [[weather.longitude, weather.latitude], end] },
+      properties: {
+        speed: weather.wind_speed_kph,
+        direction: weather.wind_direction_degrees,
+        source: weather.source ?? ""
+      }
+    }]
+  };
+}
+
+function toSnapshotWindHeadCollection(context: BcwsContext): GeoJSON.FeatureCollection {
+  const weather = context.weather_snapshot;
+  if (!weather || weather.latitude == null || weather.longitude == null || weather.wind_speed_kph == null || weather.wind_direction_degrees == null) {
+    return { type: "FeatureCollection", features: [] };
+  }
+  return {
+    type: "FeatureCollection",
+    features: [{
+      type: "Feature",
+      geometry: {
+        type: "Point",
+        coordinates: windEndpoint(weather.longitude, weather.latitude, weather.wind_direction_degrees, weather.wind_speed_kph)
+      },
+      properties: {
+        speed: weather.wind_speed_kph,
+        direction: weather.wind_direction_degrees,
+        source: weather.source ?? ""
+      }
+    }]
+  };
+}
+
 function toFeatureCollection(events: FireEvent[]): GeoJSON.FeatureCollection {
   return {
     type: "FeatureCollection",
     features: events.map((event) => ({
       type: "Feature",
-      geometry: {
-        type: "Point",
-        coordinates: [event.longitude, event.latitude]
-      },
+      geometry: { type: "Point", coordinates: [event.longitude, event.latitude] },
       properties: {
         source: event.source,
         acquired_at: event.acquired_at,
@@ -308,34 +665,54 @@ function toFeatureCollection(events: FireEvent[]): GeoJSON.FeatureCollection {
 }
 
 function boundsFor(events: FireEvent[], context: BcwsContext) {
-  if (!events.length && !context.incidents.length && !context.perimeters.length) return null;
+  const hasContext =
+    context.incidents.length ||
+    context.perimeters.length ||
+    context.evacuation_zones.length ||
+    context.evacuation_records.length ||
+    context.ess_facilities.length ||
+    context.road_events.length ||
+    context.weather_snapshot;
+  if (!events.length && !hasContext) return null;
   const bounds = new mapboxgl.LngLatBounds();
-  for (const event of events) {
-    bounds.extend([event.longitude, event.latitude]);
-  }
+  for (const event of events) bounds.extend([event.longitude, event.latitude]);
   for (const incident of context.incidents) {
     if (incident.latitude != null && incident.longitude != null) {
       bounds.extend([incident.longitude, incident.latitude]);
     }
   }
-  for (const perimeter of context.perimeters) {
-    extendGeometryBounds(bounds, perimeter.geometry);
+  for (const perimeter of context.perimeters) extendGeometryBounds(bounds, perimeter.geometry);
+  for (const zone of context.evacuation_zones) extendGeometryBounds(bounds, zone.geometry);
+  for (const record of context.evacuation_records) {
+    if (record.latitude != null && record.longitude != null) bounds.extend([record.longitude, record.latitude]);
   }
+  for (const facility of context.ess_facilities) {
+    if (facility.latitude != null && facility.longitude != null) bounds.extend([facility.longitude, facility.latitude]);
+  }
+  for (const event of context.road_events) {
+    if (event.geometry) extendGeometryBounds(bounds, event.geometry);
+    else if (event.latitude != null && event.longitude != null) bounds.extend([event.longitude, event.latitude]);
+  }
+  const weather = context.weather_snapshot;
+  if (weather?.latitude != null && weather.longitude != null) bounds.extend([weather.longitude, weather.latitude]);
   return bounds;
 }
 
 function extendGeometryBounds(bounds: mapboxgl.LngLatBounds, geometry?: GeoJSON.Geometry) {
   if (!geometry) return;
+  if (geometry.type === "Point") {
+    bounds.extend(geometry.coordinates as [number, number]);
+  }
+  if (geometry.type === "LineString") {
+    for (const coordinate of geometry.coordinates) bounds.extend(coordinate as [number, number]);
+  }
   if (geometry.type === "Polygon") {
-    for (const ring of geometry.coordinates) {
+    for (const ring of geometry.coordinates)
       for (const coordinate of ring) bounds.extend(coordinate as [number, number]);
-    }
   }
   if (geometry.type === "MultiPolygon") {
-    for (const polygon of geometry.coordinates) {
-      for (const ring of polygon) {
+    for (const polygon of geometry.coordinates)
+      for (const ring of polygon)
         for (const coordinate of ring) bounds.extend(coordinate as [number, number]);
-      }
-    }
   }
 }

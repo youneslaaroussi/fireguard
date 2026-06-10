@@ -38,6 +38,23 @@ export type Stats = {
   sources: SourceCount[];
 };
 
+export type ThreatPayload = {
+  hotspot: {
+    lat: number;
+    lon: number;
+    frp: number;
+    confidence?: string;
+    acquired_at: string;
+    source: string;
+  };
+  zone: {
+    name: string;
+    population?: number;
+    homes?: number;
+    distance_km?: number;
+  };
+};
+
 export type SourceCount = {
   source: string;
   count: number;
@@ -91,6 +108,12 @@ export type BcwsPerimeter = {
 export type BcwsContext = {
   incidents: BcwsIncident[];
   perimeters: BcwsPerimeter[];
+  evacuation_zones: EvacuationZone[];
+  evacuation_records: EvacuationRecord[];
+  ess_facilities: EssFacility[];
+  road_events: RoadEvent[];
+  weather_snapshot?: ReplayWeatherSnapshot | null;
+  policy_snippets: PolicySnippet[];
 };
 
 export type BcwsMatch = {
@@ -100,9 +123,109 @@ export type BcwsMatch = {
 
 export type ReplayMessage =
   | { type: "started"; area: string }
-  | { type: "context"; cached: boolean; incidents: BcwsIncident[]; perimeters: BcwsPerimeter[] }
+  | ({
+      type: "context";
+      cached: boolean;
+      incidents: BcwsIncident[];
+      perimeters: BcwsPerimeter[];
+    } & ReplayLocalContext)
   | { type: "chunk_start"; source: string; start_date: string; days: number; cached: boolean }
   | { type: "chunk"; source: string; start_date: string; days: number; cached: boolean; indexed: number }
-  | { type: "events"; source: string; start_date: string; days: number; cached: boolean; indexed: number; events: FireEvent[] }
+  | ({ type: "threat" } & ThreatPayload)
+  | { type: "event"; event: FireEvent }
   | { type: "done"; events: number }
   | { type: "error"; error: string };
+
+export type ReplayLocalContext = {
+  evacuation_zones: EvacuationZone[];
+  evacuation_records: EvacuationRecord[];
+  ess_facilities: EssFacility[];
+  road_events: RoadEvent[];
+  weather_snapshot?: ReplayWeatherSnapshot | null;
+  policy_snippets: PolicySnippet[];
+};
+
+export type EvacuationZone = {
+  id?: string | number;
+  event_name?: string;
+  event_type?: string;
+  order_alert_name?: string;
+  status?: string;
+  issuing_agency?: string;
+  municipality?: string;
+  population?: number;
+  homes?: number;
+  event_start_date?: string;
+  all_clear_date?: string;
+  geometry?: GeoJSON.Geometry;
+  source?: string;
+  source_url?: string;
+};
+
+export type EvacuationRecord = {
+  order_alert_id?: string;
+  event_name?: string;
+  event_type?: string;
+  order_alert_name?: string;
+  status?: string;
+  issuing_agency?: string;
+  population?: number;
+  homes?: number;
+  latitude?: number;
+  longitude?: number;
+  event_start_date?: string;
+  updated_at?: string;
+  source?: string;
+  source_url?: string;
+};
+
+export type EssFacility = {
+  facility_id?: string;
+  name?: string;
+  facility_type?: string;
+  address?: string;
+  community?: string;
+  municipality?: string;
+  status?: string;
+  latitude?: number;
+  longitude?: number;
+  updated_at?: string;
+  source?: string;
+  source_url?: string;
+};
+
+export type RoadEvent = {
+  source?: string;
+  external_id?: string;
+  title?: string;
+  description?: string;
+  event_type?: string;
+  severity?: string;
+  road_name?: string;
+  latitude?: number;
+  longitude?: number;
+  geometry?: GeoJSON.Geometry;
+  starts_at?: string;
+  ends_at?: string | null;
+  updated_at?: string;
+  source_url?: string;
+};
+
+export type ReplayWeatherSnapshot = {
+  source?: string;
+  latitude?: number;
+  longitude?: number;
+  wind_speed_kph?: number;
+  wind_direction_degrees?: number;
+  wind_gusts_kph?: number;
+  forecast_horizon_hours?: number;
+};
+
+export type PolicySnippet = {
+  policy_id?: string;
+  title?: string;
+  source?: string;
+  source_url?: string;
+  body?: string;
+  applies_to?: string[];
+};

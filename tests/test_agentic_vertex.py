@@ -7,9 +7,11 @@ from app.agentic.vertex import (
     _request_payload,
     _usage_from_response,
 )
+from app.agentic.workflows import CHAT_AGENT_RESPONSE_FORMAT
 
 
-def test_config_selects_vertex_from_google_project(monkeypatch) -> None:
+def test_config_selects_vertex_from_google_project(monkeypatch, tmp_path) -> None:
+    monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "fireguard-project")
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "global")
     monkeypatch.setenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
@@ -102,6 +104,22 @@ def test_vertex_request_payload_maps_messages_tools_and_function_responses() -> 
     assert declaration["parameters"]["properties"]["tags"]["items"]["type"] == "STRING"
     assert declaration["parameters"]["properties"]["enabled"]["type"] == "BOOLEAN"
     assert "additionalProperties" not in declaration["parameters"]
+
+
+def test_vertex_request_payload_maps_response_format_to_generation_config() -> None:
+    payload = _request_payload(
+        [ChatMessage(role=MessageRole.user, content="hello")],
+        [],
+        128,
+        response_format=CHAT_AGENT_RESPONSE_FORMAT,
+    )
+
+    generation_config = payload["generationConfig"]
+    assert generation_config["responseMimeType"] == "application/json"
+    assert generation_config["responseSchema"]["type"] == "OBJECT"
+    assert generation_config["responseSchema"]["properties"]["action"]["type"] == "STRING"
+    assert generation_config["responseSchema"]["properties"]["handoff"]["nullable"] is True
+    assert generation_config["responseSchema"]["properties"]["questions"]["nullable"] is True
 
 
 def test_vertex_response_helpers_map_usage_and_tool_calls() -> None:
