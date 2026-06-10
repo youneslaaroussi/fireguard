@@ -15,37 +15,68 @@ This is not a data visualization tool. The agent makes decisions.
 
 ---
 
+## The Real Event
+
+**Williams Lake River Valley wildfire — July 21, 2024**
+
+- **Ignition**: ~5:45 PM, July 21, 2024. A tree fell on power lines on the southwest outskirts of the city.
+- **Behavior**: Fast-moving. Burned straight to the city boundary before crews stopped it. Mayor: *"dodged a potential disaster."* *"a close call."*
+- **Size**: 40 hectares, held at the city boundary by large airtankers + water skimmers on Williams Lake (the lake body).
+- **Emergency declared**: Same evening, July 21. Local state of emergency.
+- **Evacuation type**: Alert (be ready to leave), not a full mandatory order. River Valley Road corridor told to avoid the area.
+- **Shelters activated for Williams Lake**: None named publicly — fire was contained before mass displacement occurred.
+- **Highway 97**: Not closed near Williams Lake. Main artery stayed open.
+- **Highway 1 (Spences Bridge–Cache Creek)**: CLOSED July 22 due to concurrent Shetland Creek fire — complicates southbound routes toward Merritt/Vancouver.
+- **Alert lifted**: Approximately July 26–28, 2024.
+
+**Concurrent fires burning the same weekend:**
+- **Antler Creek wildfire** (90 km NE, Barkerville area): Started July 20. 3,400 ha by July 22, grew to 14,000 ha Groundhog Complex. Mandatory evacuation orders for 431 parcels, District of Wells (1,000 residents). Evacuees sent to **Quesnel**. Highway 26 closed.
+- **Shetland Creek wildfire** (Spences Bridge): 17,000–22,000 ha. Highway 1 closed. 6+ homes destroyed.
+- **324 total active fires** in BC on July 22, 2024.
+
+**Why this is the right scenario for the demo**: The Williams Lake fire was held at 40 ha — but
+it burned to the city boundary in under an hour after ignition. One unfavorable wind shift and
+it's inside the residential grid. The mayor called it a near-miss. At that moment of maximum
+threat (fire at the boundary, alert issued), human coordinators would have needed to answer:
+which shelter do we send 1,500 people to? All five Williams Lake ESS facilities are closed.
+The nearest open facility is 200 km away. The main southern highway has a concurrent closure.
+Quesnel is already receiving evacuees from a different fire. That coordination problem is exactly
+what FireGuard solves — automatically, in under 2 minutes, from satellite data alone.
+
+---
+
 ## The Demo Narrative
 
-**Event**: Williams Lake River Valley wildfire, July 21, 2024, British Columbia.
+**Premise**: It's July 21, 2024. FireGuard is running. The satellite passes overhead.
 
-A real wildfire that forced the evacuation of part of the City of Williams Lake.
-Real coordination failures happened. This is what FireGuard would have done differently.
+1. Operator opens FireGuard. Map centered on Williams Lake / Cariboo, BC.
+2. Hit **REPLAY**. Real NASA FIRMS satellite hotspot data streams in, July 17–25, 2024.
+   Detections appear on the map as they arrived in near-real-time.
+3. July 21, ~6 PM: A cluster of high-FRP detections appears southwest of Williams Lake.
+   Fire intensity crosses threshold (≥ 50 MW within 150 km of the Williams Lake River Valley zone centroid).
+   **Threat chip flashes. View auto-switches to intelligence panel.**
+4. Agent auto-triggers `fireguard_evacuation` workflow — no human click required:
+   - **Zone scan**: Williams Lake River Valley → 1,548 people, 618 homes — **PRIORITY 1**
+   - **Shelter scan**: Williams Lake × 5 — **ALL CLOSED**. 100 Mile House × 3 — **ALL CLOSED**. Quesnel — **CLOSED**. Railyard Mall Merritt — **OPEN** ← only option.
+   - **Road events**: Little Lake / Quesnel River Rd — closed (washout, no detour). Hwy 1 at Spences Bridge — concurrent closure.
+   - **Route eval**: Williams Lake → Merritt via Hwy 97 South — 200 km, ~2.5 h, clears fire buffer — **SAFE**
+   - **Route eval**: Williams Lake → Quesnel via Hwy 97 North — 120 km, ~1.5 h — but Quesnel absorbing Antler Creek evacuees.
+5. Agent produces evacuation brief + action cards:
+   - 🔴 URGENT: Evacuate Williams Lake River Valley (1,548 ppl) → Railyard Mall, Merritt via Hwy 97 South
+   - 🟡 WARNING: Spokin Lake Road (1,292 ppl, 1,061 homes) — prepare order now
+   - ⚠️ CAPACITY NOTE: Quesnel receiving Antler Creek evacuees — confirm capacity before routing north
+   - ⛔ ALL LOCAL SHELTERS CLOSED — do not direct evacuees to any Williams Lake ESS facility
+   - 🚧 CLOSURES: Little Lake / Quesnel River Rd (washout) · Hwy 1 at Spences Bridge (Shetland Creek fire)
+6. Judge: *"What if Highway 97 South is also blocked?"*
+   Agent calls `fireguard_evaluate_route` with `hypothetical_closures` injected on Hwy 97 South,
+   re-evaluates, surfaces Quesnel as fallback with capacity caveat, recommends confirming before routing.
 
-**Demo flow**:
-
-1. Operator opens FireGuard. The map shows the Williams Lake / Cariboo region.
-2. Hit REPLAY. Real NASA FIRMS satellite hotspot data streams in from July 17–25, 2024.
-   Fire detections appear on the map as they would have arrived in near-real-time.
-3. July 21: fire intensity near Williams Lake crosses the FRP threshold (≥ 50 MW within 150 km
-   of a populated evacuation zone). The threat chip flashes.
-4. The agent auto-triggers. The intelligence panel opens. The evacuation workflow runs:
-   - Scans 3 evacuation zones by population priority
-   - Finds all Williams Lake ESS facilities: **ALL CLOSED**
-   - Finds Railyard Mall in Merritt (200 km south): **OPEN** — only option in 300 km
-   - Evaluates route: Williams Lake → Merritt via Hwy 97 South — clear, 2.5 h
-   - Notes Little Lake / Quesnel River Road closure (washout, no detour)
-5. Agent produces structured evacuation brief + action cards:
-   - 🔴 URGENT: Evacuate Williams Lake River Valley (1,548 people) → Merritt via Hwy 97 South
-   - 🟡 WARNING: Alert Spokin Lake Road (1,292 people, 1,061 homes) — prepare order
-   - 🟢 INFO: Browntop Mountain (18 people) — self-evacuate advisory
-6. Judge asks: "What if Highway 97 South is also blocked?"
-   Agent re-runs `fireguard_evaluate_route` with a hypothetical closure injected, finds the
-   Quesnel alternative (north, 120 km), produces updated brief.
-
-**The story for judges**: in the real July 2024 event, coordination was slow. Families didn't
-know where to go. Shelters weren't pre-confirmed. FireGuard would have answered those questions
-in under 2 minutes, automatically, the moment the satellite data came in.
+**The line for judges**: *"The Williams Lake mayor called this a near-miss. FireGuard had the
+evacuation plan — routes, shelters, closures, zone priorities — before the fire crossed the city
+boundary. Every local shelter was closed. The only open facility was 200 km away. Two concurrent
+road closures affected the route network. Quesnel had a capacity problem from a different fire.
+A human coordinator would need hours to piece this together. The agent did it in under two minutes,
+automatically, the moment the satellite data came in."*
 
 ---
 
