@@ -1,0 +1,653 @@
+.agenticIntelligence .deliverable-editor {
+  border: 1px solid #2f343c;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.agenticIntelligence .report-preview {
+  overflow: auto;
+  min-width: 0;
+  padding: 24px;
+  border: 1px solid #2f343c;
+  border-radius: 8px;
+  background: #0d1117;
+}
+
+.agenticIntelligence .report-style-picker {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  width: min(940px, 100%);
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 auto 16px;
+  padding: 10px 12px;
+  border: 1px solid #2f343c;
+  border-radius: 8px;
+  background: rgba(21, 26, 33, 0.96);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
+  color: #d8dce3;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.agenticIntelligence .report-pages {
+  --report-page-width: 210mm;
+  --report-page-height: 297mm;
+  --report-font: "Source Sans 3", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --report-paper: #fbfbfa;
+  --report-ink: #0a0a0a;
+  --report-muted: #3f3f46;
+  --report-accent: #b42318;
+  --report-rule: #d7d7d7;
+  --report-table: #e9e9e9;
+  --report-code-bg: #edf0f4;
+  --report-code-fg: #8a1538;
+  --report-strip: linear-gradient(104deg, #b42318 0 18%, #0b6f86 18% 36%, #31572c 36% 52%, #e69500 52% 68%, #5f0f40 68% 84%, #124559 84% 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 26px;
+  font-family: var(--report-font);
+}
+
+.agenticIntelligence .report-style-atlas {
+  --report-paper: #f8fbff;
+  --report-ink: #081827;
+  --report-muted: #3d5567;
+  --report-accent: #006b8f;
+  --report-rule: #c7d8e6;
+  --report-table: #e1edf5;
+  --report-code-bg: #e8f3f8;
+  --report-code-fg: #075985;
+  --report-strip: linear-gradient(104deg, #083e5d 0 18%, #0b7285 18% 36%, #74a3b8 36% 52%, #d7a742 52% 68%, #9b2f43 68% 84%, #052e46 84% 100%);
+}
+
+.agenticIntelligence .report-style-technical {
+  --report-paper: #f9faf7;
+  --report-ink: #111713;
+  --report-muted: #4b5a4f;
+  --report-accent: #246b45;
+  --report-rule: #cfd8cf;
+  --report-table: #e7eee6;
+  --report-code-bg: #e9efe9;
+  --report-code-fg: #164e31;
+  --report-strip: linear-gradient(104deg, #111713 0 16%, #246b45 16% 36%, #8aa360 36% 52%, #d6b45f 52% 66%, #497057 66% 84%, #111713 84% 100%);
+}
+
+.agenticIntelligence .report-style-brief {
+  --report-paper: #fcfaf5;
+  --report-ink: #17120d;
+  --report-muted: #615349;
+  --report-accent: #8f2f20;
+  --report-rule: #ded3c4;
+  --report-table: #f0e7da;
+  --report-code-bg: #f2eadf;
+  --report-code-fg: #7c2d12;
+  --report-strip: linear-gradient(104deg, #111111 0 18%, #8f2f20 18% 34%, #c27b35 34% 50%, #d9c3a1 50% 66%, #496158 66% 82%, #17120d 82% 100%);
+}
+
+.agenticIntelligence .report-page {
+  position: relative;
+  width: var(--report-page-width);
+  height: var(--report-page-height);
+  min-height: 0;
+  flex: 0 0 auto;
+  overflow: hidden;
+  background: var(--report-paper);
+  color: var(--report-ink);
+  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.38);
+}
+
+.agenticIntelligence .report-cover-page {
+  display: grid;
+  grid-template-rows: auto auto minmax(180px, 1fr);
+  padding: 16mm 18mm 21mm;
+}
+
+.agenticIntelligence .report-cover-illustration {
+  position: relative;
+  width: min(560px, 74%);
+  aspect-ratio: 1;
+  margin: 0 auto 4mm;
+  background:
+    linear-gradient(90deg, rgba(11, 111, 134, 0.16) 1px, transparent 1px),
+    linear-gradient(0deg, rgba(11, 111, 134, 0.16) 1px, transparent 1px),
+    radial-gradient(circle at 64% 36%, rgba(230, 149, 0, 0.45), transparent 0 18%, transparent 19%),
+    linear-gradient(135deg, rgba(180, 35, 24, 0.18), rgba(255, 255, 255, 0));
+  background-size: 42px 42px, 42px 42px, auto, auto;
+  border: 2px solid color-mix(in srgb, var(--report-accent) 58%, transparent);
+}
+
+.agenticIntelligence .report-cover-illustration::before,
+.agenticIntelligence .report-cover-illustration::after,
+.agenticIntelligence .report-cover-illustration span {
+  position: absolute;
+  content: "";
+}
+
+.agenticIntelligence .report-cover-illustration::before {
+  top: 18%;
+  left: 10%;
+  width: 62%;
+  height: 46%;
+  background: rgba(8, 62, 93, 0.82);
+  clip-path: polygon(0 35%, 35% 0, 64% 24%, 100% 16%, 88% 76%, 54% 100%, 17% 83%);
+}
+
+.agenticIntelligence .report-cover-illustration::after {
+  right: 11%;
+  bottom: 15%;
+  width: 44%;
+  height: 30%;
+  background: rgba(180, 35, 24, 0.86);
+  clip-path: polygon(0 16%, 42% 0, 100% 22%, 78% 72%, 32% 100%, 8% 62%);
+}
+
+.agenticIntelligence .report-cover-illustration span:nth-child(1) {
+  left: 58%;
+  top: 24%;
+  width: 18%;
+  height: 18%;
+  border-radius: 50%;
+  background: #e69500;
+}
+
+.agenticIntelligence .report-cover-illustration span:nth-child(2) {
+  left: 15%;
+  bottom: 15%;
+  width: 34%;
+  height: 8px;
+  background: #31572c;
+}
+
+.agenticIntelligence .report-cover-illustration span:nth-child(3) {
+  right: 18%;
+  top: 18%;
+  width: 6px;
+  height: 46%;
+  background: #5f0f40;
+}
+
+
+.agenticIntelligence .report-cover-copy {
+  max-width: 760px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.agenticIntelligence .report-kicker {
+  margin: 0 0 10px;
+  color: var(--report-accent);
+  font-family: var(--report-font);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.agenticIntelligence .report-cover-copy h1 {
+  margin: 0;
+  color: var(--report-ink);
+  font-family: var(--report-font);
+  font-size: 50px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.agenticIntelligence .report-subtitle {
+  margin: 14px 0 0;
+  color: var(--report-muted);
+  font-family: var(--report-font);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.agenticIntelligence .report-cover-toc {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: end;
+  column-gap: 42px;
+  row-gap: 10px;
+  margin: 14mm 0 0;
+  padding: 0;
+  color: var(--report-ink);
+  font-family: var(--report-font);
+  list-style: none;
+}
+
+.agenticIntelligence .report-cover-toc li {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.agenticIntelligence .report-cover-toc span {
+  font-size: 16px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.agenticIntelligence .report-cover-toc strong {
+  overflow: hidden;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenticIntelligence .report-body-page {
+  display: flex;
+  flex-direction: column;
+  padding: 12mm 16mm 18mm;
+}
+
+.agenticIntelligence .report-page-header,
+.agenticIntelligence .report-page-footer {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--report-muted);
+  font-family: var(--report-font);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
+.agenticIntelligence .report-page-header {
+  min-height: 8mm;
+  margin-bottom: 6mm;
+  padding-bottom: 2.5mm;
+  border-bottom: 1px solid var(--report-rule);
+}
+
+.agenticIntelligence .report-page-header span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenticIntelligence .report-page-header strong {
+  color: var(--report-accent);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.agenticIntelligence .report-page-footer {
+  min-height: 8mm;
+  margin-top: 5mm;
+  padding-top: 2.5mm;
+  border-top: 1px solid var(--report-rule);
+}
+
+.agenticIntelligence .report-body-content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin-top: 0;
+  color: var(--report-ink);
+  column-count: 2;
+  column-gap: 10mm;
+  column-rule: 1px solid var(--report-rule);
+  font-family: var(--report-font);
+  font-size: 12px;
+  line-height: 1.48;
+  text-align: left;
+}
+
+.agenticIntelligence .report-body-content > :first-child {
+  margin-top: 0;
+}
+
+.agenticIntelligence .report-body-content p,
+.agenticIntelligence .report-body-content ul,
+.agenticIntelligence .report-body-content ol,
+.agenticIntelligence .report-body-content blockquote,
+.agenticIntelligence .report-body-content pre,
+.agenticIntelligence .report-body-content table {
+  margin: 0 0 14px;
+}
+
+.agenticIntelligence .report-body-content ul,
+.agenticIntelligence .report-body-content ol {
+  padding-left: 1.35em;
+}
+
+.agenticIntelligence .report-body-content li + li {
+  margin-top: 0.24em;
+}
+
+.agenticIntelligence .report-body-content a {
+  color: var(--report-accent);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.agenticIntelligence .report-body-content strong {
+  color: var(--report-ink);
+  font-weight: 800;
+}
+
+.agenticIntelligence .report-section-heading,
+.agenticIntelligence .report-chapter-heading {
+  column-span: all;
+  break-after: avoid;
+  display: flex;
+  align-items: flex-end;
+  gap: 22px;
+  margin: 0 0 26px;
+  color: var(--report-ink);
+  font-family: var(--report-font);
+  line-height: 1;
+  text-align: left;
+}
+
+.agenticIntelligence .report-section-heading {
+  font-size: inherit;
+}
+
+.agenticIntelligence .report-section-number {
+  color: var(--report-accent);
+  flex: 0 0 auto;
+  font-size: 52px;
+  font-weight: 900;
+  line-height: 0.82;
+}
+
+.agenticIntelligence .report-section-heading > span:last-child {
+  min-width: 0;
+  font-size: 27px;
+  font-weight: 900;
+  line-height: 1.05;
+}
+
+.agenticIntelligence .report-chapter-heading {
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 1.7em;
+  padding-top: 12px;
+  border-top: 3px solid var(--report-ink);
+  font-size: 19px;
+}
+
+.agenticIntelligence .report-chapter-heading.numbered span {
+  flex: 0 0 auto;
+  font-size: 28px;
+  font-weight: 900;
+}
+
+.agenticIntelligence .report-chapter-heading strong {
+  font-size: inherit;
+  line-height: 1.1;
+}
+
+.agenticIntelligence .report-chapter-heading.numbered span,
+.agenticIntelligence .report-minor-heading span {
+  color: var(--report-accent);
+}
+
+.agenticIntelligence .report-minor-heading {
+  break-after: avoid;
+  margin: 1.35em 0 0.5em;
+  color: var(--report-ink);
+  font-family: var(--report-font);
+  font-size: 14px;
+  line-height: 1.18;
+  text-align: left;
+}
+
+.agenticIntelligence .report-minor-heading.numbered {
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  gap: 8px;
+}
+
+.agenticIntelligence .report-minor-heading span {
+  font-weight: 900;
+}
+
+.agenticIntelligence .report-body-content h4 {
+  break-after: avoid;
+  margin: 1.2em 0 0.45em;
+  color: var(--report-ink);
+  font-family: var(--report-font);
+  font-size: 12px;
+  line-height: 1.2;
+  text-align: left;
+}
+
+.agenticIntelligence .report-section-heading + p,
+.agenticIntelligence .report-chapter-heading + p {
+  column-span: all;
+  margin-bottom: 1.3em;
+  font-size: 15px;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: left;
+}
+
+.agenticIntelligence .report-body-content blockquote {
+  column-span: all;
+  position: relative;
+  margin: 1.65em 0;
+  padding: 0 0 0 42px;
+  border: 0;
+  color: var(--report-ink);
+  font-family: var(--report-font);
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1.3;
+  text-align: left;
+}
+
+.agenticIntelligence .report-body-content blockquote::before {
+  position: absolute;
+  top: 0.12em;
+  left: 0;
+  width: 18px;
+  height: calc(100% - 0.18em);
+  min-height: 58px;
+  background: var(--report-ink);
+  content: "";
+}
+
+.agenticIntelligence .report-body-content code {
+  padding: 0.12em 0.28em;
+  border-radius: 3px;
+  background: var(--report-code-bg);
+  color: var(--report-code-fg);
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 0.86em;
+}
+
+.agenticIntelligence .report-body-content pre,
+.agenticIntelligence .report-body-content table,
+.agenticIntelligence .report-body-content .katex-display {
+  column-span: all;
+}
+
+.agenticIntelligence .report-body-content pre {
+  overflow-x: auto;
+  padding: 14px 16px;
+  border: 1px solid #d8dee8;
+  background: #111827;
+  color: #e5e7eb;
+  line-height: 1.55;
+  text-align: left;
+}
+
+.agenticIntelligence .report-body-content pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 11px;
+}
+
+.agenticIntelligence .report-body-content .katex {
+  color: var(--report-ink);
+  font-size: 1.04em;
+}
+
+.agenticIntelligence .report-body-content .katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.28em 0;
+  text-align: center;
+}
+
+.agenticIntelligence .report-body-content table {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  border-collapse: collapse;
+  font-family: var(--report-font);
+  font-size: 11px;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.agenticIntelligence .report-body-content th,
+.agenticIntelligence .report-body-content td {
+  padding: 6px 8px;
+  border: 1px solid var(--report-rule);
+  vertical-align: top;
+}
+
+.agenticIntelligence .report-body-content th {
+  background: var(--report-table);
+  color: var(--report-ink);
+  font-weight: 800;
+}
+
+.agenticIntelligence .report-body-content tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--report-table) 42%, transparent);
+}
+
+.agenticIntelligence .report-body-content hr {
+  column-span: all;
+  height: 1px;
+  margin: 2em 0;
+  border: 0;
+  background: var(--report-rule);
+}
+
+.agenticIntelligence .report-body-content img {
+  column-span: all;
+  max-width: 100%;
+  height: auto;
+}
+
+.agenticIntelligence .report-color-strip {
+  position: absolute;
+  right: 18mm;
+  bottom: 0;
+  left: 18mm;
+  height: 7mm;
+  background: var(--report-strip);
+}
+
+.agenticIntelligence .report-body-page .report-color-strip {
+  right: 16mm;
+  left: 16mm;
+  height: 4mm;
+}
+
+.agenticIntelligence .report-directive-pagebreak {
+  display: none;
+}
+
+.agenticIntelligence .report-directive-full-width {
+  column-span: all;
+  margin: 1.1em 0;
+}
+
+.agenticIntelligence .report-directive-callout {
+  column-span: all;
+  margin: 1.1em 0;
+  padding: 0.75em 1em;
+  border-left: 3px solid var(--report-accent);
+  border-radius: 0 4px 4px 0;
+  background: color-mix(in srgb, var(--report-accent) 8%, var(--report-paper));
+  font-size: 0.93em;
+}
+
+.agenticIntelligence .report-directive-summary {
+  column-span: all;
+  margin: 1.1em 0;
+  padding: 0.75em 1em;
+  border: 1px solid var(--report-rule);
+  border-radius: 4px;
+  background: var(--report-table);
+  font-size: 0.93em;
+}
+
+@media (max-width: 1180px) {
+  .agenticIntelligence .report-preview {
+    padding: 14px;
+  }
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 0;
+  }
+
+  body:has(.agenticIntelligence) {
+    background: #fff;
+  }
+
+  .shell:has(.agenticIntelligence) > .topbar,
+  .agenticIntelligence .topbar,
+  .agenticIntelligence .sessions-panel,
+  .agenticIntelligence .chat-panel,
+  .agenticIntelligence .report-style-picker,
+  .agenticIntelligence .workspace-tabs > .bp6-tab-list {
+    display: none;
+  }
+
+  .shell:has(.agenticIntelligence),
+  .agenticIntelligence,
+  .agenticIntelligence .workspace,
+  .agenticIntelligence .workspace-tabs,
+  .agenticIntelligence .workspace-tabs > .bp6-tab-panel,
+  .agenticIntelligence .report-preview {
+    display: block;
+    width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    padding: 0;
+    border: 0;
+    overflow: visible;
+    background: #fff;
+  }
+
+  .agenticIntelligence .report-pages {
+    gap: 0;
+  }
+
+  .agenticIntelligence .report-page {
+    width: 210mm;
+    height: 297mm;
+    box-shadow: none;
+    page-break-after: always;
+    break-after: page;
+  }
+
+  .agenticIntelligence .report-page:last-child {
+    page-break-after: auto;
+    break-after: auto;
+  }
+}

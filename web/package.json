@@ -1,0 +1,32 @@
+{
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1"
+  },
+  "dependencies": {
+    "@blueprintjs/core": "^6.3.2",
+    "@blueprintjs/icons": "^6.3.2",
+    "@fontsource/source-sans-3": "^5.2.9",
+    "@monaco-editor/react": "^4.7.0",
+    "@vitejs/plugin-react": "^5.1.2",
+    "@xyflow/react": "^12.11.0",
+    "katex": "^0.17.0",
+    "lucide-react": "^1.17.0",
+    "mapbox-gl": "^3.24.0",
+    "monaco-editor": "^0.55.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-directive": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.2.7"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.23",
+    "@types/react-dom": "^18.3.7"
+  }
+}

@@ -1,0 +1,266 @@
+.agenticIntelligence .report-style-risk .report-cover-illustration::before,
+.agenticIntelligence .report-style-risk .report-cover-illustration::after,
+.agenticIntelligence .report-style-risk .report-cover-illustration span {
+  border-radius: 50%;
+}
+
+.agenticIntelligence .report-style-risk .report-cover-illustration::before {
+  inset: auto;
+  top: 18%;
+  left: 10%;
+  width: 62%;
+  height: 62%;
+  background:
+    conic-gradient(from 6deg,
+      #e30613 0 44deg,
+      transparent 44deg 72deg,
+      #1c55a2 72deg 128deg,
+      transparent 128deg 154deg,
+      #c8dd23 154deg 204deg,
+      #ff8908 204deg 226deg,
+      transparent 226deg 246deg,
+      #f72a39 246deg 308deg,
+      transparent 308deg 330deg,
+      #1f5aa6 330deg 360deg);
+  opacity: 0.95;
+  clip-path: none;
+  -webkit-mask: radial-gradient(circle, transparent 0 42%, #000 43% 64%, transparent 65%);
+  mask: radial-gradient(circle, transparent 0 42%, #000 43% 64%, transparent 65%);
+}
+
+.agenticIntelligence .report-style-risk .report-cover-illustration::after {
+  inset: 72px;
+  width: auto;
+  height: auto;
+  background:
+    conic-gradient(from 28deg,
+      #0d6f88 0 58deg,
+      transparent 58deg 92deg,
+      #8a143f 92deg 145deg,
+      #f20c1b 145deg 218deg,
+      transparent 218deg 252deg,
+      #0585a9 252deg 318deg,
+      transparent 318deg 360deg);
+  opacity: 0.92;
+  clip-path: none;
+  -webkit-mask: radial-gradient(circle, transparent 0 37%, #000 38% 73%, transparent 74%);
+  mask: radial-gradient(circle, transparent 0 37%, #000 38% 73%, transparent 74%);
+}
+
+.agenticIntelligence .report-style-risk .report-cover-illustration span:nth-child(1) {
+  inset: 118px;
+  width: auto;
+  height: auto;
+  background:
+    conic-gradient(from 312deg,
+      rgba(12, 74, 112, 0.88) 0 82deg,
+      rgba(156, 7, 32, 0.88) 82deg 158deg,
+      rgba(230, 6, 19, 0.82) 158deg 250deg,
+      rgba(32, 88, 165, 0.84) 250deg 360deg);
+  transform: rotate(-18deg);
+  -webkit-mask: radial-gradient(circle, transparent 0 18%, #000 19% 100%);
+  mask: radial-gradient(circle, transparent 0 18%, #000 19% 100%);
+}
+
+.agenticIntelligence .report-style-risk .report-cover-illustration span:nth-child(2),
+.agenticIntelligence .report-style-risk .report-cover-illustration span:nth-child(3) {
+  display: none;
+}
+
+.agenticIntelligence .report-style-atlas .report-cover-illustration {
+  width: min(520px, 74%);
+  aspect-ratio: 1;
+  margin: 20px auto 14px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: #020e18;
+  box-shadow: 0 0 0 2px #0b4f6c, 0 0 48px rgba(0, 107, 143, 0.4);
+}
+
+.agenticIntelligence .report-style-atlas .report-cover-illustration::before {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 17.5%, rgba(0, 107, 143, 0.38) 18.5%, transparent 20%),
+    radial-gradient(circle, transparent 36%, rgba(0, 107, 143, 0.30) 37%, transparent 38.5%),
+    radial-gradient(circle, transparent 54%, rgba(0, 107, 143, 0.24) 55%, transparent 56.5%),
+    radial-gradient(circle, transparent 72%, rgba(0, 107, 143, 0.18) 73%, transparent 74.5%),
+    radial-gradient(circle, transparent 90%, rgba(0, 107, 143, 0.14) 91%, transparent 92.5%);
+  clip-path: none;
+}
+
+.agenticIntelligence .report-style-atlas .report-cover-illustration::after {
+  inset: 0;
+  width: auto;
+  height: auto;
+  border-radius: 50%;
+  background: conic-gradient(
+    from -25deg,
+    rgba(0, 160, 190, 0.52) 0deg 68deg,
+    transparent 68deg 360deg
+  );
+  clip-path: none;
+}
+
+.agenticIntelligence .report-style-atlas .report-cover-illustration span:nth-child(1) {
+  top: calc(50% - 0.5px);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: auto;
+  height: 1px;
+  border-radius: 0;
+  background: rgba(0, 140, 180, 0.4);
+}
+
+.agenticIntelligence .report-style-atlas .report-cover-illustration span:nth-child(2) {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  height: auto;
+  background: rgba(0, 140, 180, 0.4);
+}
+
+.agenticIntelligence .report-style-atlas .report-cover-illustration span:nth-child(3) {
+  inset: auto;
+  top: 26%;
+  left: 60%;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #00d4ff;
+  box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.25), 0 0 16px 4px rgba(0, 212, 255, 0.65);
+}
+
+.agenticIntelligence .report-style-technical .report-cover-illustration {
+  width: min(520px, 74%);
+  aspect-ratio: 1;
+  margin: 20px auto 14px;
+  background: radial-gradient(rgba(36, 107, 69, 0.28) 1px, transparent 1px);
+  background-size: 22px 22px;
+}
+
+.agenticIntelligence .report-style-technical .report-cover-illustration::before {
+  inset: 8%;
+  width: auto;
+  height: auto;
+  border: 1.5px solid rgba(36, 107, 69, 0.7);
+  border-radius: 50%;
+  background: transparent;
+  clip-path: none;
+}
+
+.agenticIntelligence .report-style-technical .report-cover-illustration::after {
+  inset: 24%;
+  width: auto;
+  height: auto;
+  border-radius: 50%;
+  background: conic-gradient(
+    from -50deg at 50% 50%,
+    rgba(36, 107, 69, 0.38) 0deg 105deg,
+    transparent 105deg 360deg
+  );
+  clip-path: none;
+  -webkit-mask: radial-gradient(circle, transparent 29%, #000 30%);
+  mask: radial-gradient(circle, transparent 29%, #000 30%);
+}
+
+.agenticIntelligence .report-style-technical .report-cover-illustration span:nth-child(1) {
+  top: calc(50% - 0.5px);
+  right: 0;
+  bottom: auto;
+  left: 0;
+  width: auto;
+  height: 1px;
+  border-radius: 0;
+  background: rgba(17, 23, 19, 0.5);
+}
+
+.agenticIntelligence .report-style-technical .report-cover-illustration span:nth-child(2) {
+  top: 0;
+  right: auto;
+  bottom: 0;
+  left: calc(50% - 0.5px);
+  width: 1px;
+  height: auto;
+  background: rgba(17, 23, 19, 0.5);
+}
+
+.agenticIntelligence .report-style-technical .report-cover-illustration span:nth-child(3) {
+  inset: auto;
+  top: calc(50% - 5px);
+  left: calc(50% - 5px);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #246b45;
+}
+
+.agenticIntelligence .report-style-brief .report-cover-illustration {
+  width: min(560px, 76%);
+  aspect-ratio: 1.28;
+  margin: 18px auto 14px;
+}
+
+.agenticIntelligence .report-style-brief .report-cover-illustration::before {
+  inset: 10% 6% 14% 10%;
+  width: auto;
+  height: auto;
+  border: 0;
+  border-left: 2px solid rgba(143, 47, 32, 0.8);
+  border-bottom: 2px solid rgba(143, 47, 32, 0.8);
+  background: repeating-linear-gradient(
+    0deg,
+    transparent 0px,
+    transparent calc(25% - 1px),
+    rgba(222, 211, 196, 0.55) calc(25% - 1px),
+    rgba(222, 211, 196, 0.55) 25%
+  );
+  clip-path: none;
+}
+
+.agenticIntelligence .report-style-brief .report-cover-illustration::after {
+  inset: 10% 6% 14% 10%;
+  width: auto;
+  height: auto;
+  background: linear-gradient(
+    90deg,
+    #8f2f20 0 13%,
+    transparent 13% 20%,
+    #c27b35 20% 34%,
+    transparent 34% 41%,
+    #496158 41% 57%,
+    transparent 57% 64%,
+    #17120d 64% 78%,
+    transparent 78% 85%,
+    #8f2f20 85% 100%
+  );
+  clip-path: polygon(
+    0% 100%, 0% 48%, 13% 48%, 13% 100%,
+    20% 100%, 20% 26%, 34% 26%, 34% 100%,
+    41% 100%, 41% 8%, 57% 8%, 57% 100%,
+    64% 100%, 64% 35%, 78% 35%, 78% 100%,
+    85% 100%, 85% 58%, 100% 58%, 100% 100%
+  );
+}
+
+.agenticIntelligence .report-style-brief .report-cover-illustration span:nth-child(1) {
+  inset: 10% 6% 14% 10%;
+  width: auto;
+  height: auto;
+  border-radius: 0;
+  background: rgba(214, 180, 95, 0.9);
+  clip-path: polygon(
+    0% 62%, 13% 58%, 34% 40%, 57% 18%, 78% 30%, 100% 48%,
+    100% 53%, 78% 35%, 57% 23%, 34% 45%, 13% 63%, 0% 67%
+  );
+}
+
+.agenticIntelligence .report-style-brief .report-cover-illustration span:nth-child(2),
+.agenticIntelligence .report-style-brief .report-cover-illustration span:nth-child(3) {
+  display: none;
+}

@@ -1,0 +1,238 @@
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #10161d;
+}
+
+.shell {
+  min-height: 100%;
+  display: grid;
+  grid-template-rows: auto 72px 1fr;
+}
+
+.topbar {
+  border-bottom: 1px solid #2f3b47;
+}
+
+.timeline {
+  display: grid;
+  grid-template-columns: 1fr 84px;
+  border-bottom: 1px solid #2f3b47;
+  background: #151c24;
+}
+
+.tickRail {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  align-items: end;
+  gap: 1px;
+  padding: 12px 18px;
+}
+
+.playhead {
+  position: absolute;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  background: #ff6b4a;
+  box-shadow: 0 0 0 3px rgba(255, 107, 74, 0.18);
+  transform: translateX(18px);
+  z-index: 2;
+}
+
+.playhead::before {
+  content: "";
+  position: absolute;
+  top: -3px;
+  left: -5px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ff6b4a;
+}
+
+.tick {
+  min-height: 34px;
+  border-left: 1px solid #526170;
+  color: #a7b6c5;
+  font-size: 12px;
+  padding-left: 8px;
+}
+
+.liveEdge {
+  display: grid;
+  place-items: center;
+  background: #f2b84b;
+  color: #18130a;
+  font-weight: 800;
+}
+
+.workspace {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 340px minmax(0, 1fr);
+}
+
+.sidePane {
+  border-right: 1px solid #2f3b47;
+  padding: 16px;
+  overflow: auto;
+}
+
+.mainPane {
+  min-width: 0;
+  display: grid;
+  gap: 12px;
+  align-content: start;
+  padding: 16px;
+  overflow: auto;
+}
+
+.statsStrip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(132px, auto)) minmax(220px, 1fr);
+  gap: 10px;
+  align-items: stretch;
+}
+
+.statItem {
+  min-height: 58px;
+  display: grid;
+  align-content: center;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid #2f3b47;
+  background: #151c24;
+}
+
+.statItem span {
+  color: #a7b6c5;
+  font-size: 12px;
+}
+
+.statItem strong {
+  color: #f5f8fa;
+  font-size: 18px;
+  line-height: 1.1;
+}
+
+.sourceStats {
+  min-height: 58px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-content: center;
+  padding: 10px 12px;
+  border: 1px solid #2f3b47;
+  background: #151c24;
+}
+
+.mapPane {
+  height: 420px;
+  padding: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.mapCanvas {
+  width: 100%;
+  height: 100%;
+}
+
+.mapLegend {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(16, 22, 29, 0.82);
+  color: #d7e2ee;
+  font-size: 12px;
+}
+
+.mapLegend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.legendDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+
+.firmsDot {
+  background: #f15b43;
+}
+
+.bcwsDot {
+  background: #f2b84b;
+  border: 2px solid #10161d;
+}
+
+.legendLine {
+  width: 18px;
+  height: 2px;
+  display: inline-block;
+  background: #ffd27f;
+}
+
+.windLine {
+  background: #6bbcff;
+}
+
+.eventPane {
+  min-height: 540px;
+}
+
+.eventHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.eventHeader h2 {
+  margin: 0 0 4px;
+}
+
+.eventTable {
+  width: 100%;
+}
+
+.shell > .agenticIntelligence {
+  grid-row: 2 / 4;
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .statsStrip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .sourceStats {
+    grid-column: 1 / -1;
+  }
+
+  .workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .sidePane {
+    border-right: 0;
+    border-bottom: 1px solid #2f3b47;
+  }
+}

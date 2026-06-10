@@ -1,0 +1,506 @@
+.agenticIntelligence {
+  color-scheme: dark;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: #101418;
+}
+
+.agenticIntelligence * {
+  box-sizing: border-box;
+}
+
+
+.agenticIntelligence {
+  display: grid;
+  grid-template-rows: 58px minmax(0, 1fr);
+  grid-template-columns: 260px minmax(620px, 1fr) 420px;
+  width: 100%;
+  height: 100%;
+  min-width: 900px;
+  overflow: hidden;
+  background: #101418;
+  color: #f6f7f9;
+}
+
+.agenticIntelligence .topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 58px;
+  padding: 10px 14px;
+  border-bottom: 1px solid #2f343c;
+  background: #151a21;
+}
+
+.agenticIntelligence .brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agenticIntelligence .brand h1 {
+  margin: 0;
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 700;
+}
+
+.agenticIntelligence .error-banner {
+  grid-column: 1 / -1;
+  padding: 8px 14px;
+  border-bottom: 1px solid #7a2e2e;
+  color: #ffd6d6;
+  background: #431b1b;
+  font-size: 12px;
+}
+
+.agenticIntelligence .workspace {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 10px;
+}
+
+.agenticIntelligence .chat-panel {
+  grid-column: 3;
+  min-height: 0;
+  border-left: 1px solid #2f343c;
+  background: #151a21;
+}
+
+.agenticIntelligence .sessions-panel {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid #2f343c;
+  background: #151a21;
+}
+
+.agenticIntelligence .sessions-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #2f343c;
+}
+
+.agenticIntelligence .sessions-header strong {
+  color: #f6f7f9;
+  font-size: 13px;
+}
+
+.agenticIntelligence .sessions-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.agenticIntelligence .empty-sessions {
+  padding: 12px 8px;
+  color: #8f99a8;
+  font-size: 12px;
+}
+
+.agenticIntelligence .session-item {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 6px;
+  padding: 9px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: #f6f7f9;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.agenticIntelligence .session-item:hover,
+.agenticIntelligence .session-item.active {
+  border-color: #3d4652;
+  background: #101418;
+}
+
+.agenticIntelligence .session-item:disabled {
+  cursor: default;
+  opacity: 0.7;
+}
+
+.agenticIntelligence .session-title,
+.agenticIntelligence .session-meta {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenticIntelligence .session-title {
+  color: #f6f7f9;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 17px;
+}
+
+.agenticIntelligence .session-meta {
+  color: #8f99a8;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.agenticIntelligence .chat-panel .bp6-tabs {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.agenticIntelligence .chat-panel .bp6-tab-list {
+  flex: 0 0 auto;
+  padding: 10px 12px 0;
+}
+
+.agenticIntelligence .chat-panel .bp6-tab-panel {
+  flex: 1;
+  min-height: 0;
+  margin-top: 8px;
+}
+
+.agenticIntelligence .chat-tab {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.agenticIntelligence .chat-messages,
+.agenticIntelligence .activity-tab {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.agenticIntelligence .empty-chat {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #8f99a8;
+  font-size: 13px;
+  text-align: center;
+}
+
+.agenticIntelligence .chat-message {
+  margin-bottom: 12px;
+  padding: 10px;
+  border: 1px solid #2f343c;
+  border-radius: 8px;
+  background: #101418;
+}
+
+.agenticIntelligence .chat-message.user {
+  background: #182233;
+}
+
+.agenticIntelligence .message-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #abb3bf;
+  font-size: 12px;
+}
+
+.agenticIntelligence .message-content {
+  white-space: pre-wrap;
+  color: #f6f7f9;
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.agenticIntelligence .message-attachments,
+.agenticIntelligence .composer-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.agenticIntelligence .composer-attachments {
+  flex: 0 0 auto;
+  margin-top: 0;
+  padding: 0 12px 10px;
+  border-top: 1px solid #2f343c;
+}
+
+.agenticIntelligence .attachment-chip {
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 7px;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid #3d4652;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #171d25;
+  color: #f6f7f9;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agenticIntelligence .attachment-chip.readonly {
+  cursor: default;
+}
+
+.agenticIntelligence .attachment-chip small {
+  flex: 0 0 auto;
+  color: #8f99a8;
+  font-size: 11px;
+}
+
+.agenticIntelligence .message-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.agenticIntelligence .tool-card {
+  border: 1px solid #3d4652;
+  border-radius: 7px;
+  background: #171d25;
+  color: #d8dce3;
+  font-size: 12px;
+}
+
+.agenticIntelligence .tool-card.running {
+  border-color: #d9822b;
+}
+
+.agenticIntelligence .tool-card.failed {
+  border-color: #cd4246;
+}
+
+.agenticIntelligence .tool-card.done {
+  border-color: #238551;
+}
+
+.agenticIntelligence .tool-card summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 7px 9px;
+  cursor: pointer;
+}
+
+.agenticIntelligence .tool-card code {
+  color: #8f99a8;
+  font-size: 11px;
+}
+
+.agenticIntelligence .tool-card pre {
+  max-height: 260px;
+  margin: 0;
+  overflow: auto;
+  padding: 9px;
+  border-top: 1px solid #2f343c;
+  color: #d8dce3;
+  font-size: 11px;
+  line-height: 15px;
+}
+
+.agenticIntelligence .ask-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid #3d4652;
+  border-radius: 8px;
+  background: #101820;
+}
+
+.agenticIntelligence .ask-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: #f6f7f9;
+  font-size: 13px;
+}
+
+.agenticIntelligence .ask-sheet-header code {
+  color: #8f99a8;
+  font-size: 11px;
+}
+
+.agenticIntelligence .ask-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.agenticIntelligence .ask-question {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.agenticIntelligence .ask-question legend {
+  margin-bottom: 7px;
+  padding: 0;
+  color: #f6f7f9;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.agenticIntelligence .ask-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.agenticIntelligence .ask-option {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  color: #d8dce3;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.agenticIntelligence .ask-option input {
+  margin: 2px 0 0;
+}
+
+.agenticIntelligence .ask-other-input {
+  width: 100%;
+  margin-top: 7px;
+  resize: vertical;
+  min-height: 38px;
+  padding: 7px;
+  border: 1px solid #3d4652;
+  border-radius: 7px;
+  outline: none;
+  background: #151a21;
+  color: #f6f7f9;
+  font: inherit;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.agenticIntelligence .chat-input-row {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid #2f343c;
+}
+
+.agenticIntelligence .file-input {
+  display: none;
+}
+
+.agenticIntelligence .chat-input-row textarea {
+  flex: 1;
+  resize: none;
+  min-height: 42px;
+  max-height: 120px;
+  padding: 8px;
+  border: 1px solid #3d4652;
+  border-radius: 8px;
+  outline: none;
+  background: #101418;
+  color: #f6f7f9;
+  font: inherit;
+  font-size: 13px;
+}
+
+.agenticIntelligence .workspace-tabs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.agenticIntelligence .workspace-tabs > .bp6-tab-list {
+  flex: 0 0 auto;
+}
+
+.agenticIntelligence .workspace-tabs > .bp6-tab-panel {
+  flex: 1;
+  min-height: 0;
+  margin-top: 10px;
+}
+
+.agenticIntelligence .graph-only,
+.agenticIntelligence .deliverable-editor,
+.agenticIntelligence .report-preview {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+
+.agenticIntelligence .transcript-dialog {
+  width: min(1100px, calc(100vw - 60px));
+}
+
+.agenticIntelligence .transcript-dialog .bp6-dialog-body {
+  margin: 0;
+}
+
+.agenticIntelligence .approval-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 14px;
+  border-top: 1px solid #2f343c;
+  background: #151a21;
+}
+
+.agenticIntelligence .approval-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.agenticIntelligence .approval-copy strong {
+  color: #f6f7f9;
+}
+
+.agenticIntelligence .approval-copy span {
+  color: #abb3bf;
+}
+
+.agenticIntelligence .approval-buttons {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.agenticIntelligence .transcript-editor {
+  height: min(760px, calc(100vh - 150px));
+  border-top: 1px solid #2f343c;
+}
