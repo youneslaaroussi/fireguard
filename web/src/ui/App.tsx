@@ -14,6 +14,7 @@ import { SystemHUD } from "./SystemHUD";
 import { TechFooter } from "./TechFooter";
 import { ThreatPanel } from "./ThreatPanel";
 import { Timeline } from "./Timeline";
+import { WindCompass } from "./WindCompass";
 import { sources } from "./state";
 
 const initial: ReplayRequest = {
@@ -340,6 +341,7 @@ export function App() {
           )}
           <DecisionTimer threat={threatAlert} hasPlan={actionPlan !== null} />
           <SystemHUD events={events} busy={busy} threat={threatAlert} status={status} />
+          <WindCompass events={events} context={context} />
         </section>
       </div>
 
