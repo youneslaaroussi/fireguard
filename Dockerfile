@@ -5,18 +5,17 @@ RUN npm ci
 COPY web/ ./
 RUN npm run build
 
-# Install the Elastic MCP server for use in Cloud Run (no Docker daemon available)
-RUN npm install -g @elastic/mcp-server-elasticsearch@0.3.1
-
 FROM python:3.12-slim
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# Copy Node runtime + Elastic MCP server binary from the build stage
-COPY --from=web-build /usr/local/bin/node /usr/local/bin/node
-COPY --from=web-build /usr/local/lib/node_modules /usr/local/lib/node_modules
-COPY --from=web-build /usr/local/bin/mcp-server-elasticsearch /usr/local/bin/mcp-server-elasticsearch
+# Install Node.js and the Elastic MCP server directly in the Python image
+RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
+    && npm install -g @elastic/mcp-server-elasticsearch@0.3.1 \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
