@@ -1,3 +1,16 @@
+/* ================================================================
+   FIREGUARD — flat ops-dashboard theme
+   Tokens:
+     app bg        #0d1117
+     surface       #111820
+     border        rgba(255,255,255,0.07)
+     text primary  #e2e8f0
+     text second   #9ab0c4
+     muted labels  #4b5563
+     data values   #c8d6e0 mono
+     critical #e5484d · warn #f59e0b · ok #22c55e · info #3b82f6 · off #374151
+   ================================================================ */
+
 html,
 body,
 #root {
@@ -11,256 +24,139 @@ body {
   color: #e2e8f0;
 }
 
+* { border-radius: 0; }
+
 /* ================================================================
-   SHELL
+   SHELL — header / [sidebar | center | map] / agent bar
    ================================================================ */
 
 .shell--replay {
-  display: block;
   position: relative;
+  display: flex;
+  flex-direction: column;
   height: 100vh;
   overflow: hidden;
 }
 
-.shell--intelligence {
+.appMain {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.centerPanel {
+  flex: 1;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
   background: #0d1117;
+}
+
+.mapColumn {
+  width: 38%;
+  min-width: 380px;
+  flex-shrink: 0;
+  position: relative;
+  border-left: 1px solid rgba(255,255,255,0.07);
 }
 
 .mapFullScreen {
   position: absolute;
   inset: 0;
-  z-index: 0;
 }
 
-.agentOverlay {
-  position: absolute;
-  top: 58px;
-  right: 12px;
-  bottom: 12px;
-  z-index: 180;
-  display: flex;
-  align-items: stretch;
-  justify-content: flex-end;
-  pointer-events: none;
-}
-
-.agentOverlay .agenticIntelligence {
-  pointer-events: auto;
-  width: min(520px, calc(100vw - 24px));
+.mapCanvas {
+  width: 100%;
   height: 100%;
-  box-shadow: -18px 0 54px rgba(0, 0, 0, 0.64), 0 0 0 1px rgba(80, 140, 210, 0.18);
-}
-
-@media (max-width: 980px) {
-  .agentOverlay {
-    top: 78px;
-    right: 8px;
-    bottom: 8px;
-    left: 8px;
-  }
-
-  .agentOverlay .agenticIntelligence {
-    width: 100%;
-  }
 }
 
 /* ================================================================
-   APP HEADER — flat Gotham bar
+   HEADER — 28px flat bar
    ================================================================ */
 
 .appHeader {
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: #111820;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(8px);
-}
-
-/* Intelligence view header — no absolute positioning */
-.appHeader--minimal {
-  position: relative;
+  height: 28px;
   flex-shrink: 0;
-}
-
-/* ── Header row ─────────────────────────────────────────────── */
-
-.headerRow {
   display: flex;
   align-items: center;
-  gap: 0;
-  padding: 0 14px;
-  height: 44px;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  gap: 10px;
+  padding: 0 12px;
+  background: #111820;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  z-index: 20;
 }
-
-/* ── Brand ───────────────────────────────────────────────────── */
 
 .brandMark {
   display: flex;
   align-items: center;
-  gap: 9px;
+  gap: 7px;
   flex-shrink: 0;
-  padding-right: 4px;
 }
 
 .brandFlame {
-  width: 16px;
-  height: 20px;
-  filter: drop-shadow(0 0 6px rgba(255, 107, 74, 0.6));
-}
-
-.brandText {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
+  width: 11px;
+  height: 14px;
 }
 
 .brandName {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.28em;
-  text-transform: uppercase;
+  letter-spacing: 0.26em;
   color: #e2e8f0;
   line-height: 1;
   font-family: 'Courier New', monospace;
 }
 
-.brandSub {
-  font-size: 7.5px;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: #4b5563;
-  line-height: 1;
-  font-family: 'Courier New', monospace;
-}
-
-.headerSep {
-  width: 1px;
-  height: 26px;
-  background: rgba(255,255,255,0.07);
-  margin: 0 14px;
+.headerCrumbSep {
+  color: #374151;
+  font-size: 11px;
   flex-shrink: 0;
 }
 
-.headerFill {
-  flex: 1;
+.headerCrumb {
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  color: #9ab0c4;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
 }
 
-/* ── Acquisition status chip ────────────────────────────────── */
+.headerCrumb--dim { color: #4b5563; }
 
-@keyframes acqPulse {
-  0%, 100% { opacity: 0.55; }
-  50% { opacity: 1; }
-}
+.headerFill { flex: 1; }
 
-.acqChip {
+/* Status chips — flat, 2px left-border accent */
+.statusChip {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 3px 10px;
-  border: 1px solid rgba(255,255,255,0.08);
+  height: 18px;
+  padding: 0 8px;
+  border: none;
+  border-left: 2px solid #374151;
   background: rgba(255,255,255,0.03);
   font-size: 9px;
-  letter-spacing: 0.22em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
+  font-family: 'Courier New', monospace;
   color: #4b5563;
   flex-shrink: 0;
-  margin-left: 8px;
+  white-space: nowrap;
 }
 
-.acqDot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #4b5563;
-  flex-shrink: 0;
-}
-
-.acqChip--on {
-  border-color: rgba(34,197,94,0.4);
+.statusChip--on {
+  border-left-color: #22c55e;
   color: #22c55e;
-  background: rgba(34,197,94,0.08);
+  background: rgba(34,197,94,0.07);
 }
 
-.acqChip--on .acqDot {
-  background: #22c55e;
-  animation: acqPulse 1.4s ease-in-out infinite;
-}
-
-/* ── Threat chip ─────────────────────────────────────────────── */
-
-@keyframes threatPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.75; }
-}
-
-.threatChip {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 3px 8px;
-  border: 1px solid rgba(229,72,77,0.35);
-  background: rgba(229,72,77,0.08);
-  font-size: 9px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
+.statusChip--threat {
+  border-left-color: #e5484d;
   color: #e5484d;
-  flex-shrink: 0;
-  margin-left: 8px;
-  animation: threatPulse 1.8s ease-out infinite;
-}
-
-.threatDot {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #e5484d;
-  flex-shrink: 0;
-}
-
-.threatViewBtn {
-  border: none;
-  background: transparent;
-  color: #9ab0c4;
-  font-size: 9px;
-  font-family: 'Courier New', monospace;
-  letter-spacing: 0.18em;
+  background: rgba(229,72,77,0.08);
   cursor: pointer;
-  padding: 0 0 0 4px;
-  border-left: 1px solid rgba(255,255,255,0.08);
-  margin-left: 4px;
-  transition: color 0.15s;
 }
 
-.threatViewBtn:hover { color: #e2e8f0; }
-
-/* ── Nav chips (intelligence view) ──────────────────────────── */
-
-.navChip {
-  padding: 3px 10px;
-  border: 1px solid rgba(255,255,255,0.08);
-  background: transparent;
-  color: #4b5563;
-  font-size: 9px;
-  font-family: 'Courier New', monospace;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s, background 0.15s;
-  margin-left: 6px;
-}
-
-.navChip:hover {
-  color: #9ab0c4;
-  border-color: rgba(255,255,255,0.15);
-  background: rgba(255,255,255,0.04);
-}
+.statusChip--threat:hover { background: rgba(229,72,77,0.16); }
 
 /* ── Error bar ───────────────────────────────────────────────── */
 
@@ -270,9 +166,10 @@ body {
   gap: 8px;
   padding: 4px 14px;
   background: rgba(229,72,77,0.12);
-  border-top: 1px solid rgba(229,72,77,0.25);
+  border-bottom: 1px solid rgba(229,72,77,0.25);
   font-size: 10px;
   font-family: 'Courier New', monospace;
+  flex-shrink: 0;
 }
 
 .errorLabel {
@@ -282,10 +179,7 @@ body {
   flex-shrink: 0;
 }
 
-.errorMsg {
-  color: #c08080;
-  flex: 1;
-}
+.errorMsg { color: #c08080; flex: 1; }
 
 .errorClose {
   border: none;
@@ -295,98 +189,195 @@ body {
   font-size: 12px;
   padding: 0;
   flex-shrink: 0;
-  transition: color 0.15s;
 }
 
 .errorClose:hover { color: #e08080; }
 
 /* ================================================================
-   STATS ROW — source icons + data pills
+   LEFT SIDEBAR — 200px
    ================================================================ */
 
-.statsRow {
+.sidebar {
+  width: 200px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: #111820;
+  border-right: 1px solid rgba(255,255,255,0.07);
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+
+.sbFill { flex: 1; min-height: 8px; }
+
+.sbSection {
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0;
+}
+
+.sbSectionHeader {
   display: flex;
   align-items: center;
-  gap: 2px;
-  flex-wrap: nowrap;
-  overflow: hidden;
-}
-
-.statPill {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 8px;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: rgba(255,255,255,0.03);
-  white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.statPill--dim {
-  color: #2a4a62;
-  font-size: 10px;
-}
-
-.statPillVal {
-  font-size: 11px;
-  color: #c8d6e0;
-  font-family: 'Courier New', monospace;
-  letter-spacing: 0.05em;
-}
-
-.statPillLabel {
-  font-size: 8.5px;
+  gap: 6px;
+  width: 100%;
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  background: transparent;
   color: #4b5563;
-  letter-spacing: 0.15em;
+  font-size: 9px;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
+  font-family: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
 }
 
-/* Source divider */
-.srcDivider {
-  width: 1px;
-  height: 16px;
-  background: rgba(255,255,255,0.07);
-  margin: 0 4px;
+.sbSectionHeader:hover { color: #9ab0c4; }
+
+.sbTriangle {
+  width: 0;
+  height: 0;
+  border-left: 4px solid currentColor;
+  border-top: 3px solid transparent;
+  border-bottom: 3px solid transparent;
+  transition: transform 0.1s;
   flex-shrink: 0;
 }
 
-/* Source pills */
-.srcPill {
+.sbTriangle--open { transform: rotate(90deg); }
+
+.sbSectionBody { padding: 0 0 6px; }
+
+/* Tree rows */
+.sbRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 20px;
+  width: 100%;
+  padding: 0 10px 0 20px;
+  border: none;
+  background: transparent;
+  font-family: inherit;
+  text-align: left;
+  box-sizing: border-box;
+}
+
+.sbRow--toggle { cursor: pointer; }
+.sbRow--toggle:hover { background: rgba(255,255,255,0.04); }
+.sbRow--toggle:disabled { cursor: default; opacity: 0.6; }
+
+.sbSquare {
+  width: 8px;
+  height: 8px;
+  flex-shrink: 0;
+  background: #374151;
+}
+
+.sbSquare--check {
+  background: transparent;
+  border: 1px solid #374151;
+  width: 7px;
+  height: 7px;
+}
+
+.sbLogo { opacity: 0.6; flex-shrink: 0; }
+
+.sbRowLabel {
+  flex: 1;
+  font-size: 10px;
+  color: #c8d6e0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sbRowCount {
+  font-size: 10px;
+  color: #4b5563;
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+}
+
+.sbMetaRow {
+  padding: 4px 10px 0 20px;
+  font-size: 8.5px;
+  color: #374151;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.06em;
+}
+
+/* Replay fields */
+.sbField {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 20px;
+}
+
+.sbFieldLabel {
+  width: 38px;
+  flex-shrink: 0;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: #4b5563;
+  font-family: 'Courier New', monospace;
+}
+
+.sbInput {
+  flex: 1;
+  min-width: 0;
+  height: 20px;
+  padding: 0 5px;
+  background: #0d1117;
+  border: 1px solid rgba(255,255,255,0.08);
+  color: #c8d6e0;
+  font-size: 10px;
+  font-family: 'Courier New', monospace;
+  outline: none;
+  color-scheme: dark;
+}
+
+.sbInput:focus { border-color: rgba(59,130,246,0.5); }
+.sbInput:disabled { opacity: 0.5; }
+
+select.sbInput { appearance: none; }
+
+/* Legend */
+.sbLegend {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 0 10px 2px 20px;
+}
+
+.sbLegend span {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 2px 7px;
-  background: rgba(255,255,255,0.02);
-  border: 1px solid rgba(255,255,255,0.07);
-  white-space: nowrap;
-  flex-shrink: 0;
+  gap: 7px;
+  font-size: 9.5px;
+  color: #4b5563;
+  letter-spacing: 0.03em;
 }
 
-.srcPillLabel {
-  font-size: 9px;
-  font-family: 'Courier New', monospace;
-  letter-spacing: 0.1em;
-  font-weight: 600;
-}
-
-.srcPillCount {
-  font-size: 10px;
-  color: #3a6080;
-  font-family: 'Courier New', monospace;
-}
+.sbLegendDot { width: 7px; height: 7px; display: inline-block; flex-shrink: 0; }
+.sbLegendLine { width: 12px; height: 2px; display: inline-block; flex-shrink: 0; }
 
 /* ================================================================
-   TIMELINE
+   TIMELINE — top of center panel
    ================================================================ */
 
 .tlBar {
   display: flex;
   align-items: stretch;
-  height: 46px;
+  height: 44px;
+  flex-shrink: 0;
+  background: #111820;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
 }
-
-/* ── Track area ──────────────────────────────────────────────── */
 
 .tlTrackArea {
   flex: 1;
@@ -398,21 +389,20 @@ body {
   overflow: hidden;
 }
 
-/* Tick labels above track */
 .tlTickRow {
   position: relative;
-  height: 14px;
-  margin-bottom: 4px;
+  height: 12px;
+  margin-bottom: 3px;
 }
 
 .tlTick {
   position: absolute;
   top: 0;
   transform: translateX(-50%);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
+
+.tlTick--first { transform: translateX(0); }
+.tlTick--last  { transform: translateX(-100%); }
 
 .tlTickLabel {
   font-size: 8px;
@@ -423,14 +413,12 @@ body {
   line-height: 1;
 }
 
-/* Track line */
 .tlTrack {
   position: relative;
   height: 2px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.13);
 }
 
-/* Elapsed fill — gradient from blue to hot orange */
 .tlElapsed {
   position: absolute;
   left: 0;
@@ -440,7 +428,6 @@ body {
   transition: width 0.08s linear;
 }
 
-/* Tick marks on track */
 .tlTickMark {
   position: absolute;
   top: -3px;
@@ -450,38 +437,22 @@ body {
   transform: translateX(-50%);
 }
 
-/* Playhead */
 .tlPlayhead {
   position: absolute;
   top: 50%;
   transform: translate(-50%, -50%);
   z-index: 4;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
 
-/* Diamond marker */
 .tlPlayheadDiamond {
   width: 7px;
   height: 7px;
   background: #f97316;
   transform: rotate(45deg);
-  flex-shrink: 0;
 }
 
-/* Vertical needle below diamond */
-.tlPlayheadNeedle {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 1px;
-  height: 20px;
-  background: linear-gradient(to bottom, rgba(255, 107, 74, 0.7), transparent);
-}
+.tlPlayheadNeedle { display: none; }
 
-/* Status label under track */
 .tlStatus {
   font-size: 8px;
   color: #4b5563;
@@ -490,10 +461,8 @@ body {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  margin-top: 4px;
+  margin-top: 3px;
 }
-
-/* ── Replay button ───────────────────────────────────────────── */
 
 @keyframes tlBusy {
   0%, 100% { opacity: 0.5; }
@@ -516,13 +485,10 @@ body {
   align-items: center;
   justify-content: center;
   gap: 7px;
-  transition: background 0.15s, color 0.15s;
+  transition: background 0.15s;
 }
 
-.tlReplayBtn:hover:not(:disabled) {
-  background: rgba(34,197,94,0.08);
-  color: #22c55e;
-}
+.tlReplayBtn:hover:not(:disabled) { background: rgba(34,197,94,0.08); }
 
 .tlReplayBtn--busy {
   color: #4b5563;
@@ -530,80 +496,221 @@ body {
   animation: tlBusy 1.2s ease-in-out infinite;
 }
 
-.tlBusyDots {
-  letter-spacing: 0.3em;
+.tlBusyDots { letter-spacing: 0.3em; }
+
+/* ================================================================
+   EVENT FEED TABLE — center panel
+   ================================================================ */
+
+.eventTable {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: #0d1117;
+}
+
+.etHead,
+.etRow {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 0 14px;
+  font-family: 'Courier New', monospace;
+}
+
+.etHead {
+  height: 22px;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-weight: 600;
+}
+
+.etHead span { color: #4b5563; }
+
+.etBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.08) transparent;
+}
+
+.etBody::-webkit-scrollbar { width: 4px; }
+.etBody::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); }
+
+.etRow {
+  height: 22px;
+  font-size: 10.5px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  white-space: nowrap;
+}
+
+.etRow:hover { background: rgba(255,255,255,0.03); }
+
+.etcTime  { width: 96px;  flex-shrink: 0; color: #4b5563; }
+.etcSrc   { width: 52px;  flex-shrink: 0; color: #3b82f6; }
+.etcCoord { width: 132px; flex-shrink: 0; color: #374151; }
+.etcFrp   { width: 56px;  flex-shrink: 0; color: rgba(249,115,22,0.8); text-align: right; padding-right: 16px; box-sizing: border-box; }
+.etcConf  { width: 44px;  flex-shrink: 0; color: #4b5563; }
+.etcInc   { flex: 1; min-width: 0; color: rgba(229,72,77,0.7); overflow: hidden; text-overflow: ellipsis; }
+
+.etEmpty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+}
+
+.etEmptyTitle {
+  font-size: 10px;
+  letter-spacing: 0.24em;
+  color: #374151;
+  font-family: 'Courier New', monospace;
+}
+
+.etEmptyHint {
+  font-size: 10px;
+  color: #2a3340;
+}
+
+.etCounter {
+  flex-shrink: 0;
+  padding: 4px 14px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #374151;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 /* ================================================================
-   EVENT FEED — bottom-left HUD overlay
+   THREAT PANEL — center panel, on threat
    ================================================================ */
 
-.eventFeed {
-  position: absolute;
-  left: 12px;
-  bottom: 70px;
-  width: 400px;
-  z-index: 50;
-  pointer-events: none;
+.threatPanel {
+  flex-shrink: 0;
+  background: #111820;
+  border-top: 1px solid rgba(229,72,77,0.25);
+  border-left: 3px solid #e5484d;
 }
 
-.eventLines {
+.threatPanelHeader {
   display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 28px 0 4px;
-  background: linear-gradient(to bottom, transparent 0%, rgba(13,17,23,0.55) 100%);
-}
-
-.eventLine {
-  display: flex;
-  gap: 8px;
   align-items: baseline;
-  padding: 1px 4px;
+  gap: 10px;
+  padding: 7px 12px 5px;
+}
+
+.threatPanelTitle {
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  color: #e5484d;
   font-family: 'Courier New', monospace;
-  font-size: 10px;
-  line-height: 1.55;
+  font-weight: 700;
+}
+
+.threatPanelZone {
+  font-size: 11px;
+  color: #e2e8f0;
   white-space: nowrap;
-  overflow: hidden;
-}
-
-.evTime {
-  color: #374151;
-  min-width: 34px;
-  flex-shrink: 0;
-}
-
-.evSrc {
-  color: #3b82f6;
-  min-width: 34px;
-  flex-shrink: 0;
-  letter-spacing: 0.04em;
-}
-
-.evCoord {
-  color: #1f2937;
-  min-width: 108px;
-  flex-shrink: 0;
-}
-
-.evFrp {
-  color: rgba(249,115,22,0.8);
-  flex-shrink: 0;
-}
-
-.evBcws {
-  color: rgba(229,72,77,0.7);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-.eventCounter {
-  font-family: 'Courier New', monospace;
-  font-size: 9px;
-  color: #374151;
+.threatPanelGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px 18px;
+  padding: 2px 12px 8px;
+}
+
+.threatPanelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  height: 18px;
+  min-width: 0;
+}
+
+.threatPanelKey {
+  font-size: 8px;
   letter-spacing: 0.14em;
-  padding: 3px 4px 0;
-  text-transform: uppercase;
+  color: #4b5563;
+  font-family: 'Courier New', monospace;
+  flex-shrink: 0;
+}
+
+.threatPanelVal {
+  font-size: 10.5px;
+  color: #c8d6e0;
+  font-family: 'Courier New', monospace;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.threatPanelBtn {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 0 12px 10px;
+  height: 24px;
+  border: 1px solid rgba(229,72,77,0.35);
+  background: transparent;
+  color: #e5484d;
+  font-size: 9px;
+  letter-spacing: 0.22em;
+  font-family: 'Courier New', monospace;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.threatPanelBtn:hover { background: rgba(229,72,77,0.1); }
+
+/* ================================================================
+   AGENT OVERLAY (intelligence panel)
+   ================================================================ */
+
+.shell--intelligence {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: #0d1117;
+}
+
+/* Anchored to the left edge of the map column so the live map (zoom-enhance,
+   agent annotations, routes) stays fully visible while the agent works. */
+.agentOverlay {
+  position: absolute;
+  top: 28px;
+  right: max(38%, 380px);
+  bottom: 0;
+  z-index: 180;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.agentOverlay .agenticIntelligence {
+  pointer-events: auto;
+  width: min(520px, calc(100vw - 24px));
+  height: 100%;
+  box-shadow: -18px 0 54px rgba(0, 0, 0, 0.64), 0 0 0 1px rgba(80, 140, 210, 0.18);
+}
+
+@media (max-width: 980px) {
+  .agentOverlay { left: 8px; right: 8px; }
+  .agentOverlay .agenticIntelligence { width: 100%; }
 }
 
 /* ================================================================
@@ -612,16 +719,15 @@ body {
 
 .actionsPanel {
   position: absolute;
-  top: 100px;
-  left: 12px;
+  top: 80px;
+  left: 208px;
   z-index: 120;
   width: 280px;
-  max-height: calc(100vh - 120px);
+  max-height: calc(100vh - 140px);
   display: flex;
   flex-direction: column;
-  background: rgba(13,17,23,0.95);
+  background: rgba(13,17,23,0.97);
   border: 1px solid rgba(255,255,255,0.08);
-  backdrop-filter: blur(10px);
   overflow: hidden;
 }
 
@@ -642,11 +748,7 @@ body {
   min-width: 0;
 }
 
-.actHeaderIcon {
-  width: 13px;
-  height: 13px;
-  flex-shrink: 0;
-}
+.actHeaderIcon { width: 13px; height: 13px; flex-shrink: 0; }
 
 .actHeaderTitle {
   font-size: 9px;
@@ -673,7 +775,6 @@ body {
   display: flex;
   align-items: center;
   flex-shrink: 0;
-  transition: color 0.12s;
 }
 
 .actDismiss:hover { color: #a0aec0; }
@@ -761,58 +862,6 @@ body {
 }
 
 /* ================================================================
-   MAP
-   ================================================================ */
-
-.mapCanvas {
-  width: 100%;
-  height: 100%;
-}
-
-.mapLegend {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  padding: 7px 10px;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: rgba(13,17,23,0.9);
-  backdrop-filter: blur(4px);
-  color: #4b5563;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-}
-
-.mapLegend span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.mapLegend svg {
-  flex-shrink: 0;
-}
-
-.legendDot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  display: inline-block;
-}
-
-.firmsDot  { background: #f15b43; }
-.bcwsDot   { background: #f2b84b; border: 2px solid #040910; }
-.essDot    { background: #43d9ad; border: 2px solid #040910; }
-.roadDot   { background: #f6f08d; border: 2px solid #1b1c0d; }
-
-.legendLine { width: 18px; height: 2px; display: inline-block; background: #ffd27f; }
-.evacLine   { background: #e7a8ff; }
-.windLine   { background: #6bbcff; }
-
-/* ================================================================
    MAP GIZMO MARKERS
    ================================================================ */
 
@@ -853,13 +902,33 @@ body {
   height: 12px;
   background: rgba(59,130,246,0.18);
   border: 1.5px solid #3b82f6;
-  border-radius: 1px;
   transform: rotate(45deg);
   cursor: ew-resize;
 }
 
+/* Mapbox controls — flat dark */
+.mapboxgl-ctrl-group {
+  background: #111820 !important;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.mapboxgl-ctrl-group button {
+  background: transparent !important;
+  border-radius: 0 !important;
+}
+
+.mapboxgl-ctrl-group button + button {
+  border-top: 1px solid rgba(255,255,255,0.08) !important;
+}
+
+.mapboxgl-ctrl-group button .mapboxgl-ctrl-icon {
+  filter: invert(0.8);
+}
+
 /* ================================================================
-   ANNOTATION MARKERS & POPUPS (agent map output on main map)
+   ANNOTATION MARKERS & POPUPS
    ================================================================ */
 
 .annMarker {
@@ -880,12 +949,10 @@ body {
 .mapboxgl-popup.annPopup .mapboxgl-popup-content {
   background: rgba(13,17,23,0.96);
   border: 1px solid rgba(255,255,255,0.1);
-  border-radius: 2px;
   padding: 6px 10px;
   color: #c8d6e0;
   font-size: 11px;
   font-family: 'Courier New', monospace;
-  backdrop-filter: blur(6px);
   max-width: 200px;
 }
 
@@ -894,16 +961,9 @@ body {
 .annPopupInner strong { display: block; color: #e2e8f0; margin-bottom: 2px; }
 .annPopupDetail { color: #4b5563; font-size: 10px; }
 
-.legendSep {
-  width: 1px;
-  height: 14px;
-  background: rgba(255,255,255,0.07);
-  margin: 0 2px;
-}
-
 .annMessageBar {
   position: absolute;
-  top: 12px;
+  top: 8px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 10;
@@ -917,16 +977,15 @@ body {
   font-size: 11px;
   font-family: 'Courier New', monospace;
   letter-spacing: 0.04em;
-  backdrop-filter: blur(4px);
   pointer-events: none;
   white-space: nowrap;
-  max-width: calc(100% - 200px);
+  max-width: calc(100% - 100px);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 /* ================================================================
-   AGENT BAR — bottom-center wide input + expandable history
+   AGENT BAR — bottom full-width
    ================================================================ */
 
 @keyframes agentSlideUp {
@@ -934,35 +993,25 @@ body {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes agentPulse {
-  0%   { border-color: rgba(34,197,94,0.25); }
-  60%  { border-color: rgba(34,197,94,0.4); }
-  100% { border-color: rgba(34,197,94,0.25); }
-}
-
 .agentBar {
-  position: fixed;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 300;
-  width: min(760px, calc(100vw - 32px));
+  position: relative;
+  width: 100%;
+  flex-shrink: 0;
+  z-index: 150;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-bottom: none;
+  border-top: 1px solid rgba(255,255,255,0.08);
   background: rgba(13,17,23,0.97);
-  backdrop-filter: blur(16px);
 }
 
 .agentBar--active {
-  border-color: rgba(34,197,94,0.25);
+  border-top-color: rgba(34,197,94,0.3);
 }
 
 .agentHistory {
   display: flex;
   flex-direction: column;
-  max-height: 52vh;
+  max-height: 48vh;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   animation: agentSlideUp 0.16s ease-out;
   overflow: hidden;
@@ -992,14 +1041,12 @@ body {
   text-transform: uppercase;
   cursor: pointer;
   white-space: nowrap;
-  border-radius: 2px;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  transition: border-color 0.15s, color 0.15s;
 }
 
 .agentSessionChip:hover:not(:disabled) {
   border-color: rgba(255,255,255,0.15);
   color: #9ab0c4;
-  background: transparent;
 }
 
 .agentSessionChip.active {
@@ -1034,7 +1081,7 @@ body {
 .agentMessages::-webkit-scrollbar { width: 4px; }
 .agentMessages::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); }
 
-.agentMsg { display: flex; flex-direction: column; gap: 3px; max-width: 86%; }
+.agentMsg { display: flex; flex-direction: column; gap: 3px; max-width: 720px; }
 .agentMsg--user { align-self: flex-end; align-items: flex-end; }
 .agentMsg--assistant { align-self: flex-start; align-items: flex-start; }
 
@@ -1045,7 +1092,7 @@ body {
   text-transform: uppercase;
 }
 
-.agentMsg--user .agentMsgRole     { color: #60a5fa; }
+.agentMsg--user .agentMsgRole      { color: #60a5fa; }
 .agentMsg--assistant .agentMsgRole { color: #6ee7b7; }
 
 .agentMsgContent {
@@ -1054,7 +1101,6 @@ body {
   line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
-  border-radius: 2px;
 }
 
 .agentMsg--user .agentMsgContent {
@@ -1072,6 +1118,7 @@ body {
 .agentInputRow {
   display: flex;
   align-items: center;
+  min-height: 43px;
 }
 
 .agentHistoryToggle {
@@ -1085,7 +1132,6 @@ body {
   font-family: 'Courier New', monospace;
   cursor: pointer;
   white-space: nowrap;
-  transition: color 0.15s;
   align-self: stretch;
   display: flex;
   align-items: center;
@@ -1100,14 +1146,15 @@ body {
   background: transparent;
   border: none;
   color: #c8d6e0;
-  font-size: 13px;
+  font-size: 12px;
   font-family: inherit;
-  padding: 10px 12px;
+  padding: 13px 14px;
   resize: none;
   outline: none;
-  line-height: 1.5;
+  line-height: 1.4;
   max-height: 96px;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 .agentInput::placeholder { color: #374151; }
@@ -1121,12 +1168,11 @@ body {
   border-left: 1px solid rgba(255,255,255,0.07);
   background: transparent;
   color: #374151;
-  font-size: 18px;
+  font-size: 16px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s, background 0.15s;
 }
 
 .agentSendBtn:hover:not(:disabled) {
@@ -1147,21 +1193,17 @@ body {
 
 .wfPanel {
   position: fixed;
-  right: 16px;
-  top: 94px;     /* clear the header (44px headerRow + 46px timeline + 4px border) */
-  bottom: 46px;  /* clear the agent bar input row */
+  right: 8px;
+  top: 36px;
+  bottom: 52px;
   width: 360px;
   z-index: 200;
   display: flex;
   flex-direction: column;
   background: rgba(13,17,23,0.97);
   border: 1px solid rgba(255,255,255,0.08);
-  border-right: none;
-  backdrop-filter: blur(16px);
   animation: wfSlideIn 0.18s ease-out;
 }
-
-/* ── Header ──────────────────────────────────────────────────── */
 
 .wfPanelHeader {
   display: flex;
@@ -1187,7 +1229,7 @@ body {
 .wfRunStatus {
   font-size: 8px;
   letter-spacing: 0.18em;
-  border-left: 1px solid rgba(20, 60, 110, 0.5);
+  border-left: 1px solid rgba(255,255,255,0.1);
   padding-left: 7px;
 }
 
@@ -1203,21 +1245,17 @@ body {
   flex-shrink: 0;
   border: none;
   background: transparent;
-  color: #1e3a58;
+  color: #4b5563;
   font-size: 11px;
   cursor: pointer;
   padding: 0 2px;
-  transition: color 0.15s;
 }
 
-.wfPanelClose:hover { color: #5a8aaa; }
-
-/* ── Node list ───────────────────────────────────────────────── */
+.wfPanelClose:hover { color: #9ab0c4; }
 
 .wfNodeList {
   display: flex;
   flex-direction: column;
-  gap: 0;
   max-height: 160px;
   overflow-y: auto;
   flex-shrink: 0;
@@ -1238,15 +1276,11 @@ body {
   background: transparent;
   cursor: pointer;
   text-align: left;
-  transition: background 0.12s;
-  border-bottom: 1px solid rgba(10, 30, 60, 0.4);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
 }
 
 .wfNodeItem:hover { background: rgba(255,255,255,0.04); }
-
-.wfNodeItem--active {
-  background: rgba(255,255,255,0.04);
-}
+.wfNodeItem--active { background: rgba(255,255,255,0.04); }
 
 .wfNodeItem--selected {
   background: rgba(59,130,246,0.12);
@@ -1258,7 +1292,6 @@ body {
   height: 6px;
   border-radius: 50%;
   flex-shrink: 0;
-  transition: box-shadow 0.3s;
 }
 
 .wfNodeLabel {
@@ -1281,8 +1314,6 @@ body {
   flex-shrink: 0;
 }
 
-/* ── Graph body ──────────────────────────────────────────────── */
-
 .wfGraphBody {
   flex: 1 1 0px;
   min-height: 0;
@@ -1290,16 +1321,12 @@ body {
   position: relative;
 }
 
-/* React Flow must have an absolutely-pinned container to measure correctly */
 .wfGraphBody .workflow-graph {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  border-radius: 0;
 }
-
-/* ── Graph toggle button in agent bar ───────────────────────── */
 
 @keyframes graphBtnPulse {
   0%, 100% { color: #374151; }
@@ -1318,7 +1345,6 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s, background 0.15s;
 }
 
 .agentGraphBtn:hover {
@@ -1329,20 +1355,13 @@ body {
 .agentGraphBtn.active {
   background: rgba(59,130,246,0.1);
   color: #3b82f6;
-  border-left-color: rgba(255,255,255,0.07);
 }
 
-.agentGraphBtn--live {
-  animation: graphBtnPulse 1.4s ease-in-out infinite;
-}
-
-.agentGraphBtn--live.active {
-  animation: none;
-  color: #3b82f6;
-}
+.agentGraphBtn--live { animation: graphBtnPulse 1.4s ease-in-out infinite; }
+.agentGraphBtn--live.active { animation: none; color: #3b82f6; }
 
 /* ================================================================
-   THREAT "ZOOM AND ENHANCE" OVERLAY
+   THREAT "ZOOM AND ENHANCE" OVERLAY  (unchanged)
    ================================================================ */
 
 @keyframes enhanceFadeIn {
@@ -1362,17 +1381,6 @@ body {
   100% { width: 26px; height: 26px; }
 }
 
-@keyframes enhanceBoxGrow {
-  0%   { inset: 44% 44% 44% 44%; }
-  50%  { inset: 18% 18% 18% 18%; }
-  100% { inset: 22% 22% 22% 22%; }
-}
-
-@keyframes enhanceReticlePulse {
-  0%, 100% { transform: translate(-50%, -50%) scale(1);   opacity: 0.8; }
-  50%       { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
-}
-
 @keyframes enhanceReticleSpin {
   from { transform: translate(-50%, -50%) rotate(0deg); }
   to   { transform: translate(-50%, -50%) rotate(360deg); }
@@ -1389,27 +1397,16 @@ body {
   z-index: 50;
   pointer-events: none;
   opacity: 0;
-  /* box defined by the animated corners */
+  overflow: hidden;
 }
 
-.enhanceOverlay--on {
-  animation: enhanceFadeIn 0.25s ease forwards;
-}
+.enhanceOverlay--on { animation: enhanceFadeIn 0.25s ease forwards; }
+.enhanceOverlay:not(.enhanceOverlay--on) { animation: enhanceFadeOut 0.6s ease forwards; }
 
-/* when --on is removed we fade out */
-.enhanceOverlay:not(.enhanceOverlay--on) {
-  animation: enhanceFadeOut 0.6s ease forwards;
-}
-
-/* Corner brackets — position set via inline style (map.project pixel coords) */
 .enhanceCorner {
   position: absolute;
   width: 0;
   height: 0;
-  animation: enhanceCornerGrow 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
-}
-
-.enhanceOverlay--on .enhanceCorner {
   animation: enhanceCornerGrow 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
 }
 
@@ -1440,7 +1437,6 @@ body {
   transform: translate(-100%, -100%);
 }
 
-/* Horizontal scan line — top is set via inline style, sweeps downward 220px (2×BOX) */
 .enhanceScanH {
   position: absolute;
   left: 0;
@@ -1456,7 +1452,6 @@ body {
   100% { transform: translateY(220px); }
 }
 
-/* Vertical scan line — left is set via inline style, sweeps rightward 220px */
 .enhanceScanV {
   position: absolute;
   top: 0;
@@ -1472,7 +1467,6 @@ body {
   100% { transform: translateX(220px); }
 }
 
-/* Center crosshair reticle — position set via inline style */
 .enhanceReticle {
   position: absolute;
   width: 0;
@@ -1501,7 +1495,6 @@ body {
   animation: enhanceDotBlink 0.8s ease-in-out infinite;
 }
 
-/* HUD text panels */
 .enhanceHud {
   position: absolute;
   display: flex;
@@ -1510,7 +1503,6 @@ body {
   padding: 8px 10px;
   background: rgba(4, 9, 20, 0.72);
   border: 1px solid rgba(255, 58, 42, 0.35);
-  backdrop-filter: blur(3px);
   font-family: 'Courier New', monospace;
   font-size: 9px;
   letter-spacing: 0.16em;
@@ -1519,13 +1511,11 @@ body {
 }
 
 .enhanceHud--tl {
-  /* top/left set via inline style */
   border-color: rgba(255, 58, 42, 0.5);
   box-shadow: 0 0 16px rgba(255, 58, 42, 0.15);
 }
 
 .enhanceHud--br {
-  /* top/left set via inline style */
   text-align: right;
   border-color: rgba(80, 180, 255, 0.4);
   box-shadow: 0 0 16px rgba(80, 180, 255, 0.1);
@@ -1562,7 +1552,7 @@ body {
    RESPONSIVE
    ================================================================ */
 
-@media (max-width: 900px) {
-  .statsRow { display: none; }
-  .brandSub { display: none; }
+@media (max-width: 1100px) {
+  .sidebar { width: 170px; }
+  .mapColumn { min-width: 300px; }
 }

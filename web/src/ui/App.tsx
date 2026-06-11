@@ -7,7 +7,8 @@ import { ActionsPanel } from "./ActionsPanel";
 import { AgentOrb } from "./AgentOrb";
 import { EventStream } from "./EventStream";
 import { MapPanel } from "./MapPanel";
-import { StatsStrip } from "./StatsStrip";
+import { Sidebar } from "./Sidebar";
+import { ThreatPanel } from "./ThreatPanel";
 import { Timeline } from "./Timeline";
 import { sources } from "./state";
 
@@ -39,12 +40,19 @@ function BrandMark() {
         <path d="M8 0C7 4 4 6.5 4 10.5a4 4 0 0 0 8 0c0-2.2-1.3-4-2.2-5.2-.45 1.8-1.2 2.8-1.8 3.2C7.8 7 7.4 4 8 0z" fill="#ff6b4a"/>
         <ellipse cx="8" cy="10.8" rx="1.5" ry="1.7" fill="#ffd0b0" opacity="0.65"/>
       </svg>
-      <div className="brandText">
-        <span className="brandName">FIREGUARD</span>
-        <span className="brandSub">WILDFIRE INTELLIGENCE</span>
-      </div>
+      <span className="brandName">FIREGUARD</span>
     </div>
   );
+}
+
+function formatWindow(start: string, end: string) {
+  const a = new Date(`${start}T00:00:00Z`);
+  const b = new Date(`${end}T00:00:00Z`);
+  if (Number.isNaN(a.valueOf()) || Number.isNaN(b.valueOf())) return `${start} – ${end}`;
+  const month = (d: Date) => d.toLocaleString("en-US", { month: "short", timeZone: "UTC" }).toUpperCase();
+  const sameMonth = a.getUTCMonth() === b.getUTCMonth() && a.getUTCFullYear() === b.getUTCFullYear();
+  if (sameMonth) return `${month(a)} ${a.getUTCDate()}–${b.getUTCDate()} ${b.getUTCFullYear()}`;
+  return `${month(a)} ${a.getUTCDate()} – ${month(b)} ${b.getUTCDate()} ${b.getUTCFullYear()}`;
 }
 
 export function App() {
@@ -126,66 +134,73 @@ export function App() {
 
   return (
     <div className="shell--replay">
-      <MapPanel
-        token={mapboxToken}
-        events={events}
-        context={context}
-        lat={request.latitude}
-        lon={request.longitude}
-        radiusKm={request.radius_km}
-        annotation={mapAnnotation}
-        threat={threatAlert}
-        onAreaChange={(lat, lon, radiusKm) =>
-          setRequest((r) => ({ ...r, latitude: lat, longitude: lon, radius_km: Math.round(radiusKm) }))
-        }
-      />
-
       <header className="appHeader">
-        <div className="headerRow">
-          <BrandMark />
-          <div className="headerSep" />
-          <StatsStrip value={stats} />
-          <div className="headerFill" />
-          {threatAlert !== null && (
-            <div className="threatChip">
-              <span className="threatDot" />
-              {threatAlert.zone.name}
-              {intelligencePrompt !== null && (
-                <button
-                  className="threatViewBtn"
-                  type="button"
-                  onClick={() => setAgentOverlayOpen(true)}
-                >
-                  OPEN
-                </button>
-              )}
-            </div>
-          )}
-          <div className={`acqChip${busy ? " acqChip--on" : ""}`}>
-            <span className="acqDot" />
-            {busy ? "ACQUIRING" : "IDLE"}
-          </div>
-        </div>
-
-        <Timeline
-          start={request.start_date}
-          end={request.end_date}
-          progress={replayProgress}
-          status={status}
-          busy={busy}
-          onReplay={() => void startReplay()}
-        />
-
-        {error && (
-          <div className="errorBar">
-            <span className="errorLabel">ERR</span>
-            <span className="errorMsg">{error}</span>
-            <button className="errorClose" onClick={() => setError(null)}>✕</button>
-          </div>
+        <BrandMark />
+        <span className="headerCrumbSep">›</span>
+        <span className="headerCrumb">REPLAY · {formatWindow(request.start_date, request.end_date)}</span>
+        <span className="headerCrumbSep">›</span>
+        <span className="headerCrumb headerCrumb--dim">CARIBOO FIRE CENTRE, BC</span>
+        <div className="headerFill" />
+        {threatAlert !== null && (
+          <button className="statusChip statusChip--threat" type="button" onClick={() => setAgentOverlayOpen(true)}>
+            THREAT · {threatAlert.zone.name}
+          </button>
         )}
+        <div className={`statusChip${busy ? " statusChip--on" : ""}`}>
+          {busy ? "ACQUIRING" : "IDLE"}
+        </div>
       </header>
 
-      <EventStream events={events} />
+      {error && (
+        <div className="errorBar">
+          <span className="errorLabel">ERR</span>
+          <span className="errorMsg">{error}</span>
+          <button className="errorClose" onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
+      <div className="appMain">
+        <Sidebar
+          request={request}
+          onRequestChange={setRequest}
+          context={context}
+          stats={stats}
+          busy={busy}
+          annotation={mapAnnotation}
+        />
+
+        <section className="centerPanel">
+          <Timeline
+            start={request.start_date}
+            end={request.end_date}
+            progress={replayProgress}
+            status={status}
+            busy={busy}
+            onReplay={() => void startReplay()}
+          />
+          <EventStream events={events} busy={busy} />
+          {threatAlert !== null && (
+            <ThreatPanel threat={threatAlert} onOpenIntelligence={() => setAgentOverlayOpen(true)} />
+          )}
+        </section>
+
+        <section className="mapColumn">
+          <MapPanel
+            token={mapboxToken}
+            events={events}
+            context={context}
+            lat={request.latitude}
+            lon={request.longitude}
+            radiusKm={request.radius_km}
+            annotation={mapAnnotation}
+            threat={threatAlert}
+            onAreaChange={(lat, lon, radiusKm) =>
+              setRequest((r) => ({ ...r, latitude: lat, longitude: lon, radius_km: Math.round(radiusKm) }))
+            }
+          />
+        </section>
+      </div>
+
       {actionPlan !== null && (
         <ActionsPanel plan={actionPlan} onDismiss={() => setActionPlan(null)} />
       )}

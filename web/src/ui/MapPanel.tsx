@@ -564,49 +564,6 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
   return (
     <div className="mapFullScreen">
       <div ref={container} className="mapCanvas" />
-      <div className="mapLegend">
-        <span>
-          <img src={LOGOS.nasa.src} alt="NASA" width={10} height={10} style={{ opacity: 0.75 }} />
-          <svg width="10" height="13" viewBox="0 0 24 30"><path d="M12 1C10.4 6.5 7 10 7 16a5 5 0 0 0 10 0c0-3.2-1.6-5.6-2.6-7.2-.45 2.4-1.5 3.8-2 4.4C12.2 10.8 11.7 6.2 12 1z" fill="#f15b43"/></svg>
-          FIRMS
-        </span>
-        <span>
-          <img src={LOGOS.bc.src} alt="BC" width={10} height={10} style={{ opacity: 0.75 }} />
-          <svg width="10" height="13" viewBox="0 0 24 30"><path d="M12 1C10.4 6.5 7 10 7 16a5 5 0 0 0 10 0c0-3.2-1.6-5.6-2.6-7.2-.45 2.4-1.5 3.8-2 4.4C12.2 10.8 11.7 6.2 12 1z" fill="#e5484d"/></svg>
-          Incident
-        </span>
-        <span>
-          <img src={LOGOS.bc.src} alt="BC" width={10} height={10} style={{ opacity: 0.75 }} />
-          <i className="legendLine" />Perimeter
-        </span>
-        <span>
-          <img src={LOGOS.bc.src} alt="BC" width={10} height={10} style={{ opacity: 0.75 }} />
-          <svg width="11" height="11" viewBox="0 0 24 28"><path d="M12 1L1 5.5v10c0 6 5 10.5 11 12 6-1.5 11-6 11-12v-10L12 1z" fill="#ff5555"/></svg>
-          Evac
-        </span>
-        <span>
-          <img src={LOGOS.bc.src} alt="BC" width={10} height={10} style={{ opacity: 0.75 }} />
-          <svg width="11" height="11" viewBox="0 0 26 26"><path d="M13 2L1 12h3.5v12h6v-6h5v6h6V12H25L13 2z" fill="#43d9ad"/></svg>
-          Shelter
-        </span>
-        <span>
-          <svg width="11" height="10" viewBox="0 0 26 24"><path d="M13 2L1 23h24L13 2z" fill="#f6f08d"/></svg>
-          Road
-        </span>
-        <span><i className="legendLine windLine" />Wind</span>
-        {annotation !== null && (
-          <>
-            <span className="legendSep" />
-            <img src={LOGOS.googlemaps.src} alt="Maps" width={10} height={10} style={{ opacity: 0.8 }} />
-            {annotation.routes.map((r, i) => (
-              <span key={i}>
-                <i className="legendLine" style={{ background: ANN_ROUTE_COLORS[r.status] ?? "#6366f1" }} />
-                {r.label}
-              </span>
-            ))}
-          </>
-        )}
-      </div>
       {annotation?.message && (
         <div className="annMessageBar">
           <img src={LOGOS.googlemaps.src} alt="Maps" width={11} height={11} style={{ opacity: 0.9, flexShrink: 0 }} />

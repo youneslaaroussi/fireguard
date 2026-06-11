@@ -18,7 +18,11 @@ export function Timeline({ start, end, progress, status, busy, onReplay }: Props
         {/* Tick labels — rendered above track */}
         <div className="tlTickRow">
           {ticks.map(({ label, pct: tp }, i) => (
-            <div key={i} className="tlTick" style={{ left: `${tp * 100}%` }}>
+            <div
+              key={i}
+              className={`tlTick${i === 0 ? " tlTick--first" : ""}${i === ticks.length - 1 ? " tlTick--last" : ""}`}
+              style={{ left: `${tp * 100}%` }}
+            >
               <span className="tlTickLabel">{label}</span>
             </div>
           ))}
