@@ -5,6 +5,7 @@ import type { ActionPlan, MapAnnotation } from "../intelligence/types";
 import { AgenticIntelligenceApp } from "../intelligence/App";
 import { ActionsPanel } from "./ActionsPanel";
 import { BroadcastCard } from "./BroadcastCard";
+import { DecisionTimer } from "./DecisionTimer";
 import { EventStream } from "./EventStream";
 import { KpiStrip } from "./KpiStrip";
 import { MapPanel } from "./MapPanel";
@@ -315,7 +316,7 @@ export function App() {
           <BroadcastCard plan={actionPlan} threat={threatAlert} />
         </section>
 
-        <section className="mapColumn">
+        <section className={`mapColumn${threatAlert ? " mapColumn--threat" : ""}`}>
           <MapPanel
             token={mapboxToken}
             googleMapsKey={googleMapsKey}
@@ -336,6 +337,7 @@ export function App() {
           {threatAlert !== null && (
             <ThreatAlert threat={threatAlert} />
           )}
+          <DecisionTimer threat={threatAlert} hasPlan={actionPlan !== null} />
           <SystemHUD events={events} busy={busy} threat={threatAlert} status={status} />
         </section>
       </div>
@@ -347,8 +349,22 @@ export function App() {
   );
 }
 
+function estimateEtaMinutes(frp: number, distanceKm?: number): number | null {
+  if (distanceKm == null || distanceKm <= 0) return null;
+  // Rough ROS heuristic: 0.4 km/h baseline + 0.06 km/h per MW of FRP, capped 6 km/h
+  const kph = Math.min(6, 0.4 + 0.06 * frp);
+  if (kph <= 0) return null;
+  return (distanceKm / kph) * 60;
+}
+
 function ThreatAlert({ threat }: { threat: ThreatPayload }) {
   const { hotspot, zone } = threat;
+  const etaMin = estimateEtaMinutes(hotspot.frp, zone.distance_km);
+  const etaText = etaMin == null
+    ? null
+    : etaMin < 60
+      ? `${Math.round(etaMin)} MIN`
+      : `${(etaMin / 60).toFixed(1)} HR`;
   return (
     <div className="threatAlert">
       <div className="threatAlertPulse" />
@@ -362,6 +378,12 @@ function ThreatAlert({ threat }: { threat: ThreatPayload }) {
           </svg>
           <span className="threatAlertTitle">THREAT DETECTED</span>
           <span className="threatAlertZone">{zone.name}</span>
+          {etaText && (
+            <span className="threatAlertEta">
+              <span className="threatAlertEtaLabel">ETA TO ZONE</span>
+              <span className="threatAlertEtaValue">{etaText}</span>
+            </span>
+          )}
         </div>
         <div className="threatAlertStats">
           <span><span className="threatAlertKey">FRP</span><span className="threatAlertVal">{hotspot.frp.toFixed(1)} MW</span></span>
