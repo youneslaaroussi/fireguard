@@ -94,15 +94,16 @@ const ANN_ROUTE_COLORS: Record<string, string> = {
 };
 
 const FADE_LAYERS: Array<[string, string]> = [
-  ["firms-events-heat",     "heatmap-opacity"],
-  ["firms-events-points",   "circle-opacity"],
-  ["firms-events-symbols",  "icon-opacity"],
-  ["bcws-incidents",        "icon-opacity"],
-  ["bcws-perimeters-fill",  "fill-opacity"],
+  ["firms-events-heat",      "heatmap-opacity"],
+  ["firms-events-points",    "circle-opacity"],
+  ["firms-events-symbols",   "icon-opacity"],
+  ["bcws-incidents",         "icon-opacity"],
+  ["bcws-perimeters-fill",   "fill-opacity"],
   ["bcws-perimeters-outline","line-opacity"],
-  ["wind-vectors",          "line-opacity"],
-  ["wind-vector-heads",     "circle-opacity"],
-  ["snapshot-wind-vectors", "line-opacity"],
+  ["bcws-perimeters-labels", "text-opacity"],
+  ["wind-vectors",           "line-opacity"],
+  ["wind-vector-heads",      "circle-opacity"],
+  ["snapshot-wind-vectors",  "line-opacity"],
   ["snapshot-wind-vector-heads", "circle-opacity"],
 ];
 
@@ -168,7 +169,7 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
     mapboxgl.accessToken = token;
     map.current = new mapboxgl.Map({
       container: container.current,
-      style: "mapbox://styles/mapbox/outdoors-v12",
+      style: "mapbox://styles/mapbox/satellite-streets-v12",
       center: [areaRef.current.lon, areaRef.current.lat],
       zoom: 5.5,
       attributionControl: true
@@ -185,8 +186,8 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
         type: "geojson",
         data: makeCircleGeoJSON(areaRef.current.lat, areaRef.current.lon, areaRef.current.radiusKm)
       });
-      m.addLayer({ id: "area-circle-fill", type: "fill", source: "area-circle", paint: { "fill-color": "#4aaeff", "fill-opacity": 0.06 } });
-      m.addLayer({ id: "area-circle-outline", type: "line", source: "area-circle", paint: { "line-color": "#4aaeff", "line-width": 1.5, "line-opacity": 0.7, "line-dasharray": [4, 3] } });
+      m.addLayer({ id: "area-circle-fill", type: "fill", source: "area-circle", paint: { "fill-color": "#4aaeff", "fill-opacity": 0.08 } });
+      m.addLayer({ id: "area-circle-outline", type: "line", source: "area-circle", paint: { "line-color": "#4aaeff", "line-width": 4, "line-opacity": 1, "line-dasharray": [6, 3] } });
 
       m.addSource("firms-events",           { type: "geojson", data });
       m.addSource("bcws-perimeters",        { type: "geojson", data: perimeterData });
@@ -205,6 +206,45 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
       m.addLayer({ id: "evacuation-zones-outline",  type: "line", source: "evacuation-zones",  paint: { "line-color": "#e7a8ff", "line-width": 1.8, "line-opacity": 0.9 } });
       m.addLayer({ id: "bcws-perimeters-fill",     type: "fill", source: "bcws-perimeters",   paint: { "fill-color": "#ffb366", "fill-opacity": 0.18 } });
       m.addLayer({ id: "bcws-perimeters-outline",   type: "line", source: "bcws-perimeters",   paint: { "line-color": "#ffd27f", "line-width": 2,   "line-opacity": 0.9 } });
+      m.addLayer({
+        id: "bcws-perimeters-labels",
+        type: "symbol",
+        source: "bcws-perimeters",
+        minzoom: 6,
+        layout: {
+          "text-field": ["coalesce", ["get", "number"], ""],
+          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": 11,
+          "text-anchor": "center",
+          "text-allow-overlap": false,
+          "symbol-placement": "point",
+        },
+        paint: {
+          "text-color": "#ffd27f",
+          "text-halo-color": "rgba(0,0,0,0.75)",
+          "text-halo-width": 1.5,
+        },
+      });
+      m.addLayer({
+        id: "evacuation-zones-labels",
+        type: "symbol",
+        source: "evacuation-zones",
+        minzoom: 6,
+        layout: {
+          "text-field": ["coalesce", ["get", "name"], ""],
+          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": 11,
+          "text-anchor": "center",
+          "text-max-width": 10,
+          "text-allow-overlap": false,
+          "symbol-placement": "point",
+        },
+        paint: {
+          "text-color": "#e7a8ff",
+          "text-halo-color": "rgba(0,0,0,0.8)",
+          "text-halo-width": 1.5,
+        },
+      });
 
       // FIRMS heatmap (overview) — wider, brighter, deeper color stops
       m.addLayer({
@@ -562,12 +602,26 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
     (instance.getSource("snapshot-wind-vector-heads") as GeoJSONSource | undefined)?.setData(snapshotWindHeads);
   }, [context, data, essData, evacuationRecordData, evacuationZoneData, incidentData, loaded, perimeterData, roadData, snapshotWindHeads, snapshotWindLines, windHeads, windLines]);
 
-  // Update threat score markers whenever events change
+  // Update threat score markers — throttled to every 2 s to avoid GeoJSON churn on 34k events
+  const scoreUpdateTimer = useRef<number | null>(null);
+  const pendingEvents = useRef<FireEvent[]>(events);
+  pendingEvents.current = events;
   useEffect(() => {
-    const instance = map.current;
-    if (!instance || !loaded || !instance.isStyleLoaded()) return;
-    (instance.getSource("threat-scores") as GeoJSONSource | undefined)
-      ?.setData(toScoreCollection(events));
+    if (!loaded) return;
+    if (scoreUpdateTimer.current !== null) return; // already scheduled
+    scoreUpdateTimer.current = window.setTimeout(() => {
+      scoreUpdateTimer.current = null;
+      const instance = map.current;
+      if (!instance || !instance.isStyleLoaded()) return;
+      (instance.getSource("threat-scores") as GeoJSONSource | undefined)
+        ?.setData(toScoreCollection(pendingEvents.current));
+    }, 2000);
+    return () => {
+      if (scoreUpdateTimer.current !== null) {
+        window.clearTimeout(scoreUpdateTimer.current);
+        scoreUpdateTimer.current = null;
+      }
+    };
   }, [events, loaded]);
 
   // Fit the camera when a replay data set loads, then leave user pan/zoom alone.
@@ -598,8 +652,15 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
 
     const lngLat: [number, number] = [threat.hotspot.lon, threat.hotspot.lat];
 
-    // Track the projected pixel position of the hotspot on every map move
+    // Track the projected pixel position of the hotspot on every map move.
+    // Throttled: "move" fires every frame during flyTo — unthrottled setHotspotPx
+    // triggers a full React re-render per frame and crashes the page.
+    let lastPxUpdate = 0;
+    const PX_INTERVAL = 1000 / 15;
     function updatePx() {
+      const now = performance.now();
+      if (now - lastPxUpdate < PX_INTERVAL) return;
+      lastPxUpdate = now;
       if (!map.current) return;
       const pt = map.current.project(lngLat);
       setHotspotPx({ x: pt.x, y: pt.y });
@@ -674,9 +735,15 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
     coneSrc.setData({ type: "FeatureCollection", features: [coneFeature] });
 
     // Pulse animation — drives outer/mid/core radii in pixels
+    // Throttled to ~15fps: setData() at 60fps forces Mapbox to reparse GeoJSON every frame
     let raf = 0;
+    let lastPulse = 0;
+    const PULSE_INTERVAL = 1000 / 15;
     const start = performance.now();
     function tick(now: number) {
+      raf = requestAnimationFrame(tick);
+      if (now - lastPulse < PULSE_INTERVAL) return;
+      lastPulse = now;
       const t = ((now - start) % 1800) / 1800;
       const outer = 22 + Math.sin(t * Math.PI) * 28;
       const mid = 12 + Math.sin(t * Math.PI) * 16;
@@ -689,7 +756,6 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
           properties: { outerRadius: outer, midRadius: mid, coreRadius: core },
         }],
       });
-      raf = requestAnimationFrame(tick);
     }
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
@@ -703,7 +769,12 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
     const activeMap = mm;
     let raf = 0;
     let step = 0;
-    const animate = () => {
+    let lastDash = 0;
+    const DASH_INTERVAL = 1000 / 20;
+    const animate = (now: number) => {
+      raf = requestAnimationFrame(animate);
+      if (now - lastDash < DASH_INTERVAL) return;
+      lastDash = now;
       if (!activeMap.getLayer("ann-routes-line")) return;
       step = (step + 1) % 30;
       const dashArrays: number[][] = [
@@ -715,7 +786,6 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
       const arr = dashArrays[Math.floor(step / 8) % dashArrays.length];
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       activeMap.setPaintProperty("ann-routes-line", "line-dasharray", arr as any);
-      raf = requestAnimationFrame(animate);
     };
     raf = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(raf);
@@ -787,6 +857,7 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
     }
   }, [annotation, loaded]);
 
+
   if (!token) {
     return (
       <div className="mapFullScreen">
@@ -807,7 +878,6 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
           <span>{annotation.message}</span>
         </div>
       )}
-      {busy && ingestSource && <NasaIngestBanner source={ingestSource} count={events.length} />}
       {threat && hotspotPx && <ThreatEnhanceOverlay threat={threat} active={enhancing} px={hotspotPx} />}
       {simDate && <div className="mapSimDate">{simDate}</div>}
       {events.length > 0 && (

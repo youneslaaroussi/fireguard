@@ -34,7 +34,7 @@ This is not a data visualization tool. The agent makes decisions.
 - **Shetland Creek wildfire** (Spences Bridge): 17,000–22,000 ha. Highway 1 closed. 6+ homes destroyed.
 - **324 total active fires** in BC on July 22, 2024.
 
-**Why this is the right scenario for the demo**: The Williams Lake fire was held at 40 ha — but
+**Why this is the right scenario for the walkthrough**: The Williams Lake fire was held at 40 ha — but
 it burned to the city boundary in under an hour after ignition. One unfavorable wind shift and
 it's inside the residential grid. The mayor called it a near-miss. At that moment of maximum
 threat (fire at the boundary, alert issued), human coordinators would have needed to answer:
@@ -51,7 +51,7 @@ what FireGuard solves — automatically, in under 2 minutes, from satellite data
 
 1. Operator opens FireGuard. Map centered on Williams Lake / Cariboo, BC.
 2. Hit **REPLAY**. Real NASA FIRMS satellite hotspot data streams in, July 17–25, 2024.
-   Detections appear on the map as they arrived in near-real-time.
+   Detections appear on the map as they arrived in near-live cadence.
 3. July 21, ~6 PM: A cluster of high-FRP detections appears southwest of Williams Lake.
    Fire intensity crosses threshold (≥ 50 MW within 150 km of the Williams Lake River Valley zone centroid).
    **Threat chip flashes. View auto-switches to intelligence panel.**
@@ -83,21 +83,21 @@ automatically, the moment the satellite data came in."*
 ## Why This Wins
 
 **Elastic track requirements:**
-- Elastic MCP server integration ✓ (all agent ES queries go through MCP Docker container)
-- Meaningful use of Elasticsearch (geo_distance, geo_shape, multi-index queries)
-- Real data indexed into ES (NASA FIRMS, BCWS incidents/perimeters, evac zones, shelters, road events)
+- Elastic MCP server integration for agent-facing ES queries
+- Meaningful use of Elasticsearch: `geo_distance`, `geo_shape`, and multi-index queries
+- NASA FIRMS, BCWS incidents/perimeters, evacuation zones, shelters, and road events indexed into ES
 
 **Google Cloud requirements:**
-- Gemini via Vertex AI (production model, not OpenAI)
-- Google ADK in requirements.txt (used or easily demonstrable)
-- Real infrastructure: Cloud Run / GCP deployment ready (infra/ directory)
+- Gemini 3.1 Pro through Vertex AI
+- Google ADK on Vertex AI Agent Runtime
+- Cloud Run / GCP deployment path in `infra/`
 
 **What separates this from a chatbot with a map:**
-- Server-side paced replay — data arrives in simulated real-time, not pre-loaded animation
+- Server-side paced replay — data arrives as the incident window advances, not as a pre-loaded animation
 - Inline threat trigger — fires at the correct moment during replay, not post-hoc
 - Agent makes actual decisions (zone priority, route safety, shelter availability)
 - "What if" hypotheticals — operator injects new constraints, agent re-plans live
-- All data is real: NASA FIRMS API, BC government open data, DriveBC road events
+- Source-backed data: NASA FIRMS API, BC government open data, DriveBC road events
 
 **Judges remember:**
 1. The moment the threat chip flashes and the agent kicks off automatically
@@ -114,8 +114,8 @@ automatically, the moment the satellite data came in."*
 | Storage | Elasticsearch (local + cloud) |
 | ES integration | Elastic MCP server (Docker, stdio transport) |
 | Backend | FastAPI (Python), uvicorn |
-| AI | Vertex AI (Gemini 1.5 Pro) via custom HTTP client |
-| Agent framework | Custom agentic engine (workflows.py, vertex.py) + Google ADK |
+| AI | Vertex AI Agent Runtime with Gemini 3.1 Pro Preview |
+| Agent framework | Google ADK agent behind the Agent Runtime API |
 | Frontend | React + Vite + TypeScript + Mapbox GL JS |
 | Infra | GCP Cloud Run, Docker |
 
@@ -123,16 +123,15 @@ automatically, the moment the satellite data came in."*
 
 ## Workflows
 
-### `fireguard_intelligence` (chat)
-Human Trigger → Chat Agent → Research Agent → Writer Agent → Style Agent → Terminal
+### `fireguard_adk` (chat)
+Human Trigger → Data Checks → ADK Agent → Response
 
 Used for: operator-initiated questions and analysis.
 
-### `fireguard_evacuation` (auto-trigger)
-Human Trigger → Research Agent → Writer Agent → Style Agent → Terminal
+### `fireguard_adk` (auto-trigger)
+Human Trigger → Data Checks → ADK Agent → Response
 
-Used for: automatic threat trigger from replay. Skips chat routing, goes straight to analysis.
-Research agent is pre-configured with evacuation analysis instructions.
+Used for: automatic threat trigger from replay. The Data Checks phase runs FireGuard evidence tools through Elastic MCP, then the ADK agent writes the evacuation brief from the compact evidence package.
 
 ---
 
@@ -146,9 +145,8 @@ Research agent is pre-configured with evacuation analysis instructions.
 | `fireguard_evaluate_route` | Route safety: checks against fires + closures. Supports `hypothetical_closures` and `ignore_closures` for what-if analysis. |
 | `fireguard_search_events` | FIRMS satellite detections by location/time |
 | `fireguard_bcws_context` | BCWS official incidents + fire perimeters |
-| `fireguard_stats` | Index counts and time bounds |
-| `exa_search` | Live web research |
-| `sandbox_exec` | Python computation in Docker sandbox |
+| `fireguard_map_annotation` | Markers and route overlays for the map |
+| `fireguard_actions` | Structured incident commander action plan |
 
 ---
 
@@ -181,11 +179,9 @@ Research agent is pre-configured with evacuation analysis instructions.
 app/
   main.py              — FastAPI backend, replay_lines generator, threat trigger logic
   geo.py               — Geospatial utilities (haversine, polyline distance)
-  agentic/
-    tools.py           — All agent tool implementations
-    workflows.py       — Workflow definitions (intelligence + evacuation)
-    vertex.py          — Vertex AI HTTP client (streamGenerateContent)
-    engine.py          — Agentic engine runtime
+  agent_runtime/
+    api.py             — UI-compatible route backed by Agent Runtime
+    fireguard_agent.py — Google ADK agent definition
 web/
   src/
     ui/

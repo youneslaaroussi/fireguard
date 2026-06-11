@@ -1,3 +1,14 @@
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+
+const SPEED_STEPS = [
+  { label: "1m/s",  value: 60 },
+  { label: "1h/s",  value: 3600 },
+  { label: "6h/s",  value: 21600 },
+  { label: "12h/s", value: 43200 },
+  { label: "24h/s", value: 86400 },
+];
+
 type Props = {
   start: string;
   end: string;
@@ -5,54 +16,42 @@ type Props = {
   status: string;
   busy: boolean;
   paused: boolean;
+  speed: number;
+  onSpeedChange: (speed: number) => void;
   onReplay: () => void;
   onTogglePause: () => void;
 };
 
-export function Timeline({ start, end, progress, status, busy, paused, onReplay, onTogglePause }: Props) {
+export function Timeline({ start, end, progress, status, busy, paused, speed, onSpeedChange, onReplay, onTogglePause }: Props) {
   const ticks = makeTicks(start, end);
   const pct = Math.max(0, Math.min(1, progress));
   const running = busy && progress < 1;
 
+  const [showSpotlight, setShowSpotlight] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [btnRect, setBtnRect] = useState<DOMRect | null>(null);
+
+  // Show 1 second after mount
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (btnRef.current) setBtnRect(btnRef.current.getBoundingClientRect());
+      setShowSpotlight(true);
+    }, 1000);
+    return () => clearTimeout(t);
+  }, []);
+
+  // Dismiss once replay starts
+  useEffect(() => {
+    if (busy) setShowSpotlight(false);
+  }, [busy]);
+
+  function dismiss() { setShowSpotlight(false); }
+
   return (
     <div className="tlBar">
-      {/* Track area */}
-      <div className="tlTrackArea">
-        {/* Tick labels — rendered above track */}
-        <div className="tlTickRow">
-          {ticks.map(({ label, pct: tp }, i) => (
-            <div
-              key={i}
-              className={`tlTick${i === 0 ? " tlTick--first" : ""}${i === ticks.length - 1 ? " tlTick--last" : ""}`}
-              style={{ left: `${tp * 100}%` }}
-            >
-              <span className="tlTickLabel">{label}</span>
-            </div>
-          ))}
-        </div>
 
-        {/* Track */}
-        <div className="tlTrack">
-          {/* Elapsed fill */}
-          <div className="tlElapsed" style={{ width: `${pct * 100}%` }} />
+      <SpeedControl speed={speed} onChange={onSpeedChange} disabled={busy} />
 
-          {/* Tick marks on track */}
-          {ticks.map(({ pct: tp }, i) => (
-            <div key={i} className="tlTickMark" style={{ left: `${tp * 100}%` }} />
-          ))}
-
-          {/* Playhead */}
-          <div className="tlPlayhead" style={{ left: `${pct * 100}%` }}>
-            <div className="tlPlayheadNeedle" />
-            <div className="tlPlayheadDiamond" />
-          </div>
-        </div>
-
-        {/* Status label */}
-        <div className="tlStatus">{paused ? "⏸ PAUSED" : status}</div>
-      </div>
-
-      {/* Single transport button — morphs between REPLAY / PAUSE / RESUME so it stays out of the timeline track's way */}
       {running ? (
         <button
           className={`tlTransportBtn${paused ? " tlTransportBtn--paused" : " tlTransportBtn--running"}`}
@@ -78,8 +77,9 @@ export function Timeline({ start, end, progress, status, busy, paused, onReplay,
         </button>
       ) : (
         <button
-          className={`tlTransportBtn tlTransportBtn--replay${busy ? " tlTransportBtn--busy" : ""}`}
-          onClick={onReplay}
+          ref={btnRef}
+          className={`tlTransportBtn tlTransportBtn--replay${busy ? " tlTransportBtn--busy" : ""}${showSpotlight ? " tlTransportBtn--spotlit" : ""}`}
+          onClick={() => { dismiss(); onReplay(); }}
           disabled={busy}
         >
           {busy ? (
@@ -97,6 +97,39 @@ export function Timeline({ start, end, progress, status, busy, paused, onReplay,
           )}
         </button>
       )}
+
+      {showSpotlight && btnRect && createPortal(
+        <div className="tlSpotlight" onClick={dismiss}>
+          {/* Label above the button */}
+          <div
+            className="tlSpotlightLabel"
+            style={{ left: btnRect.left + btnRect.width / 2, top: btnRect.top - 14 }}
+          >
+            <span className="tlSpotlightTitle">START HERE</span>
+            <span className="tlSpotlightSub">Press REPLAY to begin the simulation</span>
+            <span className="tlSpotlightArrow" />
+          </div>
+        </div>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+function SpeedControl({ speed, onChange, disabled }: { speed: number; onChange: (v: number) => void; disabled: boolean }) {
+  const idx = SPEED_STEPS.findIndex(s => s.value === speed);
+  const current = SPEED_STEPS[idx] ?? SPEED_STEPS[3];
+
+  function step(dir: 1 | -1) {
+    const next = SPEED_STEPS[Math.max(0, Math.min(SPEED_STEPS.length - 1, idx + dir))];
+    if (next && next.value !== speed) onChange(next.value);
+  }
+
+  return (
+    <div className="tlSpeedControl">
+      <button className="tlSpeedBtn" onClick={() => step(-1)} disabled={disabled || idx === 0} title="Slower">‹</button>
+      <span className="tlSpeedLabel">{current.label}</span>
+      <button className="tlSpeedBtn" onClick={() => step(1)} disabled={disabled || idx === SPEED_STEPS.length - 1} title="Faster">›</button>
     </div>
   );
 }
@@ -109,7 +142,6 @@ function makeTicks(start: string, end: string): Tick[] {
   if (Number.isNaN(a.valueOf()) || Number.isNaN(b.valueOf())) return [];
   const span = b.getTime() - a.getTime();
   const days = Math.ceil(span / 86_400_000);
-  // One tick per day, capped at 9
   const count = Math.min(days + 1, 9);
   return Array.from({ length: count }, (_, i) => {
     const p = count <= 1 ? 0 : i / (count - 1);

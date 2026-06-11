@@ -14,9 +14,10 @@ from pathlib import Path
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.agentic.api import create_app as create_agentic_app
+from app.agent_runtime.api import create_app as create_agent_runtime_app
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,11 +46,12 @@ BC_ROAD_EVENTS_PATH = ROOT / "data/replay/bc_cariboo/road_events_snapshot.json"
 BC_WEATHER_SNAPSHOT_PATH = ROOT / "data/replay/bc_cariboo/weather_snapshot.json"
 FIRMS_SNAPSHOT_PATH = ROOT / "data/replay/bc_cariboo/firms_snapshot.csv"
 FIRMS_SNAPSHOT_METADATA_PATH = ROOT / "data/replay/bc_cariboo/firms_snapshot.metadata.json"
+WEB_DIST_PATH = ROOT / "web/dist"
 load_env()
-agentic_app = create_agentic_app()
+agent_runtime_app = create_agent_runtime_app()
 
 app = FastAPI(title="FireGuard API")
-app.mount("/api/intelligence", agentic_app)
+app.mount("/api/intelligence", agent_runtime_app)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:5174", "http://localhost:5174"],
@@ -1514,16 +1516,6 @@ def startup():
         create_indices()
 
 
-@app.on_event("startup")
-async def agentic_startup():
-    await agentic_app.state.engine.start()
-
-
-@app.on_event("shutdown")
-async def agentic_shutdown():
-    await agentic_app.state.engine.close()
-
-
 @app.get("/api/health")
 def health():
     return {"ok": True}
@@ -1602,3 +1594,7 @@ def replay_stream(req: ReplayRequest):
     if req.end_date < req.start_date:
         raise HTTPException(status_code=400, detail="end before start")
     return StreamingResponse(replay_lines(req), media_type="application/x-ndjson")
+
+
+if WEB_DIST_PATH.exists():
+    app.mount("/", StaticFiles(directory=str(WEB_DIST_PATH), html=True), name="web")

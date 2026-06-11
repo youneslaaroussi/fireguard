@@ -409,6 +409,7 @@ function entitiesFromTools(tools: ToolGraphNode[]): EntityGraphNode[] {
     if (tool.tool_name === "fireguard_search_events") return detectionEntities(tool);
     if (tool.tool_name === "fireguard_evaluate_route") return routeEntities(tool);
     if (tool.tool_name === "fireguard_map_annotation") return annotationEntities(tool);
+    if (tool.tool_name === "fireguard_actions") return actionEntities(tool);
     return [];
   });
 }
@@ -643,6 +644,9 @@ function toolSummary(ev: StreamEvent, fallback = ""): string {
   if (toolName === "fireguard_search_events") return eventsSummary(output);
   if (toolName === "fireguard_evaluate_route") return routeSummary(output);
   if (toolName === "fireguard_map_annotation") return annotationSummary(output);
+  if (toolName === "fireguard_bcws_context") return bcwsSummary(output);
+  if (toolName === "fireguard_actions") return actionsSummary(output);
+  if (toolName === "fireguard_health" || toolName === "fireguard_status") return statusSummary(output);
   if (toolName === "complete_workflow_node") return completionSummary(output);
   return genericOutputSummary(output) ?? fallback;
 }
@@ -669,6 +673,9 @@ function toolDisplayName(toolName: string): string {
     fireguard_search_events: "Fire detections",
     fireguard_evaluate_route: "Evaluate route",
     fireguard_map_annotation: "Map annotation",
+    fireguard_actions: "Action plan",
+    fireguard_health: "ADK health",
+    fireguard_status: "ADK status",
     complete_workflow_node: "Final response",
     fireguard_bcws_context: "BCWS context",
     fireguard_stats: "Index stats",
@@ -738,6 +745,46 @@ function annotationSummary(output: Record<string, unknown>): string {
   return trunc(`${markers} markers · ${routes} routes${message ? ` · ${message}` : ""}`, 74);
 }
 
+function actionEntities(tool: ToolGraphNode): EntityGraphNode[] {
+  const plan = isObj(tool.output?.plan) ? tool.output.plan : null;
+  if (plan === null) return [];
+  return arrayValue(plan.actions).filter(isObj).slice(0, 24).map((action, index) => {
+    const priority = stringValue(action.priority)?.toUpperCase() ?? "ACTION";
+    const title = stringValue(action.title) ?? `Action ${index + 1}`;
+    const owner = stringValue(action.owner);
+    const detail = stringValue(action.detail);
+    const urgent = priority === "IMMEDIATE" || priority === "URGENT";
+    return {
+      node_id: entityId(tool, "action", stringValue(action.id) ?? title, index),
+      parent_id: tool.node_id,
+      label: trunc(title, 38),
+      summary: [priority, owner, detail].filter(Boolean).join(" · "),
+      status: urgent ? "waiting" : "completed",
+      accentColor: priority === "IMMEDIATE" ? "#ef4444" : priority === "URGENT" ? "#f59e0b" : "#22c55e",
+      importance: priority === "IMMEDIATE" ? 94 : priority === "URGENT" ? 78 : 54,
+      platformBadge: priority.toLowerCase(),
+    };
+  });
+}
+
+function bcwsSummary(output: Record<string, unknown>): string {
+  const incidents = arrayValue(output.incidents).length;
+  const perimeters = arrayValue(output.perimeters).length;
+  return `${incidents} incidents · ${perimeters} perimeters`;
+}
+
+function actionsSummary(output: Record<string, unknown>): string {
+  const plan = isObj(output.plan) ? output.plan : null;
+  const summary = stringValue(plan?.summary);
+  const actions = plan ? arrayValue(plan.actions).length : 0;
+  return trunc(`${actions} actions${summary ? ` · ${summary}` : ""}`, 74);
+}
+
+function statusSummary(output: Record<string, unknown>): string {
+  const status = stringValue(output.status) ?? stringValue(output.health) ?? stringValue(output.message);
+  return status ? trunc(status, 74) : genericOutputSummary(output) ?? "status received";
+}
+
 function completionSummary(output: Record<string, unknown>): string {
   const payload = isObj(output.payload) ? output.payload : null;
   const nested = payload && isObj(payload.payload) ? payload.payload : null;
@@ -781,6 +828,7 @@ function toolIcon(toolName: string) {
   if (toolName === "fireguard_search_events") return Flame;
   if (toolName === "fireguard_evaluate_route") return Navigation;
   if (toolName === "fireguard_map_annotation") return MapPin;
+  if (toolName === "fireguard_actions") return FileCheck2;
   if (toolName === "complete_workflow_node") return FileCheck2;
   if (toolName === "exa_search") return Search;
   if (toolName.startsWith("fireguard_")) return Database;

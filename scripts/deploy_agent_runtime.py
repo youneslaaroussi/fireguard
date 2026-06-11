@@ -4,7 +4,7 @@ import argparse
 import os
 import subprocess
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, UTC
 from pathlib import Path
 
 import google.auth
@@ -20,7 +20,7 @@ if str(ROOT_DIR) not in sys.path:
 class GcloudCredentials(Credentials):
     def __init__(self) -> None:
         super().__init__()
-        self.expiry = datetime.utcnow()
+        self.expiry = _utcnow_naive()
 
     def refresh(self, request) -> None:  # type: ignore[no-untyped-def]
         del request
@@ -29,7 +29,11 @@ class GcloudCredentials(Credentials):
             text=True,
         ).strip()
         self.token = token
-        self.expiry = datetime.utcnow() + timedelta(minutes=45)
+        self.expiry = _utcnow_naive() + timedelta(minutes=45)
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _credentials() -> Credentials:
@@ -45,7 +49,8 @@ def _credentials() -> Credentials:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Deploy FireGuard to Agent Platform Runtime.")
     parser.add_argument("--project", default=os.environ.get("GOOGLE_CLOUD_PROJECT", "vidovaai"))
-    parser.add_argument("--location", default=os.environ.get("AGENT_RUNTIME_LOCATION", "global"))
+    parser.add_argument("--location", default=os.environ.get("AGENT_RUNTIME_LOCATION", "us-central1"))
+    parser.add_argument("--model-location", default=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"))
     parser.add_argument(
         "--staging-bucket",
         default=os.environ.get("AGENT_RUNTIME_STAGING_BUCKET", "gs://vidovaai-vertex-files"),
@@ -59,6 +64,12 @@ def main() -> None:
 
     credentials = _credentials()
     vertexai.init(project=args.project, location=args.location, credentials=credentials)
+
+    os.environ["GOOGLE_CLOUD_PROJECT"] = args.project
+    os.environ["GOOGLE_CLOUD_LOCATION"] = args.model_location
+    os.environ["AGENT_RUNTIME_LOCATION"] = args.model_location
+    os.environ["AGENT_RUNTIME_GEMINI_MODEL"] = args.gemini_model
+    os.environ["FIREGUARD_PUBLIC_BASE_URL"] = args.fireguard_public_base_url
 
     from app.agent_runtime.fireguard_agent import adk_app
 
@@ -80,6 +91,8 @@ def main() -> None:
             "env_vars": {
                 "FIREGUARD_PUBLIC_BASE_URL": args.fireguard_public_base_url,
                 "AGENT_RUNTIME_GEMINI_MODEL": args.gemini_model,
+                "AGENT_RUNTIME_LOCATION": args.model_location,
+                "GOOGLE_CLOUD_LOCATION": args.model_location,
                 "GOOGLE_GENAI_USE_VERTEXAI": "True",
                 "GOOGLE_CLOUD_AGENT_ENGINE_ENABLE_TELEMETRY": "true",
                 "OTEL_SEMCONV_STABILITY_OPT_IN": "gen_ai_latest_experimental",

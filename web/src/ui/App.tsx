@@ -1,21 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getConfig, getStats, replay } from "../api";
 import type { BcwsContext, FireEvent, ReplayRequest, Stats, ThreatPayload } from "../types";
 import type { ActionPlan, MapAnnotation } from "../intelligence/types";
 import { AgenticIntelligenceApp } from "../intelligence/App";
 import { ActionsPanel } from "./ActionsPanel";
-import { BroadcastCard } from "./BroadcastCard";
-import { DecisionTimer } from "./DecisionTimer";
 import { EventStream } from "./EventStream";
 import { KpiStrip } from "./KpiStrip";
 import { MapPanel } from "./MapPanel";
-import { MissionBrief } from "./MissionBrief";
 import { Sidebar } from "./Sidebar";
-import { SystemHUD } from "./SystemHUD";
-import { TechFooter } from "./TechFooter";
-import { ThreatPanel } from "./ThreatPanel";
 import { Timeline } from "./Timeline";
-import { WindCompass } from "./WindCompass";
 import { sources } from "./state";
 
 const initial: ReplayRequest = {
@@ -78,41 +71,18 @@ export function App() {
   const [intelligencePrompt, setIntelligencePrompt] = useState<string | null>(null);
   const [mapAnnotation, setMapAnnotation] = useState<MapAnnotation | null>(null);
   const [actionPlan, setActionPlan] = useState<ActionPlan | null>(null);
+  const [actionsOpen, setActionsOpen] = useState(true);
+  const [rightTab, setRightTab] = useState<"map" | "graph">("map");
+  const [chatSlot, setChatSlot] = useState<HTMLDivElement | null>(null);
   const [externalPrompt, setExternalPrompt] = useState<{ text: string; id: number } | null>(null);
   const externalPromptCounter = useRef(0);
   const [simDate, setSimDate] = useState<string | null>(null);
   const sessionContext = buildSessionContext(request, status, busy, events, context, stats, threatAlert);
   const spokenThreatRef = useRef<string | null>(null);
-  const [threatFlashKey, setThreatFlashKey] = useState(0);
-  const flashedThreatRef = useRef<string | null>(null);
-
-  const playSiren = useCallback(() => {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
-      const ctx = new AC();
-      const now = ctx.currentTime;
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sawtooth";
-      osc.frequency.setValueAtTime(440, now);
-      // Two-tone alert (low-high-low)
-      osc.frequency.linearRampToValueAtTime(880, now + 0.18);
-      osc.frequency.linearRampToValueAtTime(440, now + 0.36);
-      osc.frequency.linearRampToValueAtTime(880, now + 0.54);
-      osc.frequency.linearRampToValueAtTime(440, now + 0.72);
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.linearRampToValueAtTime(0.12, now + 0.04);
-      gain.gain.linearRampToValueAtTime(0.12, now + 0.7);
-      gain.gain.linearRampToValueAtTime(0.0001, now + 0.85);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(now);
-      osc.stop(now + 0.9);
-      osc.onended = () => ctx.close();
-    } catch {
-      // Audio is best-effort
-    }
-  }, []);
+  const maxThreatScore = useMemo(
+    () => events.reduce((m, e) => Math.max(m, e.threat_score ?? 0), 0),
+    [events]
+  );
 
   const speak = useCallback(async (text: string) => {
     try {
@@ -199,12 +169,6 @@ export function App() {
           const payload = { hotspot: message.hotspot, zone: message.zone };
           setThreatAlert(payload);
           setIntelligencePrompt(buildEvacuationPrompt(payload, request));
-          const threatKey = `${payload.zone.name}|${payload.hotspot.acquired_at}`;
-          if (flashedThreatRef.current !== threatKey) {
-            flashedThreatRef.current = threatKey;
-            setThreatFlashKey((k) => k + 1);
-            playSiren();
-          }
           if (spokenThreatRef.current !== payload.zone.name) {
             spokenThreatRef.current = payload.zone.name;
             void speak(`Threat detected. High-confidence fire hotspot near ${payload.zone.name}. FireGuard intelligence is analyzing evacuation routes.`);
@@ -244,12 +208,11 @@ export function App() {
         <span className="headerCrumbSep">›</span>
         <span className="headerCrumb headerCrumb--dim">CARIBOO FIRE CENTRE, BC</span>
         <div className="headerFill" />
-        {events.length > 0 && (() => {
-          const maxScore = events.reduce((m, e) => Math.max(m, e.threat_score ?? 0), 0);
-          if (maxScore === 0) return null;
-          const cls = maxScore >= 75 ? "scoreChip--critical" : maxScore >= 50 ? "scoreChip--high" : maxScore >= 25 ? "scoreChip--moderate" : "scoreChip--low";
-          return <span className={`scoreChip ${cls}`}>RISK {maxScore}</span>;
-        })()}
+        {maxThreatScore > 0 && (
+          <span className={`scoreChip ${maxThreatScore >= 75 ? "scoreChip--critical" : maxThreatScore >= 50 ? "scoreChip--high" : maxThreatScore >= 25 ? "scoreChip--moderate" : "scoreChip--low"}`}>
+            RISK {maxThreatScore}
+          </span>
+        )}
         {threatAlert !== null && (
           <button className="statusChip statusChip--threat" type="button">
             THREAT · {threatAlert.zone.name}
@@ -278,6 +241,9 @@ export function App() {
           stats={stats}
           busy={busy}
           annotation={mapAnnotation}
+          events={events}
+          threat={threatAlert}
+          status={status}
         />
 
         <section className="centerPanel">
@@ -288,11 +254,89 @@ export function App() {
             status={status}
             busy={busy}
             paused={paused}
+            speed={request.speed}
+            onSpeedChange={(speed) => setRequest((r) => ({ ...r, speed }))}
             onReplay={() => void startReplay()}
             onTogglePause={togglePause}
           />
           <EventStream events={events} busy={busy} />
-          <div className="centerIntel">
+        </section>
+
+        <section className="rightPanel">
+          {/* Tab bar */}
+          <div className="rightTabs">
+            <button
+              className={`rightTab${rightTab === "map" ? " rightTab--active" : ""}`}
+              onClick={() => setRightTab("map")}
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <rect x="1" y="1" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.4"/>
+                <path d="M1 4h10" stroke="currentColor" strokeWidth="1"/>
+              </svg>
+              MAP
+            </button>
+            <button
+              className={`rightTab${rightTab === "graph" ? " rightTab--active" : ""}${threatAlert ? " rightTab--alert" : ""}`}
+              onClick={() => setRightTab("graph")}
+            >
+              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                <circle cx="6" cy="2" r="1.3" fill="currentColor"/>
+                <circle cx="2" cy="9" r="1.3" fill="currentColor"/>
+                <circle cx="10" cy="9" r="1.3" fill="currentColor"/>
+                <line x1="6" y1="3.3" x2="2" y2="7.7" stroke="currentColor" strokeWidth="1"/>
+                <line x1="6" y1="3.3" x2="10" y2="7.7" stroke="currentColor" strokeWidth="1"/>
+              </svg>
+              INTELLIGENCE
+            </button>
+          </div>
+
+          {/* Map view — always mounted, hidden when graph tab active */}
+          <div className={`rightPanelMap${rightTab === "map" ? "" : " rightPanelMap--hidden"}`}>
+            <MapPanel
+              token={mapboxToken}
+              googleMapsKey={googleMapsKey}
+              events={events}
+              context={context}
+              lat={request.latitude}
+              lon={request.longitude}
+              radiusKm={request.radius_km}
+              annotation={mapAnnotation}
+              threat={threatAlert}
+              simDate={simDate}
+              annotationActive={mapAnnotation !== null}
+              busy={busy}
+              onAreaChange={(lat, lon, radiusKm) =>
+                setRequest((r) => ({ ...r, latitude: lat, longitude: lon, radius_km: Math.round(radiusKm) }))
+              }
+            />
+            {threatAlert !== null && (
+              <ThreatAlert threat={threatAlert} />
+            )}
+            {actionPlan !== null && actionsOpen && (
+              <div className="actionsPopup">
+                <ActionsPanel
+                  plan={actionPlan}
+                  onDismiss={() => setActionsOpen(false)}
+                  onAct={(text) => {
+                    externalPromptCounter.current += 1;
+                    setExternalPrompt({ text, id: externalPromptCounter.current });
+                  }}
+                />
+              </div>
+            )}
+            {actionPlan !== null && !actionsOpen && (
+              <button className="actionsReopenBtn" type="button" onClick={() => setActionsOpen(true)}>
+                <svg viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.75 9.5h-1.5v-4h1.5v4zm0-5.5h-1.5V3.5h1.5V5z" fill="#facc15"/>
+                </svg>
+                ACTIONS
+                <span className="actionsReopenCount">{actionPlan.actions.length}</span>
+              </button>
+            )}
+          </div>
+
+          {/* Intelligence/graph view — hideChat=false but chat renders via chatSlotRef portal */}
+          <div className={`rightPanelGraph${rightTab === "graph" ? "" : " rightPanelGraph--hidden"}`}>
             <AgenticIntelligenceApp
               autoPrompt={intelligencePrompt}
               externalPrompt={externalPrompt}
@@ -301,57 +345,19 @@ export function App() {
               threat={threatAlert}
               mode="embedded"
               googleMapsKey={googleMapsKey}
+              hideChat={false}
+              chatPortalTarget={chatSlot}
               onAnnotation={setMapAnnotation}
-              onActions={setActionPlan}
+              onActions={(plan) => { setActionPlan(plan); setActionsOpen(true); }}
               onSpeakMessage={speak}
             />
           </div>
-          {actionPlan !== null && (
-            <ActionsPanel
-              plan={actionPlan}
-              onDismiss={() => setActionPlan(null)}
-              onAct={(text) => {
-                externalPromptCounter.current += 1;
-                setExternalPrompt({ text, id: externalPromptCounter.current });
-              }}
-            />
-          )}
-          <BroadcastCard plan={actionPlan} threat={threatAlert} />
-        </section>
 
-        <section className={`mapColumn${threatAlert ? " mapColumn--threat" : ""}`}>
-          <MapPanel
-            token={mapboxToken}
-            googleMapsKey={googleMapsKey}
-            events={events}
-            context={context}
-            lat={request.latitude}
-            lon={request.longitude}
-            radiusKm={request.radius_km}
-            annotation={mapAnnotation}
-            threat={threatAlert}
-            simDate={simDate}
-            annotationActive={mapAnnotation !== null}
-            busy={busy}
-            onAreaChange={(lat, lon, radiusKm) =>
-              setRequest((r) => ({ ...r, latitude: lat, longitude: lon, radius_km: Math.round(radiusKm) }))
-            }
-          />
-          {threatAlert !== null && (
-            <ThreatAlert threat={threatAlert} />
-          )}
-          <DecisionTimer threat={threatAlert} hasPlan={actionPlan !== null} />
-          <SystemHUD events={events} busy={busy} threat={threatAlert} status={status} />
-          <MissionBrief events={events} threat={threatAlert} simDate={simDate} />
-          <WindCompass events={events} context={context} />
+          {/* Chat slot — always visible below both tabs, chat is portalled here */}
+          <div className="rightPanelChat" ref={(el) => { if (el && el !== chatSlot) setChatSlot(el); }} />
         </section>
       </div>
 
-      <TechFooter />
-
-      {threatFlashKey > 0 && (
-        <div key={threatFlashKey} className="threatFlash" aria-hidden="true" />
-      )}
     </div>
   );
 }

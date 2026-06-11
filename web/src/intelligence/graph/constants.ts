@@ -18,6 +18,9 @@ export const TOOL_ACCENT_COLORS: Record<string, string> = {
   fireguard_evaluate_route:     "#3b82f6",
   fireguard_map_annotation:     "#06b6d4",
   fireguard_bcws_context:       "#6366f1",
+  fireguard_actions:            "#22c55e",
+  fireguard_health:             "#64748b",
+  fireguard_status:             "#64748b",
   fireguard_stats:              "#64748b",
 };
 
@@ -30,6 +33,9 @@ export const TOOL_PLATFORM_BADGE: Record<string, string> = {
   fireguard_evaluate_route:     "elastic",
   fireguard_map_annotation:     "googlemaps",
   fireguard_bcws_context:       "elastic",
+  fireguard_actions:            "plan",
+  fireguard_health:             "adk",
+  fireguard_status:             "adk",
   fireguard_stats:              "elastic",
   exa_search:                   "exa",
 };
@@ -37,6 +43,8 @@ import type { XYPosition } from "@xyflow/react";
 
 export const NODE_ORDER = [
   "human_trigger",
+  "data_checks",
+  "fireguard_adk_agent",
   "chat_agent",
   "research_agent",
   "writer_agent",
@@ -48,6 +56,9 @@ export const CLICKABLE_EDGE_IDS = new Set([
   "e_trigger_research",
   "e_research_terminal",
   "edge_trigger_to_chat",
+  "edge_trigger_to_adk",
+  "edge_data_checks_to_adk",
+  "edge_adk_to_terminal",
   "edge_chat_to_research",
   "edge_research_to_writer",
   "edge_writer_to_style",
@@ -56,6 +67,8 @@ export const CLICKABLE_EDGE_IDS = new Set([
 
 export const DISPLAY_LABELS: Record<string, string> = {
   human_trigger: "Trigger",
+  data_checks: "Data Checks",
+  fireguard_adk_agent: "ADK Agent",
   chat_agent: "Request Router",
   research_agent: "Data Checks",
   writer_agent: "Evacuation Brief",
@@ -65,6 +78,8 @@ export const DISPLAY_LABELS: Record<string, string> = {
 
 export const NODE_ICONS: Record<string, LucideIcon> = {
   human_trigger: UserRound,
+  data_checks: Search,
+  fireguard_adk_agent: Bot,
   chat_agent: MessageSquareText,
   research_agent: Search,
   writer_agent: PenLine,
@@ -76,6 +91,8 @@ export const FALLBACK_ICON = Bot;
 
 export const RERUNNABLE_NODES = new Set([
   "chat_agent",
+  "data_checks",
+  "fireguard_adk_agent",
   "research_agent",
   "writer_agent",
   "style_agent",
@@ -83,6 +100,8 @@ export const RERUNNABLE_NODES = new Set([
 
 export const ACCENT_COLORS: Record<string, string> = {
   human_trigger: "#6366f1",
+  data_checks: "#8b5cf6",
+  fireguard_adk_agent: "#3b82f6",
   chat_agent: "#3b82f6",
   research_agent: "#8b5cf6",
   writer_agent: "#f59e0b",
@@ -120,9 +139,11 @@ export const STATUS_TEXT: Record<string, string> = {
 /** Fixed positions for the primary pipeline column (top-to-bottom) */
 export const PRIMARY_POSITIONS: Record<string, XYPosition> = {
   human_trigger: { x: 20, y: 80 },
+  data_checks: { x: 230, y: 80 },
+  fireguard_adk_agent: { x: 440, y: 80 },
   chat_agent:    { x: 230, y: 80 },
   research_agent:{ x: 440, y: 80 },
   writer_agent:  { x: 650, y: 80 },
   style_agent:   { x: 860, y: 80 },
-  terminal:      { x: 1070, y: 80 },
+  terminal:      { x: 650, y: 80 },
 };

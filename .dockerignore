@@ -1,0 +1,11 @@
+.git
+.venv
+__pycache__
+*.pyc
+.env
+.env.*
+web/node_modules
+web/dist
+web/tsconfig.tsbuildinfo
+logs
+fireguard-demo.pptx

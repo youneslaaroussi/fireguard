@@ -6,6 +6,7 @@ import { buildGraphModel, buildGraphSignature } from "./graph/build";
 import type { FlowEdgeData, FlowNodeData } from "./graph/types";
 import { STATUS_TEXT } from "./graph/constants";
 import "./styles/graph.css";
+import { LOGOS } from "./logos";
 
 export type ClickedNodeInfo = { id: string } & G6NodeData;
 
@@ -185,6 +186,10 @@ export function WorkflowGraph({
   return (
     <div className="workflow-graph workflow-graph--g6">
       <div ref={containerRef} className="g6-canvas" />
+      <div className="g6-gemini-watermark">
+        <img src={LOGOS.gemini.src} alt="Gemini" className="g6-gemini-logo" />
+        <span className="g6-gemini-label">GEMINI</span>
+      </div>
       {graphModel !== null && (
         <div className="g6-count">
           {graphModel.nodes.length} nodes · {graphModel.edges.length} edges
@@ -573,7 +578,7 @@ function elementId(target: unknown): string | null {
   return typeof id === "string" ? id : null;
 }
 
-function buildTooltipEl(d: G6NodeData): HTMLElement {
+function buildTooltipEl(d: Partial<G6NodeData>): HTMLElement {
   const STATUS_LABEL: Record<string, string> = {
     running: "RUNNING", completed: "DONE", failed: "FAILED",
     rejected: "REJECTED", waiting: "WAITING", pending: "PENDING", skipped: "SKIPPED",
@@ -583,10 +588,13 @@ function buildTooltipEl(d: G6NodeData): HTMLElement {
     rejected: "#f87171", waiting: "#fbbf24", pending: "#4b6278", skipped: "#4b6278",
   };
 
+  const status = typeof d.status === "string" && d.status.length > 0 ? d.status : "pending";
+  const label = typeof d.label === "string" && d.label.length > 0 ? d.label : "Node";
+  const summary = typeof d.summary === "string" ? d.summary : "";
   const accent = d.accentColor ?? "#6366f1";
-  const sc = STATUS_COLOR[d.status] ?? "#6b7280";
-  const statusLabel = STATUS_LABEL[d.status] ?? d.status.toUpperCase();
-  const badge = d.platformBadge as string | null | undefined;
+  const sc = STATUS_COLOR[status] ?? "#6b7280";
+  const statusLabel = STATUS_LABEL[status] ?? status.toUpperCase();
+  const badge = typeof d.platformBadge === "string" && d.platformBadge.length > 0 ? d.platformBadge : null;
 
   // outer wrapper
   const el = document.createElement("div");
@@ -618,7 +626,7 @@ function buildTooltipEl(d: G6NodeData): HTMLElement {
 
   const labelEl = document.createElement("span");
   labelEl.style.cssText = "font-size:12px;font-weight:700;color:#ddeaf8;line-height:1.3;letter-spacing:0.02em";
-  labelEl.textContent = d.label;
+  labelEl.textContent = label;
 
   const chip = document.createElement("span");
   chip.style.cssText = `flex-shrink:0;font-size:7px;font-weight:700;letter-spacing:0.16em;color:${sc};background:${sc}15;border:1px solid ${sc}35;padding:2px 5px;border-radius:99px;margin-top:2px`;
@@ -628,10 +636,10 @@ function buildTooltipEl(d: G6NodeData): HTMLElement {
   body.append(header);
 
   // summary
-  if (d.summary) {
+  if (summary) {
     const sumEl = document.createElement("div");
     sumEl.style.cssText = "font-size:10px;color:#4a6880;line-height:1.5;margin-bottom:4px";
-    sumEl.textContent = d.summary;
+    sumEl.textContent = summary;
     body.append(sumEl);
   }
 

@@ -1,8 +1,39 @@
 import { useState, type ReactNode } from "react";
-import type { BcwsContext, ReplayRequest, Stats } from "../types";
+import type { BcwsContext, FireEvent, ReplayRequest, Stats, ThreatPayload } from "../types";
 import type { MapAnnotation } from "../intelligence/types";
 import { LOGOS } from "../intelligence/logos";
 import { sources as allSources } from "./state";
+import { SystemHUD } from "./SystemHUD";
+
+function abbrevSource(source: string): string {
+  return source
+    .replace("VIIRS_NOAA20_NRT", "VIIRS · NOAA-20").replace("VIIRS_NOAA20_SP", "VIIRS · NOAA-20")
+    .replace("VIIRS_NOAA21_NRT", "VIIRS · NOAA-21").replace("VIIRS_NOAA21_SP", "VIIRS · NOAA-21")
+    .replace("VIIRS_SNPP_NRT",   "VIIRS · SNPP").replace("VIIRS_SNPP_SP", "VIIRS · SNPP")
+    .replace("MODIS_NRT", "MODIS").replace("MODIS_SP", "MODIS");
+}
+
+function IngestBanner({ events, busy }: { events: FireEvent[]; busy: boolean }) {
+  const latest = events[events.length - 1];
+  if (!busy || !latest) return null;
+  return (
+    <div className="sbIngestBanner">
+      <div className="sbIngestLogos">
+        <img src={LOGOS.nasa.src} alt="NASA" className="sbIngestLogo" />
+        <span className="sbIngestLogoSep">+</span>
+        <img src={LOGOS.elastic.src} alt="Elastic" className="sbIngestLogo" />
+      </div>
+      <div className="sbIngestBody">
+        <span className="sbIngestSource">{abbrevSource(latest.source)}</span>
+        <span className="sbIngestLabel">LIVE ACQUISITION</span>
+      </div>
+      <div className="sbIngestRight">
+        <span className="sbIngestCount">{events.length.toLocaleString()}</span>
+        <span className="sbIngestPulse" />
+      </div>
+    </div>
+  );
+}
 
 type Props = {
   request: ReplayRequest;
@@ -11,6 +42,9 @@ type Props = {
   stats: Stats | null;
   busy: boolean;
   annotation?: MapAnnotation | null;
+  events: FireEvent[];
+  threat: ThreatPayload | null;
+  status: string;
 };
 
 const SRC_META: Record<string, { short: string; color: string }> = {
@@ -61,7 +95,7 @@ function ContextRow({ color, label, count }: { color: string; label: string; cou
   );
 }
 
-export function Sidebar({ request, onRequestChange, context, stats, busy, annotation = null }: Props) {
+export function Sidebar({ request, onRequestChange, context, stats, busy, annotation = null, events, threat, status }: Props) {
   function patch(next: Partial<ReplayRequest>) {
     onRequestChange({ ...request, ...next });
   }
@@ -77,6 +111,8 @@ export function Sidebar({ request, onRequestChange, context, stats, busy, annota
 
   return (
     <aside className="sidebar">
+      <SystemHUD events={events} busy={busy} threat={threat} status={status} />
+      <IngestBanner events={events} busy={busy} />
       <Section title="CONTEXT">
         <ContextRow color="#e5484d" label="Incidents"   count={context.incidents.length} />
         <ContextRow color="#f59e0b" label="Perimeters"  count={context.perimeters.length} />

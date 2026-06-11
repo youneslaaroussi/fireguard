@@ -15,11 +15,10 @@ docker rm -f elasticsearch || true
 docker run -d \
   --name elasticsearch \
   --restart unless-stopped \
-  -p 127.0.0.1:9200:9200 \
+  -p 9200:9200 \
   -e discovery.type=single-node \
   -e xpack.security.enabled=true \
   -e ELASTIC_PASSWORD="${PASSWORD}" \
   -e ES_JAVA_OPTS="-Xms3g -Xmx3g" \
   -v elasticsearch-data:/usr/share/elasticsearch/data \
   docker.elastic.co/elasticsearch/elasticsearch:8.15.5
-

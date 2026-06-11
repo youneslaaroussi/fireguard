@@ -1,9 +1,11 @@
 import { Button, Dialog, Intent, Tag } from "@blueprintjs/core";
 import Editor from "@monaco-editor/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { ActionPlan, MapAnnotation } from "./types";
+import { LOGOS } from "./logos";
 import {
   createSession,
   getEvents,
@@ -187,6 +189,8 @@ type AgenticIntelligenceAppProps = {
   threat?: unknown;
   mode?: "full" | "overlay" | "embedded";
   googleMapsKey?: string;
+  hideChat?: boolean;
+  chatPortalTarget?: HTMLElement | null;
   onClose?: () => void;
   onAnnotation?: (annotation: MapAnnotation) => void;
   onActions?: (plan: ActionPlan) => void;
@@ -201,6 +205,8 @@ export function AgenticIntelligenceApp({
   threat = null,
   mode = "full",
   googleMapsKey = "",
+  hideChat = false,
+  chatPortalTarget = null,
   onClose,
   onAnnotation,
   onActions,
@@ -919,6 +925,63 @@ export function AgenticIntelligenceApp({
   // ── Embedded mode: graph + assistant chat + send bar only ──────────────────
   if (mode === "embedded") {
     const assistantMessages = chatMessages.filter((m) => m.role === "assistant");
+
+    const chatEl = !hideChat ? (
+      <div className="embedded-chat">
+        <div className="embedded-chat-header">
+          <img src={LOGOS.gemini.src} alt="Gemini" className="embedded-gemini-logo" />
+          <span className="embedded-gemini-label">GEMINI</span>
+          <span className="embedded-gemini-sub">Intelligence Agent</span>
+        </div>
+        <div className="embedded-messages" ref={embeddedMsgRef}>
+          {assistantMessages.length === 0 ? (
+            <div className="embedded-idle">
+              {isActive(run) ? (
+                <span className="embedded-thinking">
+                  <span className="embeddedDot" /><span className="embeddedDot" /><span className="embeddedDot" />
+                  Analyzing…
+                </span>
+              ) : (
+                <span className="embedded-idle-text">Intelligence ready</span>
+              )}
+            </div>
+          ) : (
+            assistantMessages.map((message) => (
+              <div key={message.id} className="embedded-msg">
+                <div className="embedded-msg-label">{agentLabel(message.agent_id, message.node_id)}</div>
+                <MessageToolCalls calls={toolCallsForMessage(allToolCalls, message)} />
+                {message.content.length > 0 && (
+                  <div className="embedded-msg-content">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+        <div className="embedded-input-row">
+          <textarea
+            className="embedded-textarea"
+            value={chatInput}
+            placeholder="Message FireGuard…"
+            rows={1}
+            onChange={(e) => setChatInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSendChat(); }
+            }}
+          />
+          <button
+            className={`embedded-send${isActive(run) || busy ? " embedded-send--busy" : ""}`}
+            disabled={chatInput.trim().length === 0 || isActive(run) || busy}
+            onClick={() => void handleSendChat()}
+            type="button"
+          >
+            {isActive(run) || busy ? "…" : "↑"}
+          </button>
+        </div>
+      </div>
+    ) : null;
+
     return (
       <div className="agenticIntelligence agenticIntelligence--embedded app-shell bp6-dark">
         {error !== null && <div className="error-banner embedded-error">{error}</div>}
@@ -940,54 +1003,7 @@ export function AgenticIntelligenceApp({
           googleMapsKey={googleMapsKey}
           onClose={() => setClickedNode(null)}
         />
-        <div className="embedded-chat">
-          <div className="embedded-messages" ref={embeddedMsgRef}>
-            {assistantMessages.length === 0 ? (
-              <div className="embedded-idle">
-                {isActive(run) ? (
-                  <span className="embedded-thinking">
-                    <span className="embeddedDot" /><span className="embeddedDot" /><span className="embeddedDot" />
-                    Analyzing…
-                  </span>
-                ) : (
-                  <span className="embedded-idle-text">Intelligence ready</span>
-                )}
-              </div>
-            ) : (
-              assistantMessages.map((message) => (
-                <div key={message.id} className="embedded-msg">
-                  <div className="embedded-msg-label">{agentLabel(message.agent_id, message.node_id)}</div>
-                  <MessageToolCalls calls={toolCallsForMessage(allToolCalls, message)} />
-                  {message.content.length > 0 && (
-                    <div className="embedded-msg-content">
-                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-                    </div>
-                  )}
-                </div>
-              ))
-            )}
-          </div>
-          <div className="embedded-input-row">
-            <textarea
-              className="embedded-textarea"
-              value={chatInput}
-              placeholder="Message FireGuard…"
-              rows={1}
-              onChange={(e) => setChatInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSendChat(); }
-              }}
-            />
-            <button
-              className={`embedded-send${isActive(run) || busy ? " embedded-send--busy" : ""}`}
-              disabled={chatInput.trim().length === 0 || isActive(run) || busy}
-              onClick={() => void handleSendChat()}
-              type="button"
-            >
-              {isActive(run) || busy ? "…" : "↑"}
-            </button>
-          </div>
-        </div>
+        {chatPortalTarget ? createPortal(chatEl, chatPortalTarget) : chatEl}
       </div>
     );
   }

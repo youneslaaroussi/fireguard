@@ -4,9 +4,12 @@ type Props = {
   events: FireEvent[];
   threat: ThreatPayload | null;
   simDate: string | null;
+  googleMapsKey?: string;
+  lat?: number;
+  lon?: number;
 };
 
-export function MissionBrief({ events, threat, simDate }: Props) {
+export function MissionBrief({ events, threat, simDate, googleMapsKey, lat, lon }: Props) {
   const critical = events.reduce(
     (n, e) => n + ((e.threat_score ?? 0) >= 75 ? 1 : 0),
     0,
@@ -27,8 +30,23 @@ export function MissionBrief({ events, threat, simDate }: Props) {
         ? "missionBrief--monitoring"
         : "missionBrief--ready";
 
+  const staticMapUrl =
+    googleMapsKey && lat != null && lon != null
+      ? `https://maps.googleapis.com/maps/api/staticmap?center=${lat},${lon}&zoom=11&size=220x100&maptype=satellite&key=${googleMapsKey}`
+      : null;
+
   return (
     <div className={`missionBrief ${phaseClass}`}>
+      {staticMapUrl && (
+        <img
+          className="missionBriefStaticMap"
+          src={staticMapUrl}
+          alt="Satellite view"
+          width={220}
+          height={100}
+          loading="lazy"
+        />
+      )}
       <div className="missionBriefHead">
         <span className="missionBriefBadge">FG-OPS</span>
         <span className="missionBriefTitle">WILLIAMS LAKE</span>

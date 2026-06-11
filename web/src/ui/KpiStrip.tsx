@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import type { BcwsContext, FireEvent, ThreatPayload } from "../types";
 
 type Props = {
@@ -63,36 +63,30 @@ function KpiTile({ tile, pulse }: { tile: Tile; pulse: boolean }) {
 }
 
 export function KpiStrip({ events, context, threat, busy }: Props) {
-  const critical = events.reduce(
-    (n, e) => n + ((e.threat_score ?? 0) >= 75 ? 1 : 0),
-    0,
-  );
-  const sheltersOpen = context.ess_facilities.reduce(
-    (n, s) => n + ((s.status ?? "").toLowerCase() === "open" ? 1 : 0),
-    0,
-  );
-  const sheltersTotal = context.ess_facilities.length;
-  const roadClosures = context.road_events.reduce(
-    (n, r) => n + ((r.severity ?? "").toLowerCase().includes("closure") || (r.event_type ?? "").toLowerCase().includes("closure") ? 1 : 0),
-    0,
-  );
-  const evacOrders = context.evacuation_records.reduce(
-    (n, r) => n + ((r.status ?? "").toLowerCase() === "order" ? 1 : 0),
-    0,
-  );
-  const evacAlerts = context.evacuation_records.reduce(
-    (n, r) => n + ((r.status ?? "").toLowerCase() === "alert" ? 1 : 0),
-    0,
-  );
-  const populationAtRisk = context.evacuation_records.reduce(
-    (n, r) => n + (r.population ?? 0),
-    0,
-  );
-  const incidentsActive = context.incidents.reduce(
-    (n, i) => n + ((i.fire_status ?? "").toLowerCase().includes("out of control") || (i.fire_status ?? "").toLowerCase().includes("being held") ? 1 : 0),
-    0,
-  );
-  const maxFrp = events.reduce((m, e) => Math.max(m, e.frp ?? 0), 0);
+  // All event-level aggregations in a single pass — memoized on events array reference
+  const { critical, maxFrp } = useMemo(() => {
+    let crit = 0, frp = 0;
+    for (const e of events) {
+      if ((e.threat_score ?? 0) >= 75) crit++;
+      if ((e.frp ?? 0) > frp) frp = e.frp ?? 0;
+    }
+    return { critical: crit, maxFrp: frp };
+  }, [events]);
+
+  // Context aggregations — memoized on context reference
+  const { sheltersOpen, sheltersTotal, roadClosures, evacOrders, evacAlerts, populationAtRisk, incidentsActive } = useMemo(() => {
+    const sheltersOpen = context.ess_facilities.filter(s => (s.status ?? "").toLowerCase() === "open").length;
+    const roadClosures = context.road_events.filter(r =>
+      (r.severity ?? "").toLowerCase().includes("closure") || (r.event_type ?? "").toLowerCase().includes("closure")
+    ).length;
+    const evacOrders = context.evacuation_records.filter(r => (r.status ?? "").toLowerCase() === "order").length;
+    const evacAlerts = context.evacuation_records.filter(r => (r.status ?? "").toLowerCase() === "alert").length;
+    const populationAtRisk = context.evacuation_records.reduce((n, r) => n + (r.population ?? 0), 0);
+    const incidentsActive = context.incidents.filter(i =>
+      (i.fire_status ?? "").toLowerCase().includes("out of control") || (i.fire_status ?? "").toLowerCase().includes("being held")
+    ).length;
+    return { sheltersOpen, sheltersTotal: context.ess_facilities.length, roadClosures, evacOrders, evacAlerts, populationAtRisk, incidentsActive };
+  }, [context]);
 
   const tiles: Tile[] = [
     { key: "detections", label: "DETECTIONS", value: events.length, format: "k", flavor: events.length > 0 ? "normal" : "normal" },

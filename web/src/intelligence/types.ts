@@ -102,20 +102,13 @@ export interface RuntimeSettings {
   base_url: string;
   light_model: string;
   pro_model: string;
-  api_key_configured: boolean;
   max_completion_tokens: number;
   max_agent_turns: number;
-  exa_configured: boolean;
   google_project_configured: boolean;
   google_cloud_location: string;
   fireguard_data_configured: boolean;
   fireguard_index_prefix: string;
   fireguard_data_bootstrap_enabled: boolean;
-  docker_sandbox_enabled: boolean;
-  docker_sandbox_image: string;
-  docker_sandbox_network: string;
-  docker_sandbox_pool_size: number;
-  docker_sandbox_install_packages_on_start: boolean;
 }
 
 export interface WorkflowRun {

@@ -45,7 +45,7 @@ body {
 }
 
 .centerPanel {
-  flex: 1;
+  flex: 0 0 240px;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -53,22 +53,95 @@ body {
   overflow: hidden;
 }
 
-.centerIntel {
+.rightPanel {
   flex: 1;
-  min-height: 0;
-  overflow: hidden;
+  min-width: 300px;
+  flex-shrink: 1;
+  border-left: 1px solid rgba(255,255,255,0.07);
   display: flex;
   flex-direction: column;
-  /* allow actionsPanel below to claim its space */
-  flex-shrink: 1;
+  overflow: hidden;
+  background: #0b0f14;
+  position: relative;
 }
 
-.mapColumn {
-  width: 50%;
-  min-width: 300px;
+/* keep mapColumn as alias for legacy CSS that refs it */
+.mapColumn { width: 50%; min-width: 300px; flex-shrink: 0; position: relative; border-left: 1px solid rgba(255,255,255,0.07); display: flex; flex-direction: column; overflow: hidden; }
+
+.rightTabs {
+  display: flex;
   flex-shrink: 0;
+  height: 30px;
+  background: #0d1420;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+
+.rightTab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: #3a5468;
+  font-family: 'Courier New', monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.rightTab:hover { color: #6a8ea8; }
+
+.rightTab--active {
+  color: #c8ddef;
+  border-bottom-color: #4ab4f5;
+  background: rgba(74,180,245,0.04);
+}
+
+.rightTab--alert::after {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ff4422;
+  box-shadow: 0 0 6px rgba(255,68,34,0.8);
+  margin-left: 2px;
+  display: inline-block;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.rightPanelMap {
+  flex: 1;
+  min-height: 0;
   position: relative;
-  border-left: 1px solid rgba(255,255,255,0.07);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rightPanelMap--hidden { display: none; }
+
+.rightPanelGraph {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* When on map tab, hide graph canvas but keep chat floating over map */
+.rightPanelGraph--hidden { display: none; }
+
+.rightPanelChat {
+  flex: 1;
+  min-height: 0;
+  border-top: 1px solid rgba(142,117,178,0.3);
+  background: #0d1117;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -259,7 +332,7 @@ body {
    ================================================================ */
 
 .sidebar {
-  width: 160px;
+  width: 175px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
@@ -271,6 +344,114 @@ body {
 }
 
 .sbFill { flex: 1; min-height: 8px; }
+
+/* Ingest banner — sits below SystemHUD */
+@keyframes sbIngestScan {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(500%); }
+}
+
+.sbIngestBanner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 10px;
+  background: rgba(6, 10, 18, 0.95);
+  border-bottom: 1px solid rgba(224, 60, 49, 0.3);
+  border-top: 1px solid rgba(224, 60, 49, 0.15);
+  position: relative;
+  overflow: hidden;
+}
+
+.sbIngestBanner::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 18%;
+  background: linear-gradient(90deg, transparent, rgba(224,60,49,0.07), transparent);
+  animation: sbIngestScan 2.2s linear infinite;
+  pointer-events: none;
+}
+
+.sbIngestLogos {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.sbIngestLogo {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 3px rgba(224,60,49,0.4));
+}
+
+.sbIngestLogoSep {
+  font-size: 9px;
+  color: #3a4a58;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sbIngestBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sbIngestSource {
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  font-weight: 700;
+  color: #c8dae8;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sbIngestLabel {
+  font-family: 'Courier New', monospace;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #e03c31;
+}
+
+.sbIngestRight {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+
+.sbIngestCount {
+  font-family: 'Courier New', monospace;
+  font-size: 13px;
+  font-weight: 900;
+  color: #ff6b58;
+  letter-spacing: -0.02em;
+  text-shadow: 0 0 8px rgba(224,60,49,0.4);
+}
+
+@keyframes sbIngestPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.3; transform: scale(1.6); }
+}
+
+.sbIngestPulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #e03c31;
+  box-shadow: 0 0 6px #e03c31;
+  animation: sbIngestPulse 1.2s ease-in-out infinite;
+  flex-shrink: 0;
+}
 
 .sbSection {
   border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -537,6 +718,43 @@ select.sbInput { appearance: none; }
 
 /* Single transport button — morphs between REPLAY / PAUSE / RESUME.
    Same width across all states so the timeline track width is stable. */
+.tlSpeedControl {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  border-left: 1px solid rgba(255,255,255,0.1);
+}
+
+.tlSpeedBtn {
+  width: 22px;
+  height: 100%;
+  border: none;
+  background: transparent;
+  color: #4b6a80;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 0.12s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.tlSpeedBtn:hover:not(:disabled) { color: #94afc8; }
+.tlSpeedBtn:disabled { opacity: 0.25; cursor: default; }
+
+.tlSpeedLabel {
+  width: 44px;
+  text-align: center;
+  font-family: 'Courier New', monospace;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: #7a9ab4;
+  letter-spacing: 0.06em;
+  pointer-events: none;
+}
+
 .tlTransportBtn {
   flex-shrink: 0;
   width: 96px;
@@ -594,6 +812,65 @@ select.sbInput { appearance: none; }
 }
 
 .tlBusyDots { letter-spacing: 0.3em; }
+
+/* Spotlight overlay — portaled to document.body */
+.tlSpotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  background: rgba(0, 0, 0, 0.78);
+  animation: tlSpotlightIn 0.35s ease both;
+  cursor: pointer;
+}
+
+@keyframes tlSpotlightIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* The REPLAY button punches through the overlay via z-index */
+.tlTransportBtn--spotlit {
+  position: relative;
+  z-index: 9001;
+  box-shadow: 0 0 0 4px rgba(74,180,245,0.25), 0 0 32px rgba(74,180,245,0.3);
+  pointer-events: auto;
+}
+
+.tlSpotlightLabel {
+  position: fixed;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  pointer-events: none;
+  animation: tlSpotlightIn 0.35s ease both;
+  padding-bottom: 10px;
+}
+
+.tlSpotlightTitle {
+  font-family: 'Courier New', monospace;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.2em;
+  color: #4ab4f5;
+  text-shadow: 0 0 12px rgba(74,180,245,0.6);
+}
+
+.tlSpotlightSub {
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  color: #7a9ab8;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.tlSpotlightArrow {
+  width: 1px;
+  height: 10px;
+  background: rgba(74,180,245,0.5);
+  display: block;
+}
 
 /* ================================================================
    EVENT FEED TABLE — center panel
@@ -823,7 +1100,7 @@ select.sbInput { appearance: none; }
 
 .threatAlert {
   position: absolute;
-  top: 14px;
+  top: 74px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 60;
@@ -1286,17 +1563,26 @@ select.sbInput { appearance: none; }
 
 .missionBrief {
   position: absolute;
-  top: 14px;
-  right: 56px;
   z-index: 12;
-  min-width: 220px;
-  background: rgba(8, 14, 22, 0.86);
+  width: 178px;
+  background: rgba(8, 14, 22, 0.88);
   border: 1px solid rgba(255,255,255,0.07);
   border-left: 2px solid #4ab4f5;
-  padding: 7px 11px 8px;
+  padding: 5px 8px 6px;
+  overflow: hidden;
   font-family: 'Courier New', monospace;
-  backdrop-filter: blur(8px);
+  backdrop-filter: blur(10px);
   pointer-events: none;
+  transform-origin: top left;
+}
+
+.missionBriefStaticMap {
+  display: block;
+  width: calc(100% + 18px);
+  height: 80px;
+  object-fit: cover;
+  margin: -5px -8px 5px;
+  border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
 .missionBrief--ready      { border-left-color: #6b7280; }
@@ -1311,20 +1597,19 @@ select.sbInput { appearance: none; }
 .missionBriefHead {
   display: flex;
   align-items: center;
-  gap: 7px;
-  margin-bottom: 6px;
-  padding-bottom: 5px;
+  gap: 5px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
   border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
 .missionBriefBadge {
-  font-size: 8.5px;
+  font-size: 7.5px;
   font-weight: 800;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.12em;
   color: #0a1118;
   background: #4ab4f5;
-  padding: 2px 5px;
-  letter-spacing: 0.12em;
+  padding: 1px 4px;
 }
 
 .missionBrief--ready      .missionBriefBadge { background: #6b7280; }
@@ -1332,37 +1617,37 @@ select.sbInput { appearance: none; }
 .missionBrief--decision   .missionBriefBadge { background: #ff3a2a; color: #fff; }
 
 .missionBriefTitle {
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 700;
   color: #e2e8f0;
-  letter-spacing: 0.16em;
+  letter-spacing: 0.14em;
 }
 
 .missionBriefRows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-bottom: 6px;
+  gap: 1px;
+  margin-bottom: 4px;
 }
 
 .missionBriefRow {
   display: flex;
-  gap: 8px;
-  font-size: 9px;
+  gap: 6px;
+  font-size: 8px;
   align-items: baseline;
 }
 
 .missionBriefKey {
-  width: 48px;
+  width: 38px;
   flex-shrink: 0;
   color: #4b5563;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.14em;
   font-weight: 700;
 }
 
 .missionBriefVal {
   color: #9ab0c4;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.04em;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -1372,18 +1657,18 @@ select.sbInput { appearance: none; }
 .missionBriefPhase {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding-top: 5px;
+  gap: 5px;
+  padding-top: 4px;
   border-top: 1px solid rgba(255,255,255,0.06);
 }
 
 .missionBriefPhaseDot {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
   background: #4ab4f5;
   flex-shrink: 0;
-  box-shadow: 0 0 6px currentColor;
+  box-shadow: 0 0 5px currentColor;
   animation: kpiBadgePing 1.6s ease-in-out infinite;
 }
 
@@ -1392,7 +1677,7 @@ select.sbInput { appearance: none; }
 .missionBrief--decision   .missionBriefPhaseDot { background: #ff3a2a; animation-duration: 0.7s; }
 
 .missionBriefPhaseText {
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   letter-spacing: 0.16em;
   color: #4ab4f5;
@@ -1672,20 +1957,11 @@ select.sbInput { appearance: none; }
    ================================================================ */
 
 .sysHud {
-  position: absolute;
-  top: 56px;
-  left: 12px;
-  z-index: 12;
-  min-width: 168px;
-  background: rgba(8, 14, 22, 0.86);
-  border: 1px solid rgba(74, 180, 245, 0.22);
-  border-left-width: 2px;
-  border-left-color: rgba(74, 180, 245, 0.65);
-  backdrop-filter: blur(8px);
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  border-left: 2px solid rgba(74, 180, 245, 0.65);
   font-family: 'Courier New', monospace;
-  padding: 6px 10px 7px;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(74,180,245,0.04);
-  pointer-events: none;
+  padding: 8px 10px 9px 8px;
+  flex-shrink: 0;
 }
 
 .sysHudHeader {
@@ -2111,12 +2387,46 @@ select.sbInput { appearance: none; }
 
 /* fixed-height chat strip at the bottom */
 .embedded-chat {
-  flex: 0 0 160px;
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  border-top: 1px solid rgba(255,255,255,0.1);
   overflow: hidden;
   background: #0d1117;
+}
+
+.embedded-chat-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(142,117,178,0.07);
+}
+
+.embedded-gemini-logo {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 6px rgba(142,117,178,0.7));
+}
+
+.embedded-gemini-label {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #c4b3e0;
+  line-height: 1;
+}
+
+.embedded-gemini-sub {
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: #5a4a78;
+  margin-left: 2px;
 }
 
 .embedded-messages {
@@ -2252,8 +2562,64 @@ select.sbInput { appearance: none; }
    ACTIONS BAR (map column bottom)
    ================================================================ */
 
+/* Floating popup wrapper — positioned over the map column */
+@keyframes actionsPopupIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.actionsPopup {
+  position: absolute;
+  bottom: 40px;
+  right: 12px;
+  z-index: 60;
+  width: min(340px, calc(100% - 24px));
+  box-shadow: 0 16px 48px rgba(0,0,0,0.7), 0 0 0 1px rgba(250,204,21,0.2);
+  border-radius: 8px;
+  overflow: hidden;
+  animation: actionsPopupIn 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Minimized reopen button — bottom-right of map */
+.actionsReopenBtn {
+  position: absolute;
+  bottom: 40px;
+  right: 12px;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px 7px 10px;
+  background: rgba(8, 12, 18, 0.94);
+  border: 1px solid rgba(250,204,21,0.5);
+  border-radius: 6px;
+  color: #facc15;
+  font-family: 'Courier New', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 12px rgba(250,204,21,0.1);
+  transition: background 0.15s, box-shadow 0.15s;
+}
+
+.actionsReopenBtn:hover {
+  background: rgba(14, 20, 32, 0.98);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6), 0 0 18px rgba(250,204,21,0.2);
+}
+
+.actionsReopenBtn svg { width: 14px; height: 14px; flex-shrink: 0; }
+
+.actionsReopenCount {
+  background: rgba(250,204,21,0.15);
+  border: 1px solid rgba(250,204,21,0.3);
+  border-radius: 10px;
+  padding: 1px 6px;
+  font-size: 9px;
+}
+
 .actionsPanel {
-  flex-shrink: 0;
   background: #090e17;
   border-top: 2px solid rgba(250,204,21,0.6);
   display: flex;
@@ -2308,19 +2674,18 @@ select.sbInput { appearance: none; }
 
 .actionsPanelBody {
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
   overflow: hidden;
-  min-height: 150px;
 }
 
 .actionsPanelCards {
   flex: 1;
   display: flex;
-  gap: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  flex-direction: column;
+  gap: 6px;
+  overflow-y: auto;
   padding: 10px 12px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.08) transparent;
@@ -2328,29 +2693,29 @@ select.sbInput { appearance: none; }
 
 .actionsPanelActBtn {
   flex-shrink: 0;
-  width: 80px;
+  height: 44px;
   border: none;
-  border-left: 1px solid rgba(255,255,255,0.06);
+  border-top: 1px solid rgba(255,255,255,0.06);
   background: linear-gradient(180deg, #c0180c 0%, #8b0c08 100%);
   color: #fff;
   font-family: 'Courier New', monospace;
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.18em;
   cursor: pointer;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 8px;
   transition: background 0.15s, box-shadow 0.15s;
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
   text-shadow: 0 1px 4px rgba(0,0,0,0.5);
 }
 
 .actionsPanelActBtn svg {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   filter: drop-shadow(0 0 4px rgba(255,100,80,0.6));
 }
 
@@ -2364,18 +2729,17 @@ select.sbInput { appearance: none; }
 }
 
 .actCard {
-  flex-shrink: 0;
-  width: 190px;
-  padding: 8px 10px;
-  border-radius: 4px;
+  width: 100%;
+  padding: 9px 11px;
+  border-radius: 5px;
   background: rgba(255,255,255,0.03);
   border: 1px solid rgba(255,255,255,0.08);
   display: flex;
   flex-direction: column;
   gap: 4px;
-  margin-right: 8px;
 }
 
+/* remove old horizontal margin */
 .actCard:last-child { margin-right: 0; }
 
 .actCard--immediate { border-color: rgba(248,113,113,0.35); background: rgba(248,113,113,0.06); }
@@ -3166,6 +3530,6 @@ select.sbInput { appearance: none; }
    ================================================================ */
 
 @media (max-width: 1100px) {
-  .sidebar { width: 140px; }
+  .sidebar { width: 110px; }
   .mapColumn { min-width: 260px; }
 }
