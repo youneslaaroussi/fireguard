@@ -7,7 +7,7 @@ const errors = [];
 page.on("console", (msg) => { if (msg.type() === "error") errors.push(msg.text()); });
 page.on("pageerror", (err) => errors.push(String(err)));
 
-await page.goto("http://127.0.0.1:5180", { waitUntil: "networkidle" });
+await page.goto(process.env.BASE ?? "http://127.0.0.1:5180", { waitUntil: "networkidle" });
 await page.waitForTimeout(6000);
 // Optional source/window adjustment for uncached chunks: ADJUST=1 node replay-watch.mjs
 if (process.env.ADJUST) {
