@@ -5,6 +5,7 @@ import type { EdgePayload, StreamEvent, WorkflowRun } from "./types";
 import { buildGraphModel, buildGraphSignature } from "./graph/build";
 import type { FlowEdgeData, FlowNodeData } from "./graph/types";
 import { STATUS_TEXT } from "./graph/constants";
+import { LOGOS } from "./logos";
 import "./styles/graph.css";
 
 interface WorkflowGraphProps {
@@ -19,9 +20,13 @@ interface WorkflowGraphProps {
 
 type G6NodeData = {
   label: string;
+  summary: string;
   status: string;
   accentColor: string;
   compact: boolean;
+  importance: number;
+  cluster: string;
+  layer: string;
   platformBadge: string | null;
   canRestart: boolean;
 };
@@ -118,7 +123,6 @@ export function WorkflowGraph({
     if (graph === null || graphModel === null) return;
     const next = toG6Data(graphModel, selectedNodeId);
     graph.setData(next);
-    graph.setLayout(graphLayout());
     void graph.render();
   }, [sig, graphModel, selectedNodeId]);
 
@@ -143,10 +147,11 @@ function baseG6Options(): GraphOptions {
   return {
     animation: false,
     data: { nodes: [], edges: [] },
-    layout: graphLayout(),
+    autoFit: "view",
+    padding: 48,
     node: { type: "rect" },
     edge: {
-      type: "cubic-horizontal",
+      type: "line",
       style: {
         cursor: "pointer",
         label: false,
@@ -202,24 +207,36 @@ function toG6Data(
   graphModel: ReturnType<typeof buildGraphModel>,
   selectedNodeId: string | null,
 ): NonNullable<GraphOptions["data"]> {
+  const positions = networkPositions(graphModel);
   return {
     nodes: graphModel.nodes.map((node) => {
         const data = node.data as FlowNodeData;
         const status = String(data.status);
         const compact = Boolean(data.compact);
-        const width = compact ? 164 : 190;
-        const height = compact ? 58 : 72;
+        const importance = typeof data.importance === "number" ? data.importance : compact ? 62 : 78;
+        const cluster = typeof data.cluster === "string" ? data.cluster : compact ? node.id : "workflow";
+        const layer = typeof data.layer === "string" ? data.layer : compact ? "entity" : "workflow";
+        const summary = typeof data.summary === "string" ? data.summary : "";
+        const [width, height] = nodeSize(compact, summary, importance);
+        const labelText = summary ? `${data.label}\n${summary}` : data.label;
+        const [x, y] = positions.get(node.id) ?? [0, 0];
         return {
           id: node.id,
           data: {
             label: data.label,
+            summary,
             status,
             accentColor: data.accentColor,
             compact,
+            importance,
+            cluster,
+            layer,
             platformBadge: data.platformBadge ?? null,
             canRestart: data.onRestart !== null,
           } satisfies G6NodeData,
           style: {
+            x,
+            y,
             size: [width, height],
             radius: compact ? 9 : 12,
             fill: nodeFill(status, compact),
@@ -232,10 +249,11 @@ function toG6Data(
             haloStroke: data.accentColor,
             haloLineWidth: status === "running" ? 16 : 10,
             haloStrokeOpacity: status === "running" ? 0.18 : 0.14,
-            labelText: data.label,
+            labelText,
             labelFill: "#e5edf7",
-            labelFontSize: compact ? 10 : 12,
+            labelFontSize: compact ? (importance >= 78 ? 10 : 9) : 12,
             labelFontWeight: 700,
+            labelLineHeight: compact ? (importance >= 78 ? 14 : 13) : 16,
             labelPlacement: "center",
             labelTextBaseline: "middle",
             labelMaxWidth: width - 26,
@@ -253,12 +271,12 @@ function toG6Data(
               },
               ...(data.platformBadge
                 ? [{
-                    text: data.platformBadge,
+                    text: (LOGOS[data.platformBadge]?.label ?? data.platformBadge).toUpperCase(),
                     placement: "right-top" as const,
-                    fill: "#081827",
-                    stroke: data.accentColor,
-                    color: "#a7f3d0",
-                    fontSize: 8,
+                    fill: "#06111d",
+                    stroke: LOGOS[data.platformBadge]?.color ?? data.accentColor,
+                    color: LOGOS[data.platformBadge]?.color ?? "#a7f3d0",
+                    fontSize: 7,
                     padding: [1, 5],
                   }]
                 : []),
@@ -306,20 +324,108 @@ function toG6Data(
   };
 }
 
-function graphLayout(): NonNullable<GraphOptions["layout"]> {
-  return {
-    type: "dagre",
-    rankdir: "LR",
-    align: "UL",
-    nodesep: 28,
-    ranksep: 74,
-    ranker: "network-simplex",
-    controlPoints: true,
-    nodeSize: (node) => {
-      const data = node.data as G6NodeData | undefined;
-      return data?.compact ? [164, 58] : [190, 72];
-    },
-  };
+function networkPositions(graphModel: ReturnType<typeof buildGraphModel>): Map<string, [number, number]> {
+  const positions = new Map<string, [number, number]>();
+  const nodeData = new Map(graphModel.nodes.map((node) => [node.id, node.data as FlowNodeData]));
+  const children = new Map<string, string[]>();
+  for (const edge of graphModel.edges) {
+    const list = children.get(edge.source) ?? [];
+    list.push(edge.target);
+    children.set(edge.source, list);
+  }
+
+  const workflowOrder = ["human_trigger", "research_agent", "response_agent"];
+  workflowOrder.forEach((id, index) => {
+    if (nodeData.has(id)) positions.set(id, [-520 + index * 520, 0]);
+  });
+
+  const researchChildren = (children.get("research_agent") ?? [])
+    .filter((id) => {
+      const layer = nodeData.get(id)?.layer;
+      return layer === "tool" || layer === "subagent";
+    });
+  placeWideGrid(researchChildren, positions, 760, 520, 0, -360);
+
+  for (const id of graphModel.nodes.map((node) => node.id)) {
+    if (positions.has(id)) continue;
+    const parent = graphModel.edges.find((edge) => edge.target === id)?.source;
+    if (parent === undefined) continue;
+    ensureChildrenPlaced(parent, children, nodeData, positions, 0);
+  }
+
+  for (const node of graphModel.nodes) {
+    if (!positions.has(node.id)) positions.set(node.id, [0, 0]);
+  }
+  return positions;
+}
+
+function placeWideGrid(
+  ids: string[],
+  positions: Map<string, [number, number]>,
+  gapX: number,
+  gapY: number,
+  centerX: number,
+  centerY: number,
+) {
+  if (ids.length === 0) return;
+  const cols = Math.max(1, Math.ceil(Math.sqrt(ids.length * 2.2)));
+  const rows = Math.ceil(ids.length / cols);
+  ids.forEach((id, index) => {
+    const col = index % cols;
+    const row = Math.floor(index / cols);
+    positions.set(id, [
+      centerX + (col - (cols - 1) / 2) * gapX,
+      centerY + (row - (rows - 1) / 2) * gapY,
+    ]);
+  });
+}
+
+function ensureChildrenPlaced(
+  parentId: string,
+  children: Map<string, string[]>,
+  nodeData: Map<string, FlowNodeData>,
+  positions: Map<string, [number, number]>,
+  depth: number,
+) {
+  const parentPos = positions.get(parentId);
+  if (parentPos === undefined) return;
+  const ids = (children.get(parentId) ?? []).filter((id) => !positions.has(id));
+  if (ids.length === 0) return;
+  const entityIds = ids.filter((id) => nodeData.get(id)?.layer === "entity");
+  const otherIds = ids.filter((id) => nodeData.get(id)?.layer !== "entity");
+  placeRing(entityIds, parentPos, positions, depth);
+  placeRing(otherIds, parentPos, positions, depth);
+  for (const id of ids) ensureChildrenPlaced(id, children, nodeData, positions, depth + 1);
+}
+
+function placeRing(
+  ids: string[],
+  [cx, cy]: [number, number],
+  positions: Map<string, [number, number]>,
+  depth: number,
+) {
+  const count = ids.length;
+  if (count === 0) return;
+  const base = depth === 0 ? 210 : 120;
+  const step = depth === 0 ? 58 : 44;
+  ids.forEach((id, index) => {
+    const angle = index * 2.399963229728653;
+    const radius = base + Math.sqrt(index) * step;
+    const xScale = depth === 0 ? 1.28 : 1.05;
+    const yScale = depth === 0 ? 0.62 : 0.82;
+    positions.set(id, [
+      cx + Math.cos(angle) * radius * xScale,
+      cy + Math.sin(angle) * radius * yScale,
+    ]);
+  });
+}
+
+function nodeSize(compact: boolean, summary: string, importance: number): [number, number] {
+  if (!compact) return [200, 74];
+  if (importance >= 86) return [230, summary ? 90 : 70];
+  if (importance >= 68) return [196, summary ? 76 : 62];
+  if (importance >= 48) return [164, summary ? 64 : 54];
+  return [132, summary ? 52 : 44];
 }
 
 function nodeFill(status: string, compact: boolean) {

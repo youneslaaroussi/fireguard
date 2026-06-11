@@ -3,7 +3,7 @@ import Editor from "@monaco-editor/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { MapAnnotation } from "./types";
+import type { ActionPlan, MapAnnotation } from "./types";
 import {
   createSession,
   getEvents,
@@ -32,6 +32,7 @@ import type {
   WorkflowRun,
 } from "./types";
 import { WorkflowGraph } from "./WorkflowGraph";
+import { MessageToolCalls, buildAllToolCalls, toolCallsForMessage } from "./ToolFeed";
 import "./styles.css";
 
 const MAX_ATTACHMENT_BYTES = 100 * 1024 * 1024;
@@ -185,6 +186,7 @@ type AgenticIntelligenceAppProps = {
   mode?: "full" | "overlay";
   onClose?: () => void;
   onAnnotation?: (annotation: MapAnnotation) => void;
+  onActions?: (plan: ActionPlan) => void;
 };
 
 export function AgenticIntelligenceApp({
@@ -195,6 +197,7 @@ export function AgenticIntelligenceApp({
   mode = "full",
   onClose,
   onAnnotation,
+  onActions,
 }: AgenticIntelligenceAppProps) {
   const [busy, setBusy] = useState(false);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
@@ -219,8 +222,10 @@ export function AgenticIntelligenceApp({
   const detailRefreshTimerRef = useRef<number | null>(null);
   const lastAutoPromptRef = useRef<string | null>(null);
   const onAnnotationRef = useRef(onAnnotation);
+  const onActionsRef = useRef(onActions);
 
   useEffect(() => { onAnnotationRef.current = onAnnotation; }, [onAnnotation]);
+  useEffect(() => { onActionsRef.current = onActions; }, [onActions]);
 
   useEffect(() => {
     selectedNodeIdRef.current = selectedNodeId;
@@ -277,6 +282,8 @@ export function AgenticIntelligenceApp({
         })),
     [runEvents],
   );
+
+  const allToolCalls = useMemo(() => buildAllToolCalls(runEvents), [runEvents]);
 
   const edgePayloadText = useMemo(() => {
     if (selectedEdgePayload === null) {
@@ -511,6 +518,12 @@ export function AgenticIntelligenceApp({
         const ann = (output as Record<string, unknown>).annotation;
         if (isObj(ann)) {
           onAnnotationRef.current?.(ann as unknown as MapAnnotation);
+        }
+      }
+      if (toolName === "fireguard_actions" && isObj(output) && output.ok === true) {
+        const plan = (output as Record<string, unknown>).plan;
+        if (isObj(plan)) {
+          onActionsRef.current?.(plan as unknown as ActionPlan);
         }
       }
     }
@@ -970,6 +983,9 @@ export function AgenticIntelligenceApp({
                       "..."
                     )}
                   </div>
+                  {message.role === "assistant" && (
+                    <MessageToolCalls calls={toolCallsForMessage(allToolCalls, message)} />
+                  )}
                   {message.attachments !== undefined && message.attachments.length > 0 && (
                     <div className="message-attachments">
                       {message.attachments.map((attachment) => (

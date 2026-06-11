@@ -23,15 +23,15 @@ export const TOOL_ACCENT_COLORS: Record<string, string> = {
 
 /** Platform badge label per tool — shown as a small chip on the node */
 export const TOOL_PLATFORM_BADGE: Record<string, string> = {
-  fireguard_search_zones:       "Elastic",
-  fireguard_search_shelters:    "Elastic",
-  fireguard_search_road_events: "Elastic",
-  fireguard_search_events:      "NASA FIRMS",
-  fireguard_evaluate_route:     "Elastic",
-  fireguard_map_annotation:     "MapAnnotate",
-  fireguard_bcws_context:       "Elastic",
-  fireguard_stats:              "Elastic",
-  exa_search:                   "Exa",
+  fireguard_search_zones:       "elastic",
+  fireguard_search_shelters:    "elastic",
+  fireguard_search_road_events: "elastic",
+  fireguard_search_events:      "nasa",
+  fireguard_evaluate_route:     "elastic",
+  fireguard_map_annotation:     "googlemaps",
+  fireguard_bcws_context:       "elastic",
+  fireguard_stats:              "elastic",
+  exa_search:                   "exa",
 };
 import type { XYPosition } from "@xyflow/react";
 

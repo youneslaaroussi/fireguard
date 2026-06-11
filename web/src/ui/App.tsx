@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { getConfig, getStats, replay } from "../api";
 import type { BcwsContext, FireEvent, ReplayRequest, Stats, ThreatPayload } from "../types";
-import type { MapAnnotation } from "../intelligence/types";
+import type { ActionPlan, MapAnnotation } from "../intelligence/types";
 import { AgenticIntelligenceApp } from "../intelligence/App";
+import { ActionsPanel } from "./ActionsPanel";
 import { AgentOrb } from "./AgentOrb";
 import { EventStream } from "./EventStream";
 import { MapPanel } from "./MapPanel";
@@ -60,6 +61,7 @@ export function App() {
   const [intelligencePrompt, setIntelligencePrompt] = useState<string | null>(null);
   const [agentOverlayOpen, setAgentOverlayOpen] = useState(false);
   const [mapAnnotation, setMapAnnotation] = useState<MapAnnotation | null>(null);
+  const [actionPlan, setActionPlan] = useState<ActionPlan | null>(null);
   const sessionContext = buildSessionContext(request, status, busy, events, context, stats, threatAlert);
 
   useEffect(() => {
@@ -76,6 +78,7 @@ export function App() {
     setIntelligencePrompt(null);
     setAgentOverlayOpen(false);
     setMapAnnotation(null);
+    setActionPlan(null);
     setReplayProgress(0);
     setStatus("Starting");
     try {
@@ -183,6 +186,9 @@ export function App() {
       </header>
 
       <EventStream events={events} />
+      {actionPlan !== null && (
+        <ActionsPanel plan={actionPlan} onDismiss={() => setActionPlan(null)} />
+      )}
       {!agentOverlayOpen && <AgentOrb sessionContext={sessionContext} />}
       {agentOverlayOpen && intelligencePrompt !== null && (
         <div className="agentOverlay" role="dialog" aria-label="FireGuard agent">
@@ -194,6 +200,7 @@ export function App() {
             mode="overlay"
             onClose={() => setAgentOverlayOpen(false)}
             onAnnotation={(ann) => setMapAnnotation(ann)}
+            onActions={(plan) => setActionPlan(plan)}
           />
         </div>
       )}

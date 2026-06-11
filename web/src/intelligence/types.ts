@@ -200,6 +200,21 @@ export interface EdgePayload {
   payload: Record<string, unknown>;
 }
 
+export type ActionPriority = "immediate" | "urgent" | "monitor";
+
+export interface ActionItem {
+  id: string;
+  priority: ActionPriority;
+  title: string;
+  detail?: string;
+  owner?: string;
+}
+
+export interface ActionPlan {
+  summary: string;
+  actions: ActionItem[];
+}
+
 export type MapMarkerType = "hotspot" | "shelter_open" | "shelter_closed" | "zone" | "blockage" | "alternate";
 
 export interface MapAnnotationMarker {

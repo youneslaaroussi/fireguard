@@ -3,6 +3,7 @@ import { NonIdealState } from "@blueprintjs/core";
 import mapboxgl, { type GeoJSONSource, type Map } from "mapbox-gl";
 import type { BcwsContext, FireEvent, ThreatPayload } from "../types";
 import type { MapAnnotation, MapAnnotationMarker } from "../intelligence/types";
+import { LOGOS } from "../intelligence/logos";
 
 // ── Icon SVGs (white on transparent → SDF-tintable at runtime) ──────────────
 
@@ -118,6 +119,7 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
   const autoFitSignature = useRef("");
   const [enhancing, setEnhancing] = useState(false);
   const enhanceThreatRef = useRef<ThreatPayload | null>(null);
+  const [hotspotPx, setHotspotPx] = useState<{ x: number; y: number } | null>(null);
 
   const data = useMemo(() => toFeatureCollection(events), [events]);
   const incidentData = useMemo(() => toIncidentCollection(context), [context]);
@@ -440,32 +442,49 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
     if (enhanceThreatRef.current === threat) return;
     enhanceThreatRef.current = threat;
 
-    // Phase 1: fly to overview of area (zoom out first for drama)
-    const startZoom = instance.getZoom();
-    const pullBackZoom = Math.max(4, startZoom - 1.5);
+    const lngLat: [number, number] = [threat.hotspot.lon, threat.hotspot.lat];
 
+    // Track the projected pixel position of the hotspot on every map move
+    function updatePx() {
+      if (!map.current) return;
+      const pt = map.current.project(lngLat);
+      setHotspotPx({ x: pt.x, y: pt.y });
+    }
+
+    instance.on("move", updatePx);
+    updatePx();
+
+    // Phase 1: pull back slightly for drama
+    const startZoom = instance.getZoom();
     instance.flyTo({
-      center: [threat.hotspot.lon, threat.hotspot.lat],
-      zoom: pullBackZoom,
+      center: lngLat,
+      zoom: Math.max(4, startZoom - 1.5),
       duration: 800,
       easing: (t) => t * (2 - t),
     });
 
-    // Phase 2: after pullback, snap enhance overlay on and zoom deep in
+    // Phase 2: snap overlay on, zoom into the hotspot
     const t1 = setTimeout(() => {
       setEnhancing(true);
       instance.flyTo({
-        center: [threat.hotspot.lon, threat.hotspot.lat],
+        center: lngLat,
         zoom: 12,
         duration: 1800,
         easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
       });
     }, 900);
 
-    // Phase 3: hold, then fade the overlay out
-    const t2 = setTimeout(() => setEnhancing(false), 4500);
+    // Phase 3: fade overlay out, stop tracking
+    const t2 = setTimeout(() => {
+      setEnhancing(false);
+      instance.off("move", updatePx);
+    }, 4500);
 
-    return () => { clearTimeout(t1); clearTimeout(t2); };
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      instance.off("move", updatePx);
+    };
   }, [threat, loaded]);
 
   // Render agent annotation markers + routes on the main map
@@ -547,30 +566,38 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
       <div ref={container} className="mapCanvas" />
       <div className="mapLegend">
         <span>
+          <img src={LOGOS.nasa.src} alt="NASA" width={10} height={10} style={{ opacity: 0.75 }} />
           <svg width="10" height="13" viewBox="0 0 24 30"><path d="M12 1C10.4 6.5 7 10 7 16a5 5 0 0 0 10 0c0-3.2-1.6-5.6-2.6-7.2-.45 2.4-1.5 3.8-2 4.4C12.2 10.8 11.7 6.2 12 1z" fill="#f15b43"/></svg>
-          FIRMS hotspot
+          FIRMS
         </span>
         <span>
+          <img src={LOGOS.bc.src} alt="BC" width={10} height={10} style={{ opacity: 0.75 }} />
           <svg width="10" height="13" viewBox="0 0 24 30"><path d="M12 1C10.4 6.5 7 10 7 16a5 5 0 0 0 10 0c0-3.2-1.6-5.6-2.6-7.2-.45 2.4-1.5 3.8-2 4.4C12.2 10.8 11.7 6.2 12 1z" fill="#e5484d"/></svg>
-          Fire incident
+          Incident
         </span>
-        <span><i className="legendLine" />Perimeter</span>
         <span>
+          <img src={LOGOS.bc.src} alt="BC" width={10} height={10} style={{ opacity: 0.75 }} />
+          <i className="legendLine" />Perimeter
+        </span>
+        <span>
+          <img src={LOGOS.bc.src} alt="BC" width={10} height={10} style={{ opacity: 0.75 }} />
           <svg width="11" height="11" viewBox="0 0 24 28"><path d="M12 1L1 5.5v10c0 6 5 10.5 11 12 6-1.5 11-6 11-12v-10L12 1z" fill="#ff5555"/></svg>
-          Evac order
+          Evac
         </span>
         <span>
+          <img src={LOGOS.bc.src} alt="BC" width={10} height={10} style={{ opacity: 0.75 }} />
           <svg width="11" height="11" viewBox="0 0 26 26"><path d="M13 2L1 12h3.5v12h6v-6h5v6h6V12H25L13 2z" fill="#43d9ad"/></svg>
           Shelter
         </span>
         <span>
           <svg width="11" height="10" viewBox="0 0 26 24"><path d="M13 2L1 23h24L13 2z" fill="#f6f08d"/></svg>
-          Road closure
+          Road
         </span>
         <span><i className="legendLine windLine" />Wind</span>
         {annotation !== null && (
           <>
             <span className="legendSep" />
+            <img src={LOGOS.googlemaps.src} alt="Maps" width={10} height={10} style={{ opacity: 0.8 }} />
             {annotation.routes.map((r, i) => (
               <span key={i}>
                 <i className="legendLine" style={{ background: ANN_ROUTE_COLORS[r.status] ?? "#6366f1" }} />
@@ -582,18 +609,22 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
       </div>
       {annotation?.message && (
         <div className="annMessageBar">
-          <svg width="12" height="12" viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.75 10.5h-1.5v-5h1.5v5zm0-6.5h-1.5V3.5h1.5V5z" fill="#facc15"/></svg>
+          <img src={LOGOS.googlemaps.src} alt="Maps" width={11} height={11} style={{ opacity: 0.9, flexShrink: 0 }} />
           <span>{annotation.message}</span>
         </div>
       )}
-      {threat && <ThreatEnhanceOverlay threat={threat} active={enhancing} />}
+      {threat && hotspotPx && <ThreatEnhanceOverlay threat={threat} active={enhancing} px={hotspotPx} />}
     </div>
   );
 }
 
 // ── Sci-fi "ZOOM AND ENHANCE" overlay ────────────────────────────────────────
+// All positions are derived from map.project() pixel coords — not CSS percentages.
 
-function ThreatEnhanceOverlay({ threat, active }: { threat: ThreatPayload; active: boolean }) {
+const BOX = 110; // half-size of the target box in px
+
+function ThreatEnhanceOverlay({ threat, active, px }: { threat: ThreatPayload; active: boolean; px: { x: number; y: number } }) {
+  const { x, y } = px;
   const frp = threat.hotspot.frp.toFixed(1);
   const conf = threat.hotspot.confidence ?? "–";
   const dist = threat.zone.distance_km != null ? `${threat.zone.distance_km.toFixed(1)} km` : "–";
@@ -601,31 +632,31 @@ function ThreatEnhanceOverlay({ threat, active }: { threat: ThreatPayload; activ
 
   return (
     <div className={`enhanceOverlay${active ? " enhanceOverlay--on" : ""}`} aria-hidden="true">
-      {/* corner brackets */}
-      <div className="enhanceCorner enhanceCorner--tl" />
-      <div className="enhanceCorner enhanceCorner--tr" />
-      <div className="enhanceCorner enhanceCorner--bl" />
-      <div className="enhanceCorner enhanceCorner--br" />
+      {/* corner brackets — offset from projected pixel position */}
+      <div className="enhanceCorner enhanceCorner--tl" style={{ left: x - BOX, top: y - BOX }} />
+      <div className="enhanceCorner enhanceCorner--tr" style={{ left: x + BOX, top: y - BOX }} />
+      <div className="enhanceCorner enhanceCorner--bl" style={{ left: x - BOX, top: y + BOX }} />
+      <div className="enhanceCorner enhanceCorner--br" style={{ left: x + BOX, top: y + BOX }} />
 
-      {/* horizontal scan line */}
-      <div className="enhanceScanH" />
-      {/* vertical scan line */}
-      <div className="enhanceScanV" />
+      {/* horizontal scan line — pinned to hotspot Y, full width */}
+      <div className="enhanceScanH" style={{ top: y - BOX }} />
+      {/* vertical scan line — pinned to hotspot X, full height */}
+      <div className="enhanceScanV" style={{ left: x - BOX }} />
 
-      {/* center reticle */}
-      <div className="enhanceReticle">
+      {/* reticle centered on projected pixel */}
+      <div className="enhanceReticle" style={{ left: x, top: y }}>
         <div className="enhanceReticleRing" />
         <div className="enhanceReticleDot" />
       </div>
 
-      {/* HUD readout — top-left */}
-      <div className="enhanceHud enhanceHud--tl">
+      {/* HUD — anchored to top-left corner of box */}
+      <div className="enhanceHud enhanceHud--tl" style={{ left: x - BOX, top: y - BOX - 52 }}>
         <span className="enhanceHudLabel">TARGET ACQUIRED</span>
         <span className="enhanceHudVal">{zone}</span>
       </div>
 
-      {/* HUD readout — bottom-right */}
-      <div className="enhanceHud enhanceHud--br">
+      {/* HUD — anchored to bottom-right corner of box */}
+      <div className="enhanceHud enhanceHud--br" style={{ left: x + BOX - 140, top: y + BOX + 8 }}>
         <span className="enhanceHudRow"><span className="enhanceHudKey">FRP</span><span className="enhanceHudVal">{frp} MW</span></span>
         <span className="enhanceHudRow"><span className="enhanceHudKey">CONF</span><span className="enhanceHudVal">{conf}</span></span>
         <span className="enhanceHudRow"><span className="enhanceHudKey">DIST</span><span className="enhanceHudVal">{dist}</span></span>

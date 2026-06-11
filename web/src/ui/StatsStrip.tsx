@@ -1,4 +1,19 @@
 import type { Stats } from "../types";
+import { LOGOS } from "../intelligence/logos";
+
+function Logo({ k, size = 12 }: { k: string; size?: number }) {
+  const meta = LOGOS[k];
+  if (!meta) return null;
+  return (
+    <img
+      src={meta.src}
+      alt={meta.label}
+      width={size}
+      height={size}
+      style={{ display: "inline-block", verticalAlign: "middle", opacity: 0.85, flexShrink: 0 }}
+    />
+  );
+}
 
 type Props = { value: Stats | null };
 
@@ -68,9 +83,10 @@ export function StatsStrip({ value }: Props) {
     <div className="statsRow">
       {/* FIRMS detections */}
       <span className="statPill">
+        <Logo k="nasa" size={11} />
         <FireIcon />
         <span className="statPillVal">{formatK(value.firms_count)}</span>
-        <span className="statPillLabel">DETECTIONS</span>
+        <span className="statPillLabel">FIRMS</span>
       </span>
 
       {/* Time span */}
@@ -88,6 +104,7 @@ export function StatsStrip({ value }: Props) {
       {/* BCWS incidents */}
       {value.bcws_incident_count > 0 && (
         <span className="statPill">
+          <Logo k="bc" size={11} />
           <BcwsIcon />
           <span className="statPillVal">{value.bcws_incident_count.toLocaleString()}</span>
           <span className="statPillLabel">INCIDENTS</span>
@@ -97,6 +114,7 @@ export function StatsStrip({ value }: Props) {
       {/* Perimeters */}
       {value.bcws_perimeter_count > 0 && (
         <span className="statPill">
+          <Logo k="bc" size={11} />
           <svg width="10" height="10" viewBox="0 0 10 10" fill="none" aria-hidden="true">
             <polygon points="5,1 9,4 7.5,9 2.5,9 1,4" stroke="#5a7a50" strokeWidth="1" fill="none" opacity="0.85"/>
           </svg>
@@ -111,6 +129,7 @@ export function StatsStrip({ value }: Props) {
         const meta = SRC[src.source] ?? { short: src.source.slice(0, 4).toUpperCase(), color: "#5a7a9a" };
         return (
           <span key={src.source} className="srcPill" title={src.source}>
+            <Logo k="nasa" size={10} />
             {isModis(src.source)
               ? <ModisIcon color={meta.color} />
               : <SatIcon color={meta.color} />}
