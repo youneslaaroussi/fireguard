@@ -4,6 +4,7 @@ import asyncio
 import base64
 import json
 import random
+import secrets
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -671,7 +672,7 @@ def _openai_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]] | No
             continue
         out.append(
             {
-                "id": f"call_vertex_{index}",
+                "id": f"call_vertex_{index}_{secrets.token_hex(6)}",
                 "type": "function",
                 "function": {"name": name, "arguments": json.dumps(args if isinstance(args, dict) else {})},
             }

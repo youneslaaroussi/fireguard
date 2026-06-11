@@ -217,3 +217,21 @@
 .agenticIntelligence .workflow-graph .react-flow__background pattern circle {
   fill: #1e2d3d;
 }
+
+/* Platform badge on tool nodes */
+
+.agenticIntelligence .gflow-platform-badge {
+  display: inline-block;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid;
+  line-height: 14px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

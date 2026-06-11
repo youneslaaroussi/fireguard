@@ -46,10 +46,15 @@ export async function getLatestRun(sessionId: string): Promise<WorkflowRun | nul
   return requestJson<WorkflowRun | null>(`/sessions/${sessionId}/runs/latest`);
 }
 
-export async function startRun(sessionId: string, prompt: string): Promise<WorkflowRun> {
+export async function startRun(
+  sessionId: string,
+  prompt: string,
+  workflowId = "fireguard_intelligence",
+  payload: Record<string, unknown> = { source: "ui" },
+): Promise<WorkflowRun> {
   return requestJson<WorkflowRun>(`/sessions/${sessionId}/workflows/runs`, {
     method: "POST",
-    body: JSON.stringify({ prompt, payload: { source: "ui" } }),
+    body: JSON.stringify({ prompt, workflow_id: workflowId, payload }),
   });
 }
 

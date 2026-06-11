@@ -10,9 +10,21 @@ import {
   PRIMARY_POSITIONS,
   RERUNNABLE_NODES,
   STATUS_BORDER,
+  TOOL_ACCENT_COLORS,
+  TOOL_PLATFORM_BADGE,
 } from "./constants";
 import type { FlowEdgeData, FlowNodeData, SubagentGraphNode, ToolGraphNode } from "./types";
-import { Bot, Database, Search, SquareTerminal } from "lucide-react";
+import {
+  AlertTriangle,
+  Bot,
+  Database,
+  Flame,
+  House,
+  MapPin,
+  Navigation,
+  Search,
+  SquareTerminal,
+} from "lucide-react";
 
 // Public
 
@@ -146,6 +158,7 @@ function buildToolNodes(
         selected: selectedNodeId === tool.node_id,
         compact: true,
         onRestart: null,
+        platformBadge: TOOL_PLATFORM_BADGE[tool.tool_name] ?? null,
       },
     };
   });
@@ -348,12 +361,19 @@ function isGraphTool(toolName: unknown): toolName is string {
 }
 
 function toolAccent(toolName: string): string {
+  if (TOOL_ACCENT_COLORS[toolName]) return TOOL_ACCENT_COLORS[toolName];
   if (toolName === "exa_search") return ACCENT_COLORS.exa_search;
   if (toolName.startsWith("fireguard_")) return ACCENT_COLORS.fireguard;
   return ACCENT_COLORS.sandbox;
 }
 
 function toolIcon(toolName: string) {
+  if (toolName === "fireguard_search_zones") return MapPin;
+  if (toolName === "fireguard_search_shelters") return House;
+  if (toolName === "fireguard_search_road_events") return AlertTriangle;
+  if (toolName === "fireguard_search_events") return Flame;
+  if (toolName === "fireguard_evaluate_route") return Navigation;
+  if (toolName === "fireguard_map_annotation") return MapPin;
   if (toolName === "exa_search") return Search;
   if (toolName.startsWith("fireguard_")) return Database;
   return SquareTerminal;

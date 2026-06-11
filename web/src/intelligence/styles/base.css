@@ -504,3 +504,187 @@
   height: min(760px, calc(100vh - 150px));
   border-top: 1px solid #2f343c;
 }
+
+/* ── Map Annotation Tab ──────────────────────────────────────────── */
+
+.agenticIntelligence .ann-tab-panel {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.agenticIntelligence .ann-map-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #0d1621;
+  border: 1px solid #1a2840;
+}
+
+.agenticIntelligence .ann-map-canvas {
+  flex: 1;
+  min-height: 0;
+}
+
+.agenticIntelligence .ann-map-idle {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  font-size: 13px;
+  text-align: center;
+  padding: 24px;
+  pointer-events: none;
+  z-index: 10;
+}
+
+.agenticIntelligence .ann-map-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #475569;
+  font-size: 13px;
+}
+
+.agenticIntelligence .ann-message-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(10, 18, 32, 0.92);
+  border: 1px solid rgba(59, 130, 246, 0.4);
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e2e8f0;
+  max-width: 520px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+}
+
+.agenticIntelligence .ann-message-icon {
+  font-size: 14px;
+  flex: 0 0 auto;
+}
+
+.agenticIntelligence .ann-legend {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 10px 12px;
+  background: rgba(10, 18, 32, 0.88);
+  border: 1px solid #1e3a5f;
+  border-radius: 8px;
+  font-size: 11px;
+  backdrop-filter: blur(6px);
+}
+
+.agenticIntelligence .ann-legend-route {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #cbd5e1;
+}
+
+.agenticIntelligence .ann-legend-dot {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.agenticIntelligence .ann-legend-label {
+  font-weight: 600;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+.agenticIntelligence .ann-legend-meta {
+  color: #64748b;
+  flex: 0 0 auto;
+  font-size: 10px;
+}
+
+/* Marker elements */
+
+.ann-marker {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.ann-marker:hover {
+  transform: scale(1.2);
+}
+
+.ann-marker-icon {
+  font-size: 22px;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.7));
+  display: block;
+}
+
+/* Popup styling */
+
+.ann-popup .mapboxgl-popup-content {
+  background: rgba(12, 20, 35, 0.96);
+  border: 1px solid rgba(59, 130, 246, 0.35);
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+}
+
+.ann-popup .mapboxgl-popup-tip {
+  border-top-color: rgba(12, 20, 35, 0.96);
+}
+
+.ann-popup-inner {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 120px;
+  max-width: 220px;
+}
+
+.ann-popup-icon {
+  font-size: 16px;
+  flex: 0 0 auto;
+  line-height: 1.2;
+}
+
+.ann-popup-inner strong {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #e2e8f0;
+  line-height: 1.3;
+}
+
+.ann-popup-detail {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: 2px;
+  line-height: 1.4;
+}

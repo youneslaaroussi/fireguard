@@ -949,8 +949,44 @@ class WorkflowEngine:
                 )
                 messages.append(message)
                 self.store.append_history(run.session_id, run.run_id, agent.agent_id, message)
+            tool_completion = self._tool_completion_output(agent, results, payload)
+            if tool_completion is not None:
+                await self._emit(
+                    run,
+                    "agent.message.completed",
+                    node_id=node_id,
+                    agent_id=agent.agent_id,
+                    data={"content": tool_completion["message"], "turn": turn},
+                )
+                return {
+                    "agent_id": agent.agent_id,
+                    "message": tool_completion["message"],
+                    "payload": tool_completion["payload"],
+                    "turns": turn,
+                }
             await self._checkpoint(run, node_id)
         raise RuntimeError(f"agent {agent.agent_id} exceeded max turns {max_turns}")
+
+    def _tool_completion_output(
+        self,
+        agent: AgentDefinition,
+        results: list[ToolResult],
+        input_payload: dict[str, Any],
+    ) -> dict[str, Any] | None:
+        for result in results:
+            if result.ok and result.tool_name == "complete_workflow_node":
+                payload = _completion_payload(result.output)
+                return {
+                    "message": _completion_message(payload),
+                    "payload": {**input_payload, "completion": payload},
+                }
+        if not _emit_message_completes_agent(agent, results):
+            return None
+        latest = results[-1].output.get("message") if isinstance(results[-1].output, dict) else None
+        if not isinstance(latest, str) or len(latest.strip()) == 0:
+            return None
+        payload = {"message": latest.strip()}
+        return {"message": latest.strip(), "payload": {**input_payload, "completion": payload}}
 
     async def _execute_agent_tool_calls(
         self,
@@ -1954,6 +1990,32 @@ def _agent_user_message(payload: dict[str, Any]) -> ChatMessage:
     if content_parts is not None:
         metadata["openai_content_parts"] = content_parts
     return ChatMessage(role=MessageRole.user, content=text, metadata=metadata)
+
+
+def _completion_payload(output: dict[str, Any]) -> dict[str, Any]:
+    payload = output.get("payload") if isinstance(output, dict) else None
+    if not isinstance(payload, dict):
+        return output if isinstance(output, dict) else {"value": output}
+    nested = payload.get("payload")
+    if isinstance(nested, dict) and set(payload.keys()) == {"payload"}:
+        return nested
+    return payload
+
+
+def _completion_message(payload: dict[str, Any]) -> str:
+    for key in ("message", "report_markdown", "research_notes", "brief", "content", "user_response"):
+        value = payload.get(key)
+        if isinstance(value, str) and len(value.strip()) > 0:
+            return value.strip()
+    return json.dumps(payload, indent=2, default=str)
+
+
+def _emit_message_completes_agent(agent: AgentDefinition, results: list[ToolResult]) -> bool:
+    if len(results) == 0:
+        return False
+    if set(agent.tool_names) - {"emit_message", "complete_workflow_node"}:
+        return False
+    return all(result.ok and result.tool_name == "emit_message" for result in results)
 
 
 def _content_parts_for_payload(payload: dict[str, Any]) -> list[dict[str, Any]] | None:

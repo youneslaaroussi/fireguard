@@ -38,6 +38,7 @@ EVACUATION_TOOLS = [
     "fireguard_search_road_events",
     "fireguard_evaluate_route",
     "fireguard_bcws_context",
+    "fireguard_map_annotation",
     "exa_search",
     "emit_message",
     "complete_workflow_node",
@@ -46,24 +47,33 @@ EVACUATION_TOOLS = [
 EVACUATION_RESEARCH_SYSTEM_PROMPT = (
     "You are the FireGuard evacuation analyst. A satellite fire threat has been automatically "
     "detected near a populated evacuation zone. Your job is to produce a complete, actionable "
-    "evacuation decision brief. Follow these steps in order:\n\n"
-    "1. ZONE ASSESSMENT: Call fireguard_search_zones with the hotspot coordinates and radius_km=100. "
-    "Identify affected zones by population and proximity.\n"
-    "2. SHELTER SCAN: Call fireguard_search_shelters with the hotspot coordinates and radius_km=300. "
-    "Note which facilities are CLOSED vs OPEN. Williams Lake ESS facilities may all be CLOSED — "
-    "if so, you must find the next available open facility further away.\n"
-    "3. ROAD CLOSURES: Call fireguard_search_road_events with the hotspot coordinates and radius_km=200. "
-    "Identify any active closures blocking evacuation corridors.\n"
-    "4. ROUTE EVALUATION: For the highest-priority zone (largest population), call "
-    "fireguard_evaluate_route to the 2-3 nearest open shelters. Use the zone centroid as origin "
-    "and each shelter location as destination. Include start_date and end_date matching the "
-    "replay window from session context.\n"
-    "5. FIRE CONTEXT: Call fireguard_search_events near the hotspot to characterize fire intensity "
-    "and spread direction.\n\n"
-    "Synthesize findings into compact research notes covering: affected zone (population/homes), "
-    "shelter availability (open vs closed with names), best route (distance, duration, risk flags), "
-    "any blocked routes with reason, and the single recommended evacuation action. "
-    "Be specific with names, distances, and times. Do not summarize schema or field names."
+    "evacuation decision brief. Follow these steps in order — call each tool ONCE then move on:\n\n"
+    "1. ZONE ASSESSMENT: Call fireguard_search_zones once with the hotspot coordinates and radius_km=150. "
+    "From the result, identify the highest-priority zone (largest population). Extract its centroid "
+    "latitude and longitude — these are your EVACUATION ORIGIN for all subsequent steps.\n"
+    "2. SHELTER SCAN: Call fireguard_search_shelters once using the ZONE CENTROID latitude/longitude "
+    "(NOT the hotspot) with radius_km=400. People evacuate FROM the zone, not from the fire. "
+    "All Williams Lake ESS facilities will be CLOSED — the only OPEN facility is ~280 km away in Merritt.\n"
+    "3. ROAD CLOSURES: Call fireguard_search_road_events once using the ZONE CENTROID latitude/longitude "
+    "with radius_km=300. Identify active closures on evacuation corridors south and north.\n"
+    "4. ROUTE EVALUATION: For each OPEN shelter from step 2 (up to 3), call fireguard_evaluate_route: "
+    "origin_lat/origin_lon = the zone centroid coordinates from step 1. "
+    "destination_lat/destination_lon = the shelter's location.lat and location.lon from step 2 results. "
+    "Include start_date and end_date from the replay window in session context. "
+    "DO NOT route zone centroid to itself. DO NOT use the hotspot as origin or destination.\n"
+    "5. FIRE CONTEXT: Call fireguard_search_events ONCE near the hotspot coordinates (radius_km=50) "
+    "to get fire intensity and detection count. Do NOT call it again.\n\n"
+    "After completing all 5 steps:\n"
+    "6. MAP ANNOTATION: Call fireguard_map_annotation ONCE to push your findings to the live map. "
+    "Include: markers for the hotspot (type=hotspot), zone centroid (type=zone), each evaluated "
+    "shelter (type=shelter_open or shelter_closed), any blockages (type=blockage), and the "
+    "recommended alternate if the primary is blocked (type=alternate). Include all evaluated "
+    "routes with status=safe/blocked. Write a 1-2 sentence message summarizing the decision.\n\n"
+    "Then call complete_workflow_node with a 'research_notes' field. Do NOT repeat any tool call. "
+    "Your research notes must cover: affected zone (name, population, homes), shelter availability "
+    "(list each facility name, community, OPEN/CLOSED, distance from zone), best evacuation route "
+    "(origin → shelter name, distance km, duration minutes, SAFE/UNSAFE), road closures with reason, "
+    "and the single recommended evacuation action with specific shelter name and route."
 )
 
 CHAT_AGENT_RESPONSE_FORMAT = {
@@ -172,6 +182,7 @@ def built_in_evacuation_workflow() -> WorkflowDefinition:
         model_tier=ModelTier.pro,
         tool_names=EVACUATION_TOOLS,
         system_prompt=EVACUATION_RESEARCH_SYSTEM_PROMPT,
+        max_turns=20,
     )
     writer = AgentDefinition(
         agent_id="evacuation_writer",

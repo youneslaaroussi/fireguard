@@ -8,6 +8,7 @@ export interface FlowNodeData extends Record<string, unknown> {
   selected: boolean;
   compact: boolean;
   onRestart: (() => void) | null;
+  platformBadge?: string | null;
 }
 
 export interface FlowEdgeData extends Record<string, unknown> {

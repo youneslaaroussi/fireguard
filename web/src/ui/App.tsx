@@ -58,6 +58,7 @@ export function App() {
   const [replayProgress, setReplayProgress] = useState(0);
   const [status, setStatus] = useState("Idle");
   const [threatAlert, setThreatAlert] = useState<ThreatPayload | null>(null);
+  const [intelligencePrompt, setIntelligencePrompt] = useState<string | null>(null);
   const sessionContext = buildSessionContext(request, status, busy, events, context, stats, threatAlert);
 
   useEffect(() => {
@@ -71,6 +72,7 @@ export function App() {
     setEvents([]);
     setContext(emptyContext);
     setThreatAlert(null);
+    setIntelligencePrompt(null);
     setReplayProgress(0);
     setStatus("Starting");
     try {
@@ -100,6 +102,8 @@ export function App() {
         } else if (message.type === "threat") {
           const payload = { hotspot: message.hotspot, zone: message.zone };
           setThreatAlert(payload);
+          setIntelligencePrompt(buildEvacuationPrompt(payload, request));
+          setView("intelligence");
         } else if (message.type === "done") {
           setReplayProgress(1);
           setStatus(`Complete · ${message.events.toLocaleString()} detections`);
@@ -185,11 +189,27 @@ export function App() {
               )}
             </div>
           </header>
-          <AgenticIntelligenceApp />
+          <AgenticIntelligenceApp
+            autoPrompt={intelligencePrompt}
+            workflowId="fireguard_evacuation"
+            sessionContext={sessionContext}
+            threat={threatAlert}
+            mapboxToken={mapboxToken}
+          />
         </>
       )}
     </div>
   );
+}
+
+function buildEvacuationPrompt(threat: ThreatPayload, request: ReplayRequest) {
+  return [
+    "Run the FireGuard evacuation workflow for this replay threat.",
+    `Hotspot: lat ${threat.hotspot.lat}, lon ${threat.hotspot.lon}, FRP ${threat.hotspot.frp}, confidence ${threat.hotspot.confidence ?? "unknown"}, acquired ${threat.hotspot.acquired_at}, source ${threat.hotspot.source}.`,
+    `Affected zone: ${threat.zone.name}, population ${threat.zone.population ?? "unknown"}, homes ${threat.zone.homes ?? "unknown"}, centroid lat ${threat.zone.latitude ?? "unknown"}, centroid lon ${threat.zone.longitude ?? "unknown"}, hotspot distance ${threat.zone.distance_km ?? "unknown"} km.`,
+    `Replay window: ${request.start_date} through ${request.end_date}.`,
+    "Scan affected zones, shelters, road events, and fire detections; evaluate routes to open shelters; then produce the evacuation brief and recommended action.",
+  ].join("\n");
 }
 
 function progressForEvent(event: FireEvent, request: ReplayRequest) {

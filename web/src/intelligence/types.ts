@@ -199,3 +199,30 @@ export interface EdgePayload {
   condition: string;
   payload: Record<string, unknown>;
 }
+
+export type MapMarkerType = "hotspot" | "shelter_open" | "shelter_closed" | "zone" | "blockage" | "alternate";
+
+export interface MapAnnotationMarker {
+  lat: number;
+  lon: number;
+  type: MapMarkerType;
+  label: string;
+  detail?: string;
+}
+
+export interface MapAnnotationRoute {
+  from_lat: number;
+  from_lon: number;
+  to_lat: number;
+  to_lon: number;
+  status: "safe" | "blocked" | "alternate";
+  label: string;
+  distance_km?: number;
+  duration_minutes?: number;
+}
+
+export interface MapAnnotation {
+  message: string;
+  markers: MapAnnotationMarker[];
+  routes: MapAnnotationRoute[];
+}

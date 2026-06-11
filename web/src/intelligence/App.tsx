@@ -7,6 +7,8 @@ import remarkDirective from "remark-directive";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import "katex/dist/katex.min.css";
+import { MapAnnotationPanel } from "./MapAnnotationPanel";
+import type { MapAnnotation } from "./types";
 import {
   createSession,
   getEvents,
@@ -17,6 +19,7 @@ import {
   listSessions,
   resolveApproval,
   restartChatFrom,
+  startRun,
   startChatRun,
   stopRun,
   streamRun,
@@ -46,7 +49,7 @@ const TEXT_ATTACHMENT_TYPES = new Set([
   "text/plain",
 ]);
 
-type WorkspaceTabId = "graph" | "deliverable" | "report";
+type WorkspaceTabId = "graph" | "map" | "deliverable" | "report";
 type ReportStyleId = "risk" | "atlas" | "technical" | "brief";
 
 const REPORT_STYLE_OPTIONS = [
@@ -579,9 +582,19 @@ function formatBytes(size: number): string {
 
 type AgenticIntelligenceAppProps = {
   autoPrompt?: string | null;
+  workflowId?: string;
+  sessionContext?: Record<string, unknown> | null;
+  threat?: unknown;
+  mapboxToken?: string;
 };
 
-export function AgenticIntelligenceApp({ autoPrompt = null }: AgenticIntelligenceAppProps) {
+export function AgenticIntelligenceApp({
+  autoPrompt = null,
+  workflowId = "fireguard_intelligence",
+  sessionContext = null,
+  threat = null,
+  mapboxToken = "",
+}: AgenticIntelligenceAppProps) {
   const [busy, setBusy] = useState(false);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [currentSession, setCurrentSession] = useState<SessionRecord | null>(null);
@@ -595,6 +608,7 @@ export function AgenticIntelligenceApp({ autoPrompt = null }: AgenticIntelligenc
   const [error, setError] = useState<string | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
   const [activeTabId, setActiveTabId] = useState<WorkspaceTabId>("graph");
+  const [mapAnnotation, setMapAnnotation] = useState<MapAnnotation | null>(null);
   const [reportStyleId, setReportStyleId] = useState<ReportStyleId>("risk");
   const [rightTabId, setRightTabId] = useState<"chat" | "activity">("chat");
   const [chatInput, setChatInput] = useState("");
@@ -946,6 +960,17 @@ export function AgenticIntelligenceApp({ autoPrompt = null }: AgenticIntelligenc
       }
       return;
     }
+    if (event.event_type === "tool.completed") {
+      const toolName = event.data.tool_name;
+      const output = event.data.output;
+      if (toolName === "fireguard_map_annotation" && isObj(output) && output.ok === true) {
+        const ann = (output as Record<string, unknown>).annotation;
+        if (isObj(ann)) {
+          setMapAnnotation(ann as unknown as MapAnnotation);
+          setActiveTabId("map");
+        }
+      }
+    }
     if (event.event_type === "agent.started") {
       ensureAssistantMessage(event);
       return;
@@ -1127,6 +1152,7 @@ export function AgenticIntelligenceApp({ autoPrompt = null }: AgenticIntelligenc
     setError(null);
     setNodeDetail(null);
     setSelectedNodeId(null);
+    setMapAnnotation(null);
     try {
       sourceRef.current?.close();
       const session =
@@ -1135,7 +1161,15 @@ export function AgenticIntelligenceApp({ autoPrompt = null }: AgenticIntelligenc
           ? await createSession(message.slice(0, 48) || "FireGuard Intelligence Chat")
           : { session_id: run.session_id, title: "FireGuard Intelligence Chat", created_at: "", updated_at: "", metadata: {} });
       const prompt = message.length > 0 ? message : "Analyze the attached file(s).";
-      const started = await startChatRun(session.session_id, prompt, attachments);
+      const started =
+        workflowId === "fireguard_intelligence"
+          ? await startChatRun(session.session_id, prompt, attachments, sessionContext)
+          : await startRun(session.session_id, prompt, workflowId, {
+              source: "replay_threat",
+              attachments,
+              session_context: sessionContext,
+              threat,
+            });
       const events = await getEvents(started.session_id, started.run_id, true);
       setCurrentSession(session);
       setRun(started);
@@ -1364,6 +1398,15 @@ export function AgenticIntelligenceApp({ autoPrompt = null }: AgenticIntelligenc
                   onSelectEdge={handleSelectEdge}
                   onRestartFromNode={isActive(run) || busy ? null : (nodeId) => void handleRestartFromNode(nodeId)}
                 />
+              </div>
+            }
+          />
+          <Tab
+            id="map"
+            title={mapAnnotation !== null ? "Map ●" : "Map"}
+            panel={
+              <div className="ann-tab-panel">
+                <MapAnnotationPanel annotation={mapAnnotation} mapboxToken={mapboxToken} />
               </div>
             }
           />
@@ -1669,6 +1712,10 @@ export function AgenticIntelligenceApp({ autoPrompt = null }: AgenticIntelligenc
       </Dialog>
     </div>
   );
+}
+
+function isObj(v: unknown): v is Record<string, unknown> {
+  return v !== null && typeof v === "object" && !Array.isArray(v);
 }
 
 function isGraphTool(toolName: unknown): boolean {

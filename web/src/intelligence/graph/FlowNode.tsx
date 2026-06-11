@@ -12,7 +12,7 @@ const HANDLE_STYLE = {
 } as const;
 
 export function FlowNode({ data }: NodeProps<Node<FlowNodeData>>) {
-  const { label, status, accentColor, NodeIcon, selected, compact, onRestart } = data;
+  const { label, status, accentColor, NodeIcon, selected, compact, onRestart, platformBadge } = data;
   const borderColor = selected ? "#818cf8" : (STATUS_BORDER[status] ?? "#1e2d3d");
   const textColor = STATUS_TEXT[status] ?? "#4b6278";
   const dotColor = STATUS_BORDER[status] ?? "#334155";
@@ -50,6 +50,14 @@ export function FlowNode({ data }: NodeProps<Node<FlowNodeData>>) {
           />
           {status}
         </span>
+        {platformBadge != null && (
+          <span
+            className="gflow-platform-badge"
+            style={{ background: `${accentColor}22`, borderColor: `${accentColor}55`, color: accentColor }}
+          >
+            {platformBadge}
+          </span>
+        )}
       </div>
 
       {onRestart !== null && (

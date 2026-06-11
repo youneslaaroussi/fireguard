@@ -5,6 +5,7 @@ import json
 import math
 import mimetypes
 import os
+import re
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -210,6 +211,12 @@ def build_base_tool_registry(
         total_value = total.get("value", 0) if isinstance(total, dict) else total
         aggs = firms.get("aggregations", {})
         buckets = aggs.get("sources", {}).get("buckets", [])
+        if int(total_value or 0) == 0 and isinstance(buckets, list):
+            total_value = sum(
+                int(bucket.get("doc_count", 0))
+                for bucket in buckets
+                if isinstance(bucket, dict)
+            )
         return {
             "indices": {
                 "firms": _fireguard_index(fireguard_elasticsearch_index_prefix, "firms"),
@@ -1075,6 +1082,89 @@ def build_base_tool_registry(
         ask_user,
     )
 
+    async def fireguard_map_annotation(invocation: ToolInvocation) -> dict[str, Any]:
+        markers = invocation.args.get("markers", [])
+        routes = invocation.args.get("routes", [])
+        message = invocation.args.get("message", "")
+        return {
+            "ok": True,
+            "annotation": {
+                "markers": markers,
+                "routes": routes,
+                "message": message,
+            },
+        }
+
+    registry.register(
+        ToolDefinition(
+            name="fireguard_map_annotation",
+            description=(
+                "Push geographic annotations directly to the live map panel visible to the operator. "
+                "Use this to visualize your reasoning — show evaluated routes, shelters, blockages, "
+                "fire hotspots, and a summary message. Call this AFTER your route evaluation steps "
+                "to give the operator a visual summary before writing the final brief."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "message": {
+                        "type": "string",
+                        "description": "Short decision summary shown as a map overlay headline (1-2 sentences).",
+                    },
+                    "markers": {
+                        "type": "array",
+                        "description": "Point markers to place on the map.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "lat": {"type": "number"},
+                                "lon": {"type": "number"},
+                                "type": {
+                                    "type": "string",
+                                    "enum": ["hotspot", "shelter_open", "shelter_closed", "zone", "blockage", "alternate"],
+                                    "description": "hotspot=fire, shelter_open=green shelter, shelter_closed=grey shelter, zone=evac zone centroid, blockage=road blocked, alternate=alternate destination",
+                                },
+                                "label": {"type": "string", "description": "Short text label for the popup."},
+                                "detail": {"type": "string", "description": "Additional detail shown in popup (distance, FRP, status, etc)."},
+                            },
+                            "required": ["lat", "lon", "type", "label"],
+                            "additionalProperties": False,
+                        },
+                    },
+                    "routes": {
+                        "type": "array",
+                        "description": "Straight-line routes to draw between two points.",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "from_lat": {"type": "number"},
+                                "from_lon": {"type": "number"},
+                                "to_lat": {"type": "number"},
+                                "to_lon": {"type": "number"},
+                                "status": {
+                                    "type": "string",
+                                    "enum": ["safe", "blocked", "alternate"],
+                                    "description": "safe=green, blocked=red, alternate=orange",
+                                },
+                                "label": {"type": "string", "description": "Route label e.g. 'Williams Lake → Merritt (BLOCKED)'"},
+                                "distance_km": {"type": "number"},
+                                "duration_minutes": {"type": "number"},
+                            },
+                            "required": ["from_lat", "from_lon", "to_lat", "to_lon", "status", "label"],
+                            "additionalProperties": False,
+                        },
+                    },
+                },
+                "required": ["message", "markers", "routes"],
+                "additionalProperties": False,
+            },
+            mutating=False,
+            concurrency_safe=True,
+            timeout_seconds=10,
+        ),
+        fireguard_map_annotation,
+    )
+
     async def complete_workflow_node(invocation: ToolInvocation) -> dict[str, Any]:
         return {"completed": True, "payload": invocation.args}
 
@@ -1420,19 +1510,21 @@ async def _elastic_request(
     path: str,
     body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    if method == "GET" and path.endswith("/_count") and body is None:
-        index = path.removeprefix("/").removesuffix("/_count")
-        data = await _elastic_mcp_search(base_url, api_key, index, {"size": 0, "track_total_hits": True})
-        total = data.get("hits", {}).get("total", 0)
-        total_value = total.get("value", 0) if isinstance(total, dict) else total
-        return {"count": int(total_value or 0)}
-    if method == "POST" and path.endswith("/_search") and body is not None:
-        index = path.removeprefix("/").removesuffix("/_search")
-        data = await _elastic_mcp_search(base_url, api_key, index, body)
-    else:
-        raise RuntimeError(f"Elastic MCP adapter does not support {method} {path}")
+    url = base_url.rstrip("/") + path
+    headers: dict[str, str] = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"ApiKey {api_key}"
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        if method == "GET":
+            resp = await client.get(url, headers=headers)
+        elif method == "POST":
+            resp = await client.post(url, headers=headers, json=body)
+        else:
+            raise RuntimeError(f"Unsupported HTTP method: {method}")
+    resp.raise_for_status()
+    data = resp.json()
     if not isinstance(data, dict):
-        raise RuntimeError("Elastic MCP search response must be an object")
+        raise RuntimeError("Elasticsearch response must be an object")
     return data
 
 
@@ -1444,13 +1536,24 @@ async def _elastic_mcp_search(
 ) -> dict[str, Any]:
     if len(base_url.strip()) == 0:
         raise RuntimeError("ELASTICSEARCH_URL is not configured")
-    image = os.environ.get("ELASTICSEARCH_MCP_IMAGE", "mcp/elasticsearch")
+    image = os.environ.get("ELASTICSEARCH_MCP_IMAGE", "docker.elastic.co/mcp/elasticsearch")
     env = {"ES_URL": _mcp_elasticsearch_url(base_url)}
     if len(api_key.strip()) > 0:
         env["ES_API_KEY"] = api_key
     server = StdioServerParameters(
         command="docker",
-        args=["run", "-i", "--rm", "-e", "ES_URL", "-e", "ES_API_KEY", image, "stdio"],
+        args=[
+            "run",
+            "-i",
+            "--rm",
+            "--add-host=host.docker.internal:host-gateway",
+            "-e",
+            "ES_URL",
+            "-e",
+            "ES_API_KEY",
+            image,
+            "stdio",
+        ],
         env=env,
     )
     async with stdio_client(server) as (read_stream, write_stream):
@@ -1488,10 +1591,39 @@ def _mcp_tool_result_object(result: Any) -> dict[str, Any]:
     text = "\n".join(texts).strip()
     if len(text) == 0:
         raise RuntimeError("Elastic MCP tool returned empty content")
-    parsed = json.loads(text)
-    if not isinstance(parsed, dict):
-        raise RuntimeError("Elastic MCP tool content must decode to an object")
-    return parsed
+    total: int | None = None
+    docs: list[dict[str, Any]] = []
+    object_payload: dict[str, Any] | None = None
+    for item in texts:
+        match = re.search(r"Total results:\s*(\d+)", item)
+        if match is not None:
+            total = int(match.group(1))
+            continue
+        try:
+            parsed = json.loads(item)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(parsed, dict):
+            object_payload = parsed
+            continue
+        if isinstance(parsed, list):
+            docs.extend([doc for doc in parsed if isinstance(doc, dict)])
+    if object_payload is not None:
+        if "hits" in object_payload:
+            return object_payload
+        return {
+            "hits": {
+                "total": {"value": total if total is not None else len(docs)},
+                "hits": [{"_source": doc} for doc in docs],
+            },
+            "aggregations": object_payload,
+        }
+    return {
+        "hits": {
+            "total": {"value": total if total is not None else len(docs)},
+            "hits": [{"_source": doc} for doc in docs],
+        }
+    }
 
 
 def _required_float(
@@ -1635,6 +1767,7 @@ def _compact_zone(payload: dict[str, Any], latitude: float, longitude: float) ->
             "homes": payload.get("homes"),
             "issuing_agency": payload.get("issuing_agency"),
             "event_name": payload.get("event_name"),
+            "location": payload.get("location"),
             "distance_km": round(distance, 2) if distance is not None else None,
         }
     )

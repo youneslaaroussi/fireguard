@@ -8,6 +8,31 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react";
+
+/** Per-tool accent color (overrides generic fireguard accent) */
+export const TOOL_ACCENT_COLORS: Record<string, string> = {
+  fireguard_search_zones:       "#8b5cf6",
+  fireguard_search_shelters:    "#10b981",
+  fireguard_search_road_events: "#f59e0b",
+  fireguard_search_events:      "#ef4444",
+  fireguard_evaluate_route:     "#3b82f6",
+  fireguard_map_annotation:     "#06b6d4",
+  fireguard_bcws_context:       "#6366f1",
+  fireguard_stats:              "#64748b",
+};
+
+/** Platform badge label per tool — shown as a small chip on the node */
+export const TOOL_PLATFORM_BADGE: Record<string, string> = {
+  fireguard_search_zones:       "Elastic",
+  fireguard_search_shelters:    "Elastic",
+  fireguard_search_road_events: "Elastic",
+  fireguard_search_events:      "NASA FIRMS",
+  fireguard_evaluate_route:     "Elastic",
+  fireguard_map_annotation:     "MapAnnotate",
+  fireguard_bcws_context:       "Elastic",
+  fireguard_stats:              "Elastic",
+  exa_search:                   "Exa",
+};
 import type { XYPosition } from "@xyflow/react";
 
 export const NODE_ORDER = [

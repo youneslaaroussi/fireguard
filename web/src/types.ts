@@ -51,6 +51,8 @@ export type ThreatPayload = {
     name: string;
     population?: number;
     homes?: number;
+    latitude?: number;
+    longitude?: number;
     distance_km?: number;
   };
 };

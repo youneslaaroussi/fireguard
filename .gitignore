@@ -7,4 +7,5 @@ __pycache__/
 node_modules/
 dist/
 data/*.sqlite3
-
+data/intelligence-state/
+data/intelligence-state-cli/

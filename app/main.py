@@ -27,12 +27,13 @@ def load_env():
     if not env_path.exists():
         return
     for line in env_path.read_text(encoding="utf-8").splitlines():
-        if line and "=" in line:
-            key, value = line.split("=", 1)
+        stripped = line.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key, value = stripped.split("=", 1)
             os.environ.setdefault(key, value)
 
 
-FIRMS_SOURCES = ("VIIRS_NOAA20_NRT", "VIIRS_SNPP_NRT", "VIIRS_NOAA21_NRT", "MODIS_NRT", "VIIRS_NOAA20_SP", "VIIRS_SNPP_SP", "VIIRS_NOAA21_SP", "MODIS_SP")
+FIRMS_SOURCES = ("VIIRS_NOAA20_NRT", "VIIRS_SNPP_NRT", "VIIRS_NOAA21_NRT", "MODIS_NRT", "VIIRS_NOAA20_SP", "VIIRS_SNPP_SP", "MODIS_SP")
 MAX_DAYS = 5
 BCWS_CACHE_SECONDS = 60 * 60
 BCWS_ACTIVE_FIRES_URL = "https://services6.arcgis.com/ubm4tcTYICKBpist/arcgis/rest/services/BCWS_ActiveFires_PublicView/FeatureServer/0/query"
@@ -42,6 +43,8 @@ BC_PUBLIC_CONTEXT_PATH = ROOT / "data/public/bc/public_emergency_context_snapsho
 BC_POLICY_SNIPPETS_PATH = ROOT / "data/public/bc/official_policy_snippets.json"
 BC_ROAD_EVENTS_PATH = ROOT / "data/replay/bc_cariboo/road_events_snapshot.json"
 BC_WEATHER_SNAPSHOT_PATH = ROOT / "data/replay/bc_cariboo/weather_snapshot.json"
+FIRMS_SNAPSHOT_PATH = ROOT / "data/replay/bc_cariboo/firms_snapshot.csv"
+FIRMS_SNAPSHOT_METADATA_PATH = ROOT / "data/replay/bc_cariboo/firms_snapshot.metadata.json"
 load_env()
 agentic_app = create_agentic_app()
 
@@ -72,6 +75,13 @@ def env(name):
     if not value:
         raise HTTPException(status_code=500, detail=f"missing {name}")
     return value
+
+
+def data_env_ready():
+    return all(
+        os.environ.get(name)
+        for name in ("ELASTICSEARCH_URL", "ELASTICSEARCH_API_KEY", "ELASTICSEARCH_INDEX_PREFIX")
+    )
 
 
 def http(method, url, body=None, headers=None, timeout=300):
@@ -120,6 +130,14 @@ def bcws_cache_index_name():
 
 def zones_index_name():
     return f"{env('ELASTICSEARCH_INDEX_PREFIX')}-zones"
+
+
+def shelters_index_name():
+    return f"{env('ELASTICSEARCH_INDEX_PREFIX')}-shelters"
+
+
+def road_events_index_name():
+    return f"{env('ELASTICSEARCH_INDEX_PREFIX')}-road-events"
 
 
 def event_mapping():
@@ -241,6 +259,46 @@ def create_indices():
             }
         },
     }
+    shelters_body = {
+        "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+        "mappings": {
+            "properties": {
+                "facility_id": {"type": "keyword"},
+                "name": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
+                "facility_type": {"type": "keyword"},
+                "address": {"type": "text"},
+                "community": {"type": "keyword"},
+                "municipality": {"type": "keyword"},
+                "status": {"type": "keyword"},
+                "location": {"type": "geo_point"},
+                "capacity": {"type": "integer"},
+                "updated_at": {"type": "date"},
+                "source": {"type": "keyword"},
+                "source_url": {"type": "keyword"},
+            }
+        },
+    }
+    road_events_body = {
+        "settings": {"number_of_shards": 1, "number_of_replicas": 0},
+        "mappings": {
+            "properties": {
+                "event_id": {"type": "keyword"},
+                "title": {"type": "text", "fields": {"keyword": {"type": "keyword", "ignore_above": 512}}},
+                "description": {"type": "text"},
+                "road_name": {"type": "keyword"},
+                "event_type": {"type": "keyword"},
+                "severity": {"type": "keyword"},
+                "status": {"type": "keyword"},
+                "location": {"type": "geo_point"},
+                "geometry": {"type": "geo_shape"},
+                "starts_at": {"type": "date"},
+                "ends_at": {"type": "date"},
+                "updated_at": {"type": "date"},
+                "source": {"type": "keyword"},
+                "source_url": {"type": "keyword"},
+            }
+        },
+    }
     for name, body in (
         (index_name(), event_body),
         (cache_index_name(), cache_body),
@@ -248,6 +306,8 @@ def create_indices():
         (bcws_perimeter_index_name(), bcws_perimeter_body),
         (bcws_cache_index_name(), bcws_cache_body),
         (zones_index_name(), zones_body),
+        (shelters_index_name(), shelters_body),
+        (road_events_index_name(), road_events_body),
     ):
         try:
             es("PUT", f"/{name}", body)
@@ -255,6 +315,9 @@ def create_indices():
             if exc.code != 400:
                 raise
     seed_evacuation_zones()
+    seed_shelters()
+    seed_road_events()
+    seed_firms_snapshot()
     try:
         es("PUT", f"/{index_name()}/_mapping", {"properties": event_mapping()})
     except urllib.error.HTTPError as exc:
@@ -471,6 +534,117 @@ def seed_evacuation_zones():
             docs.append((doc["zone_id"], doc))
     indexed = bulk(docs, zones_index_name())
     es("POST", f"/{zones_index_name()}/_refresh")
+    return {"seeded": True, "count": indexed}
+
+
+def shelter_doc_from_record(record, source, source_url):
+    location = record.get("location") or {}
+    lat = location.get("lat")
+    lon = location.get("lon")
+    facility_id = record.get("facility_id")
+    if facility_id is None or lat is None or lon is None:
+        return None
+    return compact_doc(
+        {
+            "facility_id": str(facility_id),
+            "name": record.get("name"),
+            "facility_type": record.get("facility_type"),
+            "address": record.get("address"),
+            "community": record.get("community"),
+            "municipality": record.get("municipality"),
+            "status": record.get("status"),
+            "location": {"lat": lat, "lon": lon},
+            "capacity": record.get("capacity"),
+            "updated_at": record.get("updated_at"),
+            "source": source,
+            "source_url": source_url,
+        }
+    )
+
+
+def seed_shelters():
+    existing = es("GET", f"/{shelters_index_name()}/_count")
+    if int(existing.get("count", 0)) > 0:
+        return {"seeded": False, "count": existing.get("count", 0)}
+    public_context = load_json_file(BC_PUBLIC_CONTEXT_PATH, {})
+    ess_source = public_context.get("ess_facilities") if isinstance(public_context, dict) else {}
+    if not isinstance(ess_source, dict):
+        return {"seeded": False, "count": 0}
+    docs = []
+    for record in ess_source.get("records", []):
+        if not isinstance(record, dict):
+            continue
+        doc = shelter_doc_from_record(record, ess_source.get("source"), ess_source.get("source_url"))
+        if doc is not None:
+            docs.append((doc["facility_id"], doc))
+    indexed = bulk(docs, shelters_index_name())
+    es("POST", f"/{shelters_index_name()}/_refresh")
+    return {"seeded": True, "count": indexed}
+
+
+def road_event_doc_from_record(record):
+    location = record.get("location") or {}
+    lat = location.get("lat")
+    lon = location.get("lon")
+    event_id = record.get("external_id") or record.get("event_id")
+    if event_id is None or lat is None or lon is None:
+        return None
+    return compact_doc(
+        {
+            "event_id": str(event_id),
+            "title": record.get("title"),
+            "description": record.get("description"),
+            "road_name": record.get("road_name"),
+            "event_type": record.get("event_type"),
+            "severity": record.get("severity"),
+            "status": record.get("status") or "ACTIVE",
+            "location": {"lat": lat, "lon": lon},
+            "geometry": record.get("geometry"),
+            "starts_at": record.get("starts_at"),
+            "ends_at": record.get("ends_at"),
+            "updated_at": record.get("updated_at"),
+            "source": record.get("source"),
+            "source_url": record.get("source_url"),
+        }
+    )
+
+
+def seed_road_events():
+    existing = es("GET", f"/{road_events_index_name()}/_count")
+    if int(existing.get("count", 0)) > 0:
+        return {"seeded": False, "count": existing.get("count", 0)}
+    snapshot = load_json_file(BC_ROAD_EVENTS_PATH, [])
+    docs = []
+    for record in snapshot:
+        if not isinstance(record, dict):
+            continue
+        doc = road_event_doc_from_record(record)
+        if doc is not None:
+            docs.append((doc["event_id"], doc))
+    indexed = bulk(docs, road_events_index_name())
+    es("POST", f"/{road_events_index_name()}/_refresh")
+    return {"seeded": True, "count": indexed}
+
+
+def snapshot_firms_source():
+    metadata = load_json_file(FIRMS_SNAPSHOT_METADATA_PATH, {})
+    if isinstance(metadata, dict) and isinstance(metadata.get("source_product"), str):
+        return metadata["source_product"]
+    return "VIIRS_NOAA20_SP"
+
+
+def seed_firms_snapshot():
+    existing = es("GET", f"/{index_name()}/_count")
+    if int(existing.get("count", 0)) > 0 or not FIRMS_SNAPSHOT_PATH.exists():
+        return {"seeded": False, "count": existing.get("count", 0)}
+    source = snapshot_firms_source()
+    docs = []
+    with FIRMS_SNAPSHOT_PATH.open(newline="", encoding="utf-8") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("latitude") and row.get("longitude"):
+                docs.append(transform(row, source))
+    indexed = bulk(docs, index_name())
+    es("POST", f"/{index_name()}/_refresh")
     return {"seeded": True, "count": indexed}
 
 
@@ -1016,10 +1190,15 @@ def collect_chunk(source, area, start, days, weather_cache, place_cache):
     cached = cache_get(source, area, start, days)
     if cached:
         return cached.get("indexed", 0), True
+    map_key = os.environ.get("NASA_FIRMS_MAP_KEY")
+    if not map_key:
+        seeded = seed_firms_snapshot()
+        cache_put(source, area, start, days, int(seeded.get("count", 0)))
+        return int(seeded.get("count", 0)), True
     url = "/".join(
         [
             "https://firms.modaps.eosdis.nasa.gov/api/area/csv",
-            urllib.parse.quote(env("NASA_FIRMS_MAP_KEY")),
+            urllib.parse.quote(map_key),
             source,
             area,
             str(days),
@@ -1137,6 +1316,8 @@ def threat_for_event(event, zones):
             "name": zone.get("name"),
             "population": zone.get("population"),
             "homes": zone.get("homes"),
+            "latitude": zone.get("latitude"),
+            "longitude": zone.get("longitude"),
             "distance_km": round(distance, 2),
         },
     }
@@ -1242,7 +1423,8 @@ def replay_lines(req):
 @app.on_event("startup")
 def startup():
     load_env()
-    create_indices()
+    if data_env_ready():
+        create_indices()
 
 
 @app.on_event("startup")
