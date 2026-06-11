@@ -51,7 +51,7 @@ export function EventStream({ events, busy = false }: Props) {
         {feed.map((event, i) => (
           <div
             key={`${event.source}-${event.acquired_at}-${event.latitude}-${event.longitude}-${i}`}
-            className="etRow"
+            className={`etRow${event.frp != null && event.frp >= 50 ? " etRow--hot" : ""}`}
           >
             <span className="etcTime">{event.acquired_at.slice(5, 16).replace("T", " ")}</span>
             <span className="etcSrc">{abbrevSrc(event.source)}</span>

@@ -458,6 +458,7 @@ select.sbInput { appearance: none; }
   color: #4b5563;
   font-family: 'Courier New', monospace;
   letter-spacing: 0.1em;
+  text-transform: uppercase;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -552,6 +553,15 @@ select.sbInput { appearance: none; }
 }
 
 .etRow:hover { background: rgba(255,255,255,0.03); }
+
+/* High-intensity detection (FRP >= threat threshold) */
+.etRow--hot {
+  background: rgba(229,72,77,0.05);
+  border-left: 2px solid rgba(229,72,77,0.6);
+  padding-left: 12px;
+}
+
+.etRow--hot .etcFrp { color: #f97316; font-weight: 700; }
 
 .etcTime  { width: 96px;  flex-shrink: 0; color: #4b5563; }
 .etcSrc   { width: 52px;  flex-shrink: 0; color: #3b82f6; }
@@ -1193,9 +1203,9 @@ select.sbInput { appearance: none; }
 
 .wfPanel {
   position: fixed;
-  right: 8px;
-  top: 36px;
-  bottom: 52px;
+  right: calc(max(38%, 380px) + 6px);
+  top: 34px;
+  bottom: 50px;
   width: 360px;
   z-index: 200;
   display: flex;
