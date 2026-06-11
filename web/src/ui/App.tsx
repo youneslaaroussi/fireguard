@@ -4,9 +4,12 @@ import type { BcwsContext, FireEvent, ReplayRequest, Stats, ThreatPayload } from
 import type { ActionPlan, MapAnnotation } from "../intelligence/types";
 import { AgenticIntelligenceApp } from "../intelligence/App";
 import { ActionsPanel } from "./ActionsPanel";
+import { BroadcastCard } from "./BroadcastCard";
 import { EventStream } from "./EventStream";
+import { KpiStrip } from "./KpiStrip";
 import { MapPanel } from "./MapPanel";
 import { Sidebar } from "./Sidebar";
+import { SystemHUD } from "./SystemHUD";
 import { ThreatPanel } from "./ThreatPanel";
 import { Timeline } from "./Timeline";
 import { sources } from "./state";
@@ -76,6 +79,36 @@ export function App() {
   const [simDate, setSimDate] = useState<string | null>(null);
   const sessionContext = buildSessionContext(request, status, busy, events, context, stats, threatAlert);
   const spokenThreatRef = useRef<string | null>(null);
+  const [threatFlashKey, setThreatFlashKey] = useState(0);
+  const flashedThreatRef = useRef<string | null>(null);
+
+  const playSiren = useCallback(() => {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const AC = (window.AudioContext || (window as any).webkitAudioContext) as typeof AudioContext;
+      const ctx = new AC();
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sawtooth";
+      osc.frequency.setValueAtTime(440, now);
+      // Two-tone alert (low-high-low)
+      osc.frequency.linearRampToValueAtTime(880, now + 0.18);
+      osc.frequency.linearRampToValueAtTime(440, now + 0.36);
+      osc.frequency.linearRampToValueAtTime(880, now + 0.54);
+      osc.frequency.linearRampToValueAtTime(440, now + 0.72);
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.04);
+      gain.gain.linearRampToValueAtTime(0.12, now + 0.7);
+      gain.gain.linearRampToValueAtTime(0.0001, now + 0.85);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.9);
+      osc.onended = () => ctx.close();
+    } catch {
+      // Audio is best-effort
+    }
+  }, []);
 
   const speak = useCallback(async (text: string) => {
     try {
@@ -162,6 +195,12 @@ export function App() {
           const payload = { hotspot: message.hotspot, zone: message.zone };
           setThreatAlert(payload);
           setIntelligencePrompt(buildEvacuationPrompt(payload, request));
+          const threatKey = `${payload.zone.name}|${payload.hotspot.acquired_at}`;
+          if (flashedThreatRef.current !== threatKey) {
+            flashedThreatRef.current = threatKey;
+            setThreatFlashKey((k) => k + 1);
+            playSiren();
+          }
           if (spokenThreatRef.current !== payload.zone.name) {
             spokenThreatRef.current = payload.zone.name;
             void speak(`Threat detected. High-confidence fire hotspot near ${payload.zone.name}. FireGuard intelligence is analyzing evacuation routes.`);
@@ -194,13 +233,19 @@ export function App() {
 
   return (
     <div className="shell--replay">
-      <header className="appHeader">
+      <header className={`appHeader${busy ? " appHeader--acquiring" : ""}`}>
         <BrandMark />
         <span className="headerCrumbSep">›</span>
         <span className="headerCrumb">REPLAY · {formatWindow(request.start_date, request.end_date)}</span>
         <span className="headerCrumbSep">›</span>
         <span className="headerCrumb headerCrumb--dim">CARIBOO FIRE CENTRE, BC</span>
         <div className="headerFill" />
+        {events.length > 0 && (() => {
+          const maxScore = events.reduce((m, e) => Math.max(m, e.threat_score ?? 0), 0);
+          if (maxScore === 0) return null;
+          const cls = maxScore >= 75 ? "scoreChip--critical" : maxScore >= 50 ? "scoreChip--high" : maxScore >= 25 ? "scoreChip--moderate" : "scoreChip--low";
+          return <span className={`scoreChip ${cls}`}>RISK {maxScore}</span>;
+        })()}
         {threatAlert !== null && (
           <button className="statusChip statusChip--threat" type="button">
             THREAT · {threatAlert.zone.name}
@@ -218,6 +263,8 @@ export function App() {
           <button className="errorClose" onClick={() => setError(null)}>✕</button>
         </div>
       )}
+
+      <KpiStrip events={events} context={context} threat={threatAlert} busy={busy} />
 
       <div className="appMain">
         <Sidebar
@@ -265,6 +312,7 @@ export function App() {
               }}
             />
           )}
+          <BroadcastCard plan={actionPlan} threat={threatAlert} />
         </section>
 
         <section className="mapColumn">
@@ -288,9 +336,13 @@ export function App() {
           {threatAlert !== null && (
             <ThreatAlert threat={threatAlert} />
           )}
+          <SystemHUD events={events} busy={busy} threat={threatAlert} status={status} />
         </section>
       </div>
 
+      {threatFlashKey > 0 && (
+        <div key={threatFlashKey} className="threatFlash" aria-hidden="true" />
+      )}
     </div>
   );
 }

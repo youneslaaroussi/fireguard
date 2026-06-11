@@ -206,17 +206,26 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
       m.addLayer({ id: "bcws-perimeters-fill",     type: "fill", source: "bcws-perimeters",   paint: { "fill-color": "#ffb366", "fill-opacity": 0.18 } });
       m.addLayer({ id: "bcws-perimeters-outline",   type: "line", source: "bcws-perimeters",   paint: { "line-color": "#ffd27f", "line-width": 2,   "line-opacity": 0.9 } });
 
-      // FIRMS heatmap (overview)
+      // FIRMS heatmap (overview) — wider, brighter, deeper color stops
       m.addLayer({
         id: "firms-events-heat",
         type: "heatmap",
         source: "firms-events",
-        maxzoom: 10,
+        maxzoom: 11,
         paint: {
-          "heatmap-weight":     ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 0], 0, 0.2, 50, 1],
-          "heatmap-intensity":  0.85,
-          "heatmap-radius":     22,
-          "heatmap-opacity":    ["interpolate", ["linear"], ["zoom"], 8, 0.65, 10, 0]
+          "heatmap-weight":     ["interpolate", ["linear"], ["coalesce", ["get", "frp"], 0], 0, 0.15, 25, 0.6, 80, 1],
+          "heatmap-intensity":  ["interpolate", ["linear"], ["zoom"], 4, 1, 9, 2.2],
+          "heatmap-radius":     ["interpolate", ["linear"], ["zoom"], 4, 14, 9, 38],
+          "heatmap-color":      [
+            "interpolate", ["linear"], ["heatmap-density"],
+            0,    "rgba(20, 4, 0, 0)",
+            0.2,  "rgba(120, 30, 40, 0.55)",
+            0.4,  "rgba(220, 70, 30, 0.7)",
+            0.6,  "rgba(255, 130, 30, 0.85)",
+            0.8,  "rgba(255, 200, 90, 0.95)",
+            1,    "rgba(255, 255, 220, 1)"
+          ],
+          "heatmap-opacity":    ["interpolate", ["linear"], ["zoom"], 5, 0.85, 10, 0.55, 11, 0]
         }
       });
 
@@ -386,6 +395,71 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
           "circle-opacity": 0.85,
           "circle-stroke-width": 1,
           "circle-stroke-color": "rgba(0,0,0,0.5)",
+        },
+      });
+
+      // Threat persistent pulse halo (large fading circle)
+      m.addSource("threat-pulse", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({
+        id: "threat-pulse-outer",
+        type: "circle",
+        source: "threat-pulse",
+        paint: {
+          "circle-radius": ["get", "outerRadius"],
+          "circle-color": "#ff2a1a",
+          "circle-opacity": 0.06,
+          "circle-stroke-color": "#ff2a1a",
+          "circle-stroke-width": 1.5,
+          "circle-stroke-opacity": 0.45,
+        },
+      });
+      m.addLayer({
+        id: "threat-pulse-mid",
+        type: "circle",
+        source: "threat-pulse",
+        paint: {
+          "circle-radius": ["get", "midRadius"],
+          "circle-color": "#ff2a1a",
+          "circle-opacity": 0.1,
+          "circle-stroke-color": "#ff4a2a",
+          "circle-stroke-width": 1,
+          "circle-stroke-opacity": 0.6,
+        },
+      });
+      m.addLayer({
+        id: "threat-pulse-core",
+        type: "circle",
+        source: "threat-pulse",
+        paint: {
+          "circle-radius": ["get", "coreRadius"],
+          "circle-color": "#ffd54a",
+          "circle-opacity": 0.85,
+          "circle-stroke-color": "#ff2a1a",
+          "circle-stroke-width": 2,
+          "circle-stroke-opacity": 0.95,
+        },
+      });
+
+      // Fire spread cone — wedge projecting downwind toward zone
+      m.addSource("fire-cone", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({
+        id: "fire-cone-fill",
+        type: "fill",
+        source: "fire-cone",
+        paint: {
+          "fill-color": "#ff5530",
+          "fill-opacity": ["interpolate", ["linear"], ["get", "intensity"], 0, 0.05, 1, 0.32],
+        },
+      });
+      m.addLayer({
+        id: "fire-cone-outline",
+        type: "line",
+        source: "fire-cone",
+        paint: {
+          "line-color": "#ff7a3a",
+          "line-width": 1.4,
+          "line-opacity": 0.55,
+          "line-dasharray": [3, 2],
         },
       });
 
@@ -567,6 +641,86 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
     };
   }, [threat, loaded]);
 
+  // Animated pulsing threat halo + fire spread cone
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded) return;
+    const pulseSrc = m.getSource("threat-pulse") as GeoJSONSource | undefined;
+    const coneSrc = m.getSource("fire-cone") as GeoJSONSource | undefined;
+    if (!pulseSrc || !coneSrc) return;
+
+    if (!threat) {
+      pulseSrc.setData({ type: "FeatureCollection", features: [] });
+      coneSrc.setData({ type: "FeatureCollection", features: [] });
+      return;
+    }
+
+    // Wind direction at this hotspot — fall back to bearing-toward-zone if absent
+    const weather = context.weather_snapshot;
+    let bearingTo: number;
+    if (threat.zone.latitude != null && threat.zone.longitude != null) {
+      bearingTo = bearingDeg(threat.hotspot.lat, threat.hotspot.lon, threat.zone.latitude, threat.zone.longitude);
+    } else if (weather?.wind_direction_degrees != null) {
+      // Wind comes FROM that direction → fire travels TO opposite
+      bearingTo = (weather.wind_direction_degrees + 180) % 360;
+    } else {
+      bearingTo = 0;
+    }
+    const reach = Math.max(
+      4,
+      Math.min(40, (threat.hotspot.frp / 10) + (weather?.wind_speed_kph ?? 12) * 0.6),
+    );
+    const coneFeature = makeFireCone(threat.hotspot.lat, threat.hotspot.lon, bearingTo, reach, 28);
+    coneSrc.setData({ type: "FeatureCollection", features: [coneFeature] });
+
+    // Pulse animation — drives outer/mid/core radii in pixels
+    let raf = 0;
+    const start = performance.now();
+    function tick(now: number) {
+      const t = ((now - start) % 1800) / 1800;
+      const outer = 22 + Math.sin(t * Math.PI) * 28;
+      const mid = 12 + Math.sin(t * Math.PI) * 16;
+      const core = 5 + Math.sin(t * Math.PI * 2) * 2;
+      pulseSrc!.setData({
+        type: "FeatureCollection",
+        features: [{
+          type: "Feature",
+          geometry: { type: "Point", coordinates: [threat!.hotspot.lon, threat!.hotspot.lat] },
+          properties: { outerRadius: outer, midRadius: mid, coreRadius: core },
+        }],
+      });
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [threat, loaded, context]);
+
+  // Animated dashed route — cycles a sliding dash pattern
+  useEffect(() => {
+    const mm = map.current;
+    if (!mm || !loaded) return;
+    if (!annotation || annotation.routes.length === 0) return;
+    const activeMap = mm;
+    let raf = 0;
+    let step = 0;
+    const animate = () => {
+      if (!activeMap.getLayer("ann-routes-line")) return;
+      step = (step + 1) % 30;
+      const dashArrays: number[][] = [
+        [0,    4, 3, step / 10],
+        [0.5,  4, 2.5, step / 10],
+        [1,    4, 2, step / 10],
+        [1.5,  4, 1.5, step / 10],
+      ];
+      const arr = dashArrays[Math.floor(step / 8) % dashArrays.length];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      activeMap.setPaintProperty("ann-routes-line", "line-dasharray", arr as any);
+      raf = requestAnimationFrame(animate);
+    };
+    raf = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(raf);
+  }, [annotation, loaded]);
+
   // Render agent annotation markers + routes on the main map
   useEffect(() => {
     const m = map.current;
@@ -656,6 +810,13 @@ export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon,
       {busy && ingestSource && <NasaIngestBanner source={ingestSource} count={events.length} />}
       {threat && hotspotPx && <ThreatEnhanceOverlay threat={threat} active={enhancing} px={hotspotPx} />}
       {simDate && <div className="mapSimDate">{simDate}</div>}
+      {events.length > 0 && (
+        <div className="mapEventCounter">
+          <span className="mapEventCounterDot" />
+          <span className="mapEventCounterNum">{events.length.toLocaleString()}</span>
+          <span className="mapEventCounterLabel">DETECTIONS</span>
+        </div>
+      )}
     </div>
   );
 }
@@ -764,6 +925,42 @@ function makeCircleGeoJSON(lat: number, lon: number, radiusKm: number, steps = 7
 
 function edgeLngLat(lat: number, lon: number, radiusKm: number): [number, number] {
   return [lon + radiusKm / (111 * Math.cos(lat * Math.PI / 180)), lat];
+}
+
+function bearingDeg(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const φ1 = lat1 * Math.PI / 180;
+  const φ2 = lat2 * Math.PI / 180;
+  const dλ = (lon2 - lon1) * Math.PI / 180;
+  const y = Math.sin(dλ) * Math.cos(φ2);
+  const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(dλ);
+  return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+}
+
+function makeFireCone(lat: number, lon: number, bearing: number, reachKm: number, halfAngleDeg: number): GeoJSON.Feature<GeoJSON.Polygon> {
+  const cosLat = Math.cos(lat * Math.PI / 180);
+  const startAngle = (bearing - halfAngleDeg + 360) % 360;
+  const endAngle = (bearing + halfAngleDeg) % 360;
+  const steps = 18;
+  const coords: [number, number][] = [[lon, lat]];
+  // Sample along inner (50% reach) and outer arc to make a teardrop with intensity falloff
+  for (let i = 0; i <= steps; i++) {
+    const frac = i / steps;
+    const a = startAngle + ((endAngle - startAngle + 360) % 360) * frac;
+    const rad = a * Math.PI / 180;
+    // Reach varies — full reach at center, ~60% at edges (teardrop shape)
+    const angleFromCenter = Math.abs(((a - bearing + 540) % 360) - 180);
+    const reachAtAngle = reachKm * (0.55 + 0.45 * Math.cos(angleFromCenter * Math.PI / 180));
+    coords.push([
+      lon + Math.sin(rad) * (reachAtAngle / (111 * Math.max(0.2, cosLat))),
+      lat + Math.cos(rad) * (reachAtAngle / 111),
+    ]);
+  }
+  coords.push([lon, lat]);
+  return {
+    type: "Feature",
+    geometry: { type: "Polygon", coordinates: [coords] },
+    properties: { intensity: Math.min(1, reachKm / 30) },
+  };
 }
 
 function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
