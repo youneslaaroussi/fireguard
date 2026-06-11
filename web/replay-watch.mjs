@@ -32,7 +32,7 @@ const enhanceShot = page
     console.log("enhance overlay captured");
   })
   .catch(() => {});
-for (let i = 0; i < 60; i++) {
+for (let i = 0; i < 300; i++) {
   await page.waitForTimeout(3000);
   const counter = await page.locator(".etCounter").textContent().catch(() => "");
   const status = await page.locator(".tlStatus").textContent().catch(() => "");
@@ -52,7 +52,7 @@ for (let i = 0; i < 60; i++) {
   }
 }
 await page.screenshot({ path: "/tmp/fg-final.png" });
-await page.locator(".centerPanel").screenshot({ path: "/tmp/fg-center-final.png" });
+await page.locator(".centerPanel").screenshot({ path: "/tmp/fg-center-final.png", timeout: 60000 });
 await page.locator(".sidebar").screenshot({ path: "/tmp/fg-sidebar-final.png" });
 // close the intelligence overlay to capture the post-run operational view
 const closeBtn = page.locator('.agentOverlay button[title="Close"]');

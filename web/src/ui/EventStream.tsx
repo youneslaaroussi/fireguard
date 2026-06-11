@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { memo, useEffect, useRef } from "react";
 import type { FireEvent } from "../types";
 
 type Props = {
@@ -48,18 +48,11 @@ export function EventStream({ events, busy = false }: Props) {
             </span>
           </div>
         )}
-        {feed.map((event, i) => (
-          <div
-            key={`${event.source}-${event.acquired_at}-${event.latitude}-${event.longitude}-${i}`}
-            className={`etRow${event.frp != null && event.frp >= 50 ? " etRow--hot" : ""}`}
-          >
-            <span className="etcTime">{event.acquired_at.slice(5, 16).replace("T", " ")}</span>
-            <span className="etcSrc">{abbrevSrc(event.source)}</span>
-            <span className="etcCoord">{event.latitude.toFixed(3)}, {event.longitude.toFixed(3)}</span>
-            <span className="etcFrp">{event.frp != null ? event.frp.toFixed(1) : ""}</span>
-            <span className="etcConf">{event.confidence ?? ""}</span>
-            <span className="etcInc">{event.bcws?.incident?.incident_name ?? ""}</span>
-          </div>
+        {feed.map((event) => (
+          <EventRow
+            key={`${event.source}-${event.acquired_at}-${event.latitude}-${event.longitude}`}
+            event={event}
+          />
         ))}
       </div>
       <div className="etCounter">
@@ -74,6 +67,19 @@ export function EventStream({ events, busy = false }: Props) {
     </div>
   );
 }
+
+const EventRow = memo(function EventRow({ event }: { event: FireEvent }) {
+  return (
+    <div className={`etRow${event.frp != null && event.frp >= 50 ? " etRow--hot" : ""}`}>
+      <span className="etcTime">{event.acquired_at.slice(5, 16).replace("T", " ")}</span>
+      <span className="etcSrc">{abbrevSrc(event.source)}</span>
+      <span className="etcCoord">{event.latitude.toFixed(3)}, {event.longitude.toFixed(3)}</span>
+      <span className="etcFrp">{event.frp != null ? event.frp.toFixed(1) : ""}</span>
+      <span className="etcConf">{event.confidence ?? ""}</span>
+      <span className="etcInc">{event.bcws?.incident?.incident_name ?? ""}</span>
+    </div>
+  );
+});
 
 function abbrevSrc(s: string) {
   return s

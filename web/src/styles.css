@@ -1408,15 +1408,21 @@ select.sbInput { appearance: none; }
   pointer-events: none;
   opacity: 0;
   overflow: hidden;
+  transition: opacity 0.6s ease;
 }
 
-.enhanceOverlay--on { animation: enhanceFadeIn 0.25s ease forwards; }
-.enhanceOverlay:not(.enhanceOverlay--on) { animation: enhanceFadeOut 0.6s ease forwards; }
+.enhanceOverlay--on {
+  opacity: 1;
+  transition: opacity 0.25s ease;
+}
 
 .enhanceCorner {
   position: absolute;
   width: 0;
   height: 0;
+}
+
+.enhanceOverlay--on .enhanceCorner {
   animation: enhanceCornerGrow 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
 }
 
@@ -1453,8 +1459,11 @@ select.sbInput { appearance: none; }
   right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent 0%, rgba(255, 58, 42, 0.6) 20%, rgba(255, 58, 42, 0.9) 50%, rgba(255, 58, 42, 0.6) 80%, transparent 100%);
-  animation: enhanceScanH 1.8s cubic-bezier(0.4, 0, 0.6, 1) 0.3s forwards;
   box-shadow: 0 0 6px rgba(255, 58, 42, 0.5);
+}
+
+.enhanceOverlay--on .enhanceScanH {
+  animation: enhanceScanH 1.8s cubic-bezier(0.4, 0, 0.6, 1) 0.3s forwards;
 }
 
 @keyframes enhanceScanH {
@@ -1468,8 +1477,11 @@ select.sbInput { appearance: none; }
   bottom: 0;
   width: 1px;
   background: linear-gradient(180deg, transparent 0%, rgba(80, 180, 255, 0.5) 20%, rgba(80, 180, 255, 0.8) 50%, rgba(80, 180, 255, 0.5) 80%, transparent 100%);
-  animation: enhanceScanV 1.4s cubic-bezier(0.4, 0, 0.6, 1) 0.5s forwards;
   box-shadow: 0 0 6px rgba(80, 180, 255, 0.4);
+}
+
+.enhanceOverlay--on .enhanceScanV {
+  animation: enhanceScanV 1.4s cubic-bezier(0.4, 0, 0.6, 1) 0.5s forwards;
 }
 
 @keyframes enhanceScanV {
@@ -1517,6 +1529,10 @@ select.sbInput { appearance: none; }
   font-size: 9px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
+  opacity: 0;
+}
+
+.enhanceOverlay--on .enhanceHud {
   animation: enhanceFadeIn 0.3s ease 0.5s both;
 }
 

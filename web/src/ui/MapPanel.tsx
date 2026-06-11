@@ -311,9 +311,17 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
         }
       });
 
-      // Wind vectors
-      m.addLayer({ id: "wind-vectors",           type: "line",   source: "wind-vectors",           paint: { "line-color": "#6bbcff", "line-width": 2,   "line-opacity": 0.85 } });
-      m.addLayer({ id: "wind-vector-heads",       type: "circle", source: "wind-vector-heads",       paint: { "circle-radius": 3, "circle-color": "#9fd4ff", "circle-opacity": 0.95 } });
+      // Wind vectors — fade as zoom increases so they read as context, not clutter
+      m.addLayer({ id: "wind-vectors", type: "line", source: "wind-vectors", paint: {
+        "line-color": "#6bbcff",
+        "line-width": 1.5,
+        "line-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.5, 8, 0.28, 11, 0.1]
+      } });
+      m.addLayer({ id: "wind-vector-heads", type: "circle", source: "wind-vector-heads", paint: {
+        "circle-radius": 2.5,
+        "circle-color": "#9fd4ff",
+        "circle-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.6, 8, 0.35, 11, 0.12]
+      } });
       m.addLayer({ id: "snapshot-wind-vectors",   type: "line",   source: "snapshot-wind-vectors",   paint: { "line-color": "#34e7ff", "line-width": 2.5, "line-opacity": 0.9, "line-dasharray": [2, 2] } });
       m.addLayer({ id: "snapshot-wind-vector-heads", type: "circle", source: "snapshot-wind-vector-heads", paint: { "circle-radius": 4, "circle-color": "#34e7ff", "circle-opacity": 0.95 } });
 
@@ -474,11 +482,11 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
       });
     }, 900);
 
-    // Phase 3: fade overlay out, stop tracking
+    // Phase 3: fade overlay out, stop tracking — hold the lock-on long enough to read
     const t2 = setTimeout(() => {
       setEnhancing(false);
       instance.off("move", updatePx);
-    }, 4500);
+    }, 7000);
 
     return () => {
       clearTimeout(t1);

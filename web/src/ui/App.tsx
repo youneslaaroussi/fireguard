@@ -89,6 +89,18 @@ export function App() {
     setActionPlan(null);
     setReplayProgress(0);
     setStatus("Starting");
+    // Batch streamed events so the table/map render ~8x/s instead of per event
+    const eventBuffer: FireEvent[] = [];
+    let flushTimer: number | null = null;
+    const flush = () => {
+      flushTimer = null;
+      if (eventBuffer.length === 0) return;
+      const batch = eventBuffer.splice(0);
+      const last = batch[batch.length - 1];
+      setEvents((current) => [...current, ...batch]);
+      setReplayProgress(progressForEvent(last, request));
+      setStatus(`Replay ${last.acquired_at.slice(0, 16).replace("T", " ")} · ${last.source}`);
+    };
     try {
       await replay(request, (message) => {
         if (message.type === "started") {
@@ -110,15 +122,17 @@ export function App() {
         } else if (message.type === "chunk") {
           setStatus(`${message.cached ? "Cached" : "Indexed"} ${message.source}: ${message.indexed.toLocaleString()}`);
         } else if (message.type === "event") {
-          setEvents((current) => [...current, message.event]);
-          setReplayProgress(progressForEvent(message.event, request));
-          setStatus(`Replay ${message.event.acquired_at.slice(0, 16).replace("T", " ")} · ${message.event.source}`);
+          eventBuffer.push(message.event);
+          if (flushTimer === null) flushTimer = window.setTimeout(flush, 120);
         } else if (message.type === "threat") {
+          flush();
           const payload = { hotspot: message.hotspot, zone: message.zone };
           setThreatAlert(payload);
           setIntelligencePrompt(buildEvacuationPrompt(payload, request));
-          setAgentOverlayOpen(true);
+          // Let the map zoom-enhance sequence play before the intelligence panel mounts
+          window.setTimeout(() => setAgentOverlayOpen(true), 7800);
         } else if (message.type === "done") {
+          flush();
           setReplayProgress(1);
           setStatus(`Complete · ${message.events.toLocaleString()} detections`);
         } else if (message.type === "error") {
@@ -128,6 +142,8 @@ export function App() {
     } catch (err) {
       setError(String(err));
     } finally {
+      if (flushTimer !== null) window.clearTimeout(flushTimer);
+      flush();
       setBusy(false);
     }
   }
