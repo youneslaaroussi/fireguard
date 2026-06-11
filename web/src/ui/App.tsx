@@ -9,6 +9,7 @@ import { DecisionTimer } from "./DecisionTimer";
 import { EventStream } from "./EventStream";
 import { KpiStrip } from "./KpiStrip";
 import { MapPanel } from "./MapPanel";
+import { MissionBrief } from "./MissionBrief";
 import { Sidebar } from "./Sidebar";
 import { SystemHUD } from "./SystemHUD";
 import { TechFooter } from "./TechFooter";
@@ -341,6 +342,7 @@ export function App() {
           )}
           <DecisionTimer threat={threatAlert} hasPlan={actionPlan !== null} />
           <SystemHUD events={events} busy={busy} threat={threatAlert} status={status} />
+          <MissionBrief events={events} threat={threatAlert} simDate={simDate} />
           <WindCompass events={events} context={context} />
         </section>
       </div>
