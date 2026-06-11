@@ -1,0 +1,48 @@
+
+  VITE v7.3.5  ready in 302 ms
+
+  ➜  Local:   http://127.0.0.1:5180/
+4:02:59 a.m. [vite] (client) hmr update /src/ui/EventStream.tsx
+4:03:07 a.m. [vite] (client) hmr update /src/ui/App.tsx
+4:03:20 a.m. [vite] (client) hmr update /src/ui/App.tsx
+4:03:44 a.m. [vite] (client) hmr update /src/ui/App.tsx
+4:04:03 a.m. [vite] (client) hmr update /src/ui/MapPanel.tsx
+4:04:25 a.m. [vite] (client) page reload src/main.tsx
+4:07:03 a.m. [vite] (client) hmr update /src/styles.css
+4:19:32 a.m. [vite] (client) hmr update /src/styles.css
+4:20:11 a.m. [vite] (client) hmr update /src/styles.css
+4:20:19 a.m. [vite] (client) hmr update /src/styles.css
+4:20:29 a.m. [vite] (client) hmr update /src/ui/Timeline.tsx
+4:20:37 a.m. [vite] (client) hmr update /src/ui/EventStream.tsx
+4:20:46 a.m. [vite] (client) hmr update /src/ui/EventStream.tsx
+4:20:54 a.m. [vite] (client) hmr update /src/ui/EventStream.tsx
+4:21:01 a.m. [vite] (client) hmr update /src/ui/App.tsx
+4:21:11 a.m. [vite] (client) hmr update /src/ui/Sidebar.tsx
+4:24:51 a.m. [vite] (client) hmr update /src/ui/App.tsx, /src/ui/Sidebar.tsx
+4:24:51 a.m. [vite] (client) hmr update /src/ui/StatsStrip.tsx
+4:25:39 a.m. [vite] (client) hmr update /src/styles.css
+4:25:49 a.m. [vite] (client) hmr update /src/styles.css
+4:26:08 a.m. [vite] (client) hmr update /src/styles.css
+4:27:13 a.m. [vite] (client) page reload index.html
+4:39:47 a.m. [vite] (client) hmr update /src/styles.css
+4:51:45 a.m. [vite] (client) hmr update /src/styles.css
+4:51:55 a.m. [vite] (client) hmr update /src/styles.css
+4:52:06 a.m. [vite] (client) hmr update /src/ui/EventStream.tsx
+4:53:12 a.m. [vite] (client) hmr update /src/styles.css
+5:12:22 a.m. [vite] (client) hmr update /src/ui/MapPanel.tsx
+5:16:25 a.m. [vite] (client) hmr update /src/ui/App.tsx
+5:16:36 a.m. [vite] (client) hmr update /src/ui/App.tsx
+5:16:46 a.m. [vite] (client) hmr update /src/ui/EventStream.tsx
+5:16:57 a.m. [vite] (client) hmr update /src/ui/EventStream.tsx
+5:17:07 a.m. [vite] (client) hmr update /src/ui/EventStream.tsx
+5:21:12 a.m. [vite] (client) hmr update /src/ui/App.tsx
+5:25:20 a.m. [vite] (client) hmr update /src/ui/MapPanel.tsx
+5:25:28 a.m. [vite] (client) hmr update /src/ui/App.tsx
+5:33:31 a.m. [vite] (client) hmr update /src/styles.css
+5:33:49 a.m. [vite] (client) hmr update /src/styles.css
+5:33:58 a.m. [vite] (client) hmr update /src/styles.css
+5:34:08 a.m. [vite] (client) hmr update /src/styles.css
+5:34:19 a.m. [vite] (client) hmr update /src/styles.css
+6:08:17 a.m. [vite] vite.config.ts changed, restarting server...
+6:08:17 a.m. [vite] (client) Re-optimizing dependencies because lockfile has changed
+6:08:17 a.m. [vite] server restarted.

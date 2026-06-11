@@ -1,0 +1,973 @@
+INFO:     Started server process [238236]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8100 (Press CTRL+C to quit)
+INFO:     127.0.0.1:42076 - "GET /api/config HTTP/1.1" 200 OK
+/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py:120: FastAPIDeprecationWarning: ORJSONResponse is deprecated, FastAPI now serializes data directly to JSON bytes via Pydantic when a return type or response model is set, which is faster and doesn't need a custom response class. Read more in the FastAPI docs: https://fastapi.tiangolo.com/advanced/custom-response/#orjson-or-response-model and https://fastapi.tiangolo.com/tutorial/response-model/
+  response = await f(request)
+INFO:     127.0.0.1:60940 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60948 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60960 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60952 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60972 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60984 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54222 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54232 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54246 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54250 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54238 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54260 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33164 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33176 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33194 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33182 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33208 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33212 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58230 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58234 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58254 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58250 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58266 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58280 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51836 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34492 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34494 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34504 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34516 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34500 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34532 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57806 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58690 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54628 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38994 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39030 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39010 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39036 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39014 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39048 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51502 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39962 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39966 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53702 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53712 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53728 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53720 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53744 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53760 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35744 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50266 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50268 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50274 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50280 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50272 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50296 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36290 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49588 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49600 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58956 - "POST /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/workflows/runs HTTP/1.1" 200 OK
+/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py:120: FastAPIDeprecationWarning: ORJSONResponse is deprecated, FastAPI now serializes data directly to JSON bytes via Pydantic when a return type or response model is set, which is faster and doesn't need a custom response class. Read more in the FastAPI docs: https://fastapi.tiangolo.com/advanced/custom-response/#orjson-or-response-model and https://fastapi.tiangolo.com/tutorial/response-model/
+  response = await f(request)
+INFO:     127.0.0.1:58958 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58960 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58966 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/stream HTTP/1.1" 200 OK
+/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/google/adk/models/google_llm.py:260: UserWarning: [EXPERIMENTAL] feature FeatureName.PROGRESSIVE_SSE_STREAMING is enabled.
+  async for llm_response in aggregator_gen:
+INFO:     127.0.0.1:38726 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38740 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38742 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38756 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38762 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38776 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38786 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38790 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38798 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52862 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52868 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52876 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52892 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52894 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60962 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60970 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60980 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60992 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32772 - "GET /api/intelligence/sessions/ses_8243ea1899cb45f3b85eb30fa3acab40/runs/run_20b6a7115863471ebc307bbb94592c07/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32782 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32788 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32802 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32808 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32820 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58802 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58812 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43044 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43048 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58816 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43052 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51334 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56754 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47052 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43238 - "POST /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43248 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43252 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43260 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43274 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43278 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43292 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43308 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43312 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43316 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38020 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38022 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38028 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44106 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44110 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44116 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44126 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44130 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50730 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50732 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50744 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50748 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50752 - "GET /api/intelligence/sessions/ses_04fa437245194eb6a0985ee1d56e640a/runs/run_50e78c183fca46f691588929da2cad9d/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50766 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50768 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50784 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50790 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50806 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37580 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43284 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43288 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43300 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43296 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43310 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43324 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57678 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54630 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54646 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54654 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54642 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54662 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54676 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41536 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59226 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59242 - "POST /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59352 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59362 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59374 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59390 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59406 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59422 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59428 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59432 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59440 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54934 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54950 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54966 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58526 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58538 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58546 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58550 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58560 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39468 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39470 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39486 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39494 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39496 - "GET /api/intelligence/sessions/ses_38872282e40645bb8cbdf1788c4a51d7/runs/run_c9ae5c282c764c1ba76d10915afb308e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39502 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39518 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39530 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39534 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39544 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43624 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43630 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59698 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59706 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59722 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59720 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59732 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59734 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48958 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50434 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50440 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45638 - "POST /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45646 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45660 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45664 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45676 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45688 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45696 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45698 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45706 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45720 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45736 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45750 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55630 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54708 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54716 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54730 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54742 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54754 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39564 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39580 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39596 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39598 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39610 - "GET /api/intelligence/sessions/ses_962a4d0dc2b84670b4b038be69223bb6/runs/run_f74f1c58e0ce48c9a46d1c7b866db183/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39626 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39642 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39658 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39672 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39676 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54218 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54224 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54252 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54238 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41042 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41056 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44636 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44642 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44656 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44648 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44658 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44668 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35104 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60598 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60608 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33298 - "POST /api/intelligence/sessions/ses_e69ad824e5294c909d9887d7b928c7a5/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33312 - "GET /api/intelligence/sessions/ses_e69ad824e5294c909d9887d7b928c7a5/runs/run_229e9e6270884010aede852f2bb58261/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33324 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33338 - "GET /api/intelligence/sessions/ses_e69ad824e5294c909d9887d7b928c7a5/runs/run_229e9e6270884010aede852f2bb58261/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33344 - "GET /api/intelligence/sessions/ses_e69ad824e5294c909d9887d7b928c7a5/runs/run_229e9e6270884010aede852f2bb58261 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33348 - "GET /api/intelligence/sessions/ses_e69ad824e5294c909d9887d7b928c7a5/runs/run_229e9e6270884010aede852f2bb58261 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33364 - "GET /api/intelligence/sessions/ses_e69ad824e5294c909d9887d7b928c7a5/runs/run_229e9e6270884010aede852f2bb58261 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36756 - "GET /api/intelligence/sessions/ses_e69ad824e5294c909d9887d7b928c7a5/runs/run_229e9e6270884010aede852f2bb58261/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36758 - "GET /api/intelligence/sessions/ses_e69ad824e5294c909d9887d7b928c7a5/runs/run_229e9e6270884010aede852f2bb58261/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36768 - "GET /api/intelligence/sessions/ses_e69ad824e5294c909d9887d7b928c7a5/runs/run_229e9e6270884010aede852f2bb58261/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36780 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36784 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40250 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40266 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40278 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40272 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40284 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40298 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35436 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37910 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37914 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59456 - "POST /api/intelligence/sessions/ses_ae3194f5bbe440d4bc04b7a714677b73/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59472 - "GET /api/intelligence/sessions/ses_ae3194f5bbe440d4bc04b7a714677b73/runs/run_8e737d23c7644e77bc23068ef8f21440/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37668 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37674 - "GET /api/intelligence/sessions/ses_ae3194f5bbe440d4bc04b7a714677b73/runs/run_8e737d23c7644e77bc23068ef8f21440/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37686 - "GET /api/intelligence/sessions/ses_ae3194f5bbe440d4bc04b7a714677b73/runs/run_8e737d23c7644e77bc23068ef8f21440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37696 - "GET /api/intelligence/sessions/ses_ae3194f5bbe440d4bc04b7a714677b73/runs/run_8e737d23c7644e77bc23068ef8f21440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37704 - "GET /api/intelligence/sessions/ses_ae3194f5bbe440d4bc04b7a714677b73/runs/run_8e737d23c7644e77bc23068ef8f21440 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37714 - "GET /api/intelligence/sessions/ses_ae3194f5bbe440d4bc04b7a714677b73/runs/run_8e737d23c7644e77bc23068ef8f21440/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37726 - "GET /api/intelligence/sessions/ses_ae3194f5bbe440d4bc04b7a714677b73/runs/run_8e737d23c7644e77bc23068ef8f21440/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37730 - "GET /api/intelligence/sessions/ses_ae3194f5bbe440d4bc04b7a714677b73/runs/run_8e737d23c7644e77bc23068ef8f21440/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37744 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37754 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41388 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41402 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41416 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41384 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41426 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41442 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52440 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39186 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50080 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50096 - "POST /api/intelligence/sessions/ses_52fd21a9151a418d955ae40f4ce835c0/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50104 - "GET /api/intelligence/sessions/ses_52fd21a9151a418d955ae40f4ce835c0/runs/run_23e94554adc7444fa75e4a7964d21f4e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50106 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59778 - "GET /api/intelligence/sessions/ses_52fd21a9151a418d955ae40f4ce835c0/runs/run_23e94554adc7444fa75e4a7964d21f4e/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59780 - "GET /api/intelligence/sessions/ses_52fd21a9151a418d955ae40f4ce835c0/runs/run_23e94554adc7444fa75e4a7964d21f4e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59790 - "GET /api/intelligence/sessions/ses_52fd21a9151a418d955ae40f4ce835c0/runs/run_23e94554adc7444fa75e4a7964d21f4e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59800 - "GET /api/intelligence/sessions/ses_52fd21a9151a418d955ae40f4ce835c0/runs/run_23e94554adc7444fa75e4a7964d21f4e HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59814 - "GET /api/intelligence/sessions/ses_52fd21a9151a418d955ae40f4ce835c0/runs/run_23e94554adc7444fa75e4a7964d21f4e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59816 - "GET /api/intelligence/sessions/ses_52fd21a9151a418d955ae40f4ce835c0/runs/run_23e94554adc7444fa75e4a7964d21f4e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59826 - "GET /api/intelligence/sessions/ses_52fd21a9151a418d955ae40f4ce835c0/runs/run_23e94554adc7444fa75e4a7964d21f4e/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59828 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59836 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59850 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33268 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33274 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33296 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33288 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33298 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33310 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57812 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41048 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41054 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41062 - "POST /api/intelligence/sessions/ses_b5823051d81f40dab497d5b4f277e241/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40938 - "GET /api/intelligence/sessions/ses_b5823051d81f40dab497d5b4f277e241/runs/run_05b35b4889254298871378e51bd00615/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40954 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40956 - "GET /api/intelligence/sessions/ses_b5823051d81f40dab497d5b4f277e241/runs/run_05b35b4889254298871378e51bd00615/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40966 - "GET /api/intelligence/sessions/ses_b5823051d81f40dab497d5b4f277e241/runs/run_05b35b4889254298871378e51bd00615 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40968 - "GET /api/intelligence/sessions/ses_b5823051d81f40dab497d5b4f277e241/runs/run_05b35b4889254298871378e51bd00615 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40974 - "GET /api/intelligence/sessions/ses_b5823051d81f40dab497d5b4f277e241/runs/run_05b35b4889254298871378e51bd00615 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40976 - "GET /api/intelligence/sessions/ses_b5823051d81f40dab497d5b4f277e241/runs/run_05b35b4889254298871378e51bd00615/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40978 - "GET /api/intelligence/sessions/ses_b5823051d81f40dab497d5b4f277e241/runs/run_05b35b4889254298871378e51bd00615/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40984 - "GET /api/intelligence/sessions/ses_b5823051d81f40dab497d5b4f277e241/runs/run_05b35b4889254298871378e51bd00615/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40990 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40996 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41002 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58502 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58512 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58530 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58514 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58546 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58552 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36086 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45444 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45450 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45460 - "POST /api/intelligence/sessions/ses_b6de5c66abda43f195134621168b255c/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44248 - "GET /api/intelligence/sessions/ses_b6de5c66abda43f195134621168b255c/runs/run_a1ed649d34ca4cd08a533224a688c9cc/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44250 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44266 - "GET /api/intelligence/sessions/ses_b6de5c66abda43f195134621168b255c/runs/run_a1ed649d34ca4cd08a533224a688c9cc/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44278 - "GET /api/intelligence/sessions/ses_b6de5c66abda43f195134621168b255c/runs/run_a1ed649d34ca4cd08a533224a688c9cc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44284 - "GET /api/intelligence/sessions/ses_b6de5c66abda43f195134621168b255c/runs/run_a1ed649d34ca4cd08a533224a688c9cc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44294 - "GET /api/intelligence/sessions/ses_b6de5c66abda43f195134621168b255c/runs/run_a1ed649d34ca4cd08a533224a688c9cc HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44296 - "GET /api/intelligence/sessions/ses_b6de5c66abda43f195134621168b255c/runs/run_a1ed649d34ca4cd08a533224a688c9cc/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44308 - "GET /api/intelligence/sessions/ses_b6de5c66abda43f195134621168b255c/runs/run_a1ed649d34ca4cd08a533224a688c9cc/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44324 - "GET /api/intelligence/sessions/ses_b6de5c66abda43f195134621168b255c/runs/run_a1ed649d34ca4cd08a533224a688c9cc/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44336 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44338 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44346 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37764 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37780 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37790 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37786 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37794 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37808 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42210 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50068 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50084 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50090 - "POST /api/intelligence/sessions/ses_c1f3723f625546a2a169f12078c75e63/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50096 - "GET /api/intelligence/sessions/ses_c1f3723f625546a2a169f12078c75e63/runs/run_c8f926a2999546409f5f0438565aaeae/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50104 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49478 - "GET /api/intelligence/sessions/ses_c1f3723f625546a2a169f12078c75e63/runs/run_c8f926a2999546409f5f0438565aaeae/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49488 - "GET /api/intelligence/sessions/ses_c1f3723f625546a2a169f12078c75e63/runs/run_c8f926a2999546409f5f0438565aaeae HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49496 - "GET /api/intelligence/sessions/ses_c1f3723f625546a2a169f12078c75e63/runs/run_c8f926a2999546409f5f0438565aaeae HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49498 - "GET /api/intelligence/sessions/ses_c1f3723f625546a2a169f12078c75e63/runs/run_c8f926a2999546409f5f0438565aaeae HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49510 - "GET /api/intelligence/sessions/ses_c1f3723f625546a2a169f12078c75e63/runs/run_c8f926a2999546409f5f0438565aaeae/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49520 - "GET /api/intelligence/sessions/ses_c1f3723f625546a2a169f12078c75e63/runs/run_c8f926a2999546409f5f0438565aaeae/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49528 - "GET /api/intelligence/sessions/ses_c1f3723f625546a2a169f12078c75e63/runs/run_c8f926a2999546409f5f0438565aaeae/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49536 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60022 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60038 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60044 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60042 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60060 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60062 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44360 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47884 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47894 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58760 - "POST /api/intelligence/sessions/ses_cdd0d42b6ee140189ef787b0d563d88e/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58762 - "GET /api/intelligence/sessions/ses_cdd0d42b6ee140189ef787b0d563d88e/runs/run_c1178cfbd4d44321a6b318439026c712/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58778 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58794 - "GET /api/intelligence/sessions/ses_cdd0d42b6ee140189ef787b0d563d88e/runs/run_c1178cfbd4d44321a6b318439026c712/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58804 - "GET /api/intelligence/sessions/ses_cdd0d42b6ee140189ef787b0d563d88e/runs/run_c1178cfbd4d44321a6b318439026c712 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58810 - "GET /api/intelligence/sessions/ses_cdd0d42b6ee140189ef787b0d563d88e/runs/run_c1178cfbd4d44321a6b318439026c712 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58826 - "GET /api/intelligence/sessions/ses_cdd0d42b6ee140189ef787b0d563d88e/runs/run_c1178cfbd4d44321a6b318439026c712 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58838 - "GET /api/intelligence/sessions/ses_cdd0d42b6ee140189ef787b0d563d88e/runs/run_c1178cfbd4d44321a6b318439026c712/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58854 - "GET /api/intelligence/sessions/ses_cdd0d42b6ee140189ef787b0d563d88e/runs/run_c1178cfbd4d44321a6b318439026c712/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58864 - "GET /api/intelligence/sessions/ses_cdd0d42b6ee140189ef787b0d563d88e/runs/run_c1178cfbd4d44321a6b318439026c712/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36922 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36938 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36964 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36978 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36954 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56834 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48958 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56964 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56978 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56986 - "POST /api/intelligence/sessions/ses_14a6b186107642acb9bc332660884f0c/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56998 - "GET /api/intelligence/sessions/ses_14a6b186107642acb9bc332660884f0c/runs/run_98648cb9eb864e039ee5bd97ab56c6f2/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57000 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57006 - "GET /api/intelligence/sessions/ses_14a6b186107642acb9bc332660884f0c/runs/run_98648cb9eb864e039ee5bd97ab56c6f2/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57018 - "GET /api/intelligence/sessions/ses_14a6b186107642acb9bc332660884f0c/runs/run_98648cb9eb864e039ee5bd97ab56c6f2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57026 - "GET /api/intelligence/sessions/ses_14a6b186107642acb9bc332660884f0c/runs/run_98648cb9eb864e039ee5bd97ab56c6f2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57034 - "GET /api/intelligence/sessions/ses_14a6b186107642acb9bc332660884f0c/runs/run_98648cb9eb864e039ee5bd97ab56c6f2 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57036 - "GET /api/intelligence/sessions/ses_14a6b186107642acb9bc332660884f0c/runs/run_98648cb9eb864e039ee5bd97ab56c6f2/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57052 - "GET /api/intelligence/sessions/ses_14a6b186107642acb9bc332660884f0c/runs/run_98648cb9eb864e039ee5bd97ab56c6f2/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57064 - "GET /api/intelligence/sessions/ses_14a6b186107642acb9bc332660884f0c/runs/run_98648cb9eb864e039ee5bd97ab56c6f2/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33756 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33760 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33768 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57576 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57616 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57592 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57630 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57604 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57638 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39630 - "POST /api/replay/stream HTTP/1.1" 200 OK
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_utils.py", line 81, in collapse_excgroups
+  |     yield
+  |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 274, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 799, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    |     result = await app(  # type: ignore[func-returns-value]
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    |     return await self.app(scope, receive, send)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/applications.py", line 1159, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    |     raise exc
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    |     await self.simple_response(scope, receive, send, request_headers=headers)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    |     await self.app(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 660, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 680, in app
+    |     await route.handle(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 276, in handle
+    |     await self.app(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 134, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 121, in app
+    |     await response(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 273, in __call__
+    |     with collapse_excgroups():
+    |   File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 277, in wrap
+    |     await func()
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 250, in stream_response
+    |     async for chunk in self.body_iterator:
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 55, in iterate_in_threadpool
+    |     yield await anyio.to_thread.run_sync(_next, as_iterator)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/to_thread.py", line 63, in run_sync
+    |     return await get_async_backend().run_sync_in_worker_thread(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    |     return await future
+    |            ^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    |     result = context.run(func, *args)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 44, in _next
+    |     return next(iterator)
+    |            ^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/app/main.py", line 1420, in replay_lines
+    |     for event in query_events(req, req.start_date, replay_days, area_bounds):
+    |   File "/home/ubuntu/dev/fireguard/app/main.py", line 1269, in query_events
+    |     response = es("POST", "/_search/scroll", {"scroll": "1m", "scroll_id": scroll_id})
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/app/main.py", line 98, in es
+    |     return json.loads(http(method, env("ELASTICSEARCH_URL").rstrip("/") + path, data, headers))
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/app/main.py", line 88, in http
+    |     with urllib.request.urlopen(req, timeout=timeout) as resp:
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 215, in urlopen
+    |     return opener.open(url, data, timeout)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 521, in open
+    |     response = meth(req, response)
+    |                ^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 630, in http_response
+    |     response = self.parent.error(
+    |                ^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 559, in error
+    |     return self._call_chain(*args)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    |     result = func(*args)
+    |              ^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    |     raise HTTPError(req.full_url, code, msg, hdrs, fp)
+    | urllib.error.HTTPError: HTTP Error 404: Not Found
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 121, in app
+    await response(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 273, in __call__
+    with collapse_excgroups():
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 277, in wrap
+    await func()
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 250, in stream_response
+    async for chunk in self.body_iterator:
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 55, in iterate_in_threadpool
+    yield await anyio.to_thread.run_sync(_next, as_iterator)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 44, in _next
+    return next(iterator)
+           ^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/app/main.py", line 1420, in replay_lines
+    for event in query_events(req, req.start_date, replay_days, area_bounds):
+  File "/home/ubuntu/dev/fireguard/app/main.py", line 1269, in query_events
+    response = es("POST", "/_search/scroll", {"scroll": "1m", "scroll_id": scroll_id})
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/app/main.py", line 98, in es
+    return json.loads(http(method, env("ELASTICSEARCH_URL").rstrip("/") + path, data, headers))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/app/main.py", line 88, in http
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 521, in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 630, in http_response
+    response = self.parent.error(
+               ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 559, in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 404: Not Found
+INFO:     127.0.0.1:59902 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59908 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59916 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59912 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59922 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59928 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36878 - "POST /api/replay/stream HTTP/1.1" 200 OK
+ERROR:    Exception in ASGI application
+  + Exception Group Traceback (most recent call last):
+  |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_utils.py", line 81, in collapse_excgroups
+  |     yield
+  |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 274, in __call__
+  |     async with anyio.create_task_group() as task_group:
+  |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 799, in __aexit__
+  |     raise BaseExceptionGroup(
+  | ExceptionGroup: unhandled errors in a TaskGroup (1 sub-exception)
+  +-+---------------- 1 ----------------
+    | Traceback (most recent call last):
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    |     result = await app(  # type: ignore[func-returns-value]
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    |     return await self.app(scope, receive, send)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/applications.py", line 1159, in __call__
+    |     await super().__call__(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    |     raise exc
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    |     await self.app(scope, receive, _send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    |     await self.simple_response(scope, receive, send, request_headers=headers)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    |     await self.app(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    |     await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    |     await self.app(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 660, in __call__
+    |     await self.middleware_stack(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 680, in app
+    |     await route.handle(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 276, in handle
+    |     await self.app(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 134, in app
+    |     await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    |     raise exc
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    |     await app(scope, receive, sender)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 121, in app
+    |     await response(scope, receive, send)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 273, in __call__
+    |     with collapse_excgroups():
+    |   File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    |     self.gen.throw(value)
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    |     raise exc
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 277, in wrap
+    |     await func()
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 250, in stream_response
+    |     async for chunk in self.body_iterator:
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 55, in iterate_in_threadpool
+    |     yield await anyio.to_thread.run_sync(_next, as_iterator)
+    |           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/to_thread.py", line 63, in run_sync
+    |     return await get_async_backend().run_sync_in_worker_thread(
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    |     return await future
+    |            ^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    |     result = context.run(func, *args)
+    |              ^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 44, in _next
+    |     return next(iterator)
+    |            ^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/app/main.py", line 1420, in replay_lines
+    |     for event in query_events(req, req.start_date, replay_days, area_bounds):
+    |   File "/home/ubuntu/dev/fireguard/app/main.py", line 1269, in query_events
+    |     response = es("POST", "/_search/scroll", {"scroll": "1m", "scroll_id": scroll_id})
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/app/main.py", line 98, in es
+    |     return json.loads(http(method, env("ELASTICSEARCH_URL").rstrip("/") + path, data, headers))
+    |                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/home/ubuntu/dev/fireguard/app/main.py", line 88, in http
+    |     with urllib.request.urlopen(req, timeout=timeout) as resp:
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 215, in urlopen
+    |     return opener.open(url, data, timeout)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 521, in open
+    |     response = meth(req, response)
+    |                ^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 630, in http_response
+    |     response = self.parent.error(
+    |                ^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 559, in error
+    |     return self._call_chain(*args)
+    |            ^^^^^^^^^^^^^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    |     result = func(*args)
+    |              ^^^^^^^^^^^
+    |   File "/usr/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    |     raise HTTPError(req.full_url, code, msg, hdrs, fp)
+    | urllib.error.HTTPError: HTTP Error 404: Not Found
+    +------------------------------------
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/uvicorn/protocols/http/httptools_impl.py", line 409, in run_asgi
+    result = await app(  # type: ignore[func-returns-value]
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/applications.py", line 1159, in __call__
+    await super().__call__(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/applications.py", line 90, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 96, in __call__
+    await self.simple_response(scope, receive, send, request_headers=headers)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/cors.py", line 154, in simple_response
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 660, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 680, in app
+    await route.handle(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/routing.py", line 276, in handle
+    await self.app(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 134, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/fastapi/routing.py", line 121, in app
+    await response(scope, receive, send)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 273, in __call__
+    with collapse_excgroups():
+  File "/usr/lib/python3.12/contextlib.py", line 158, in __exit__
+    self.gen.throw(value)
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/_utils.py", line 87, in collapse_excgroups
+    raise exc
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 277, in wrap
+    await func()
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/responses.py", line 250, in stream_response
+    async for chunk in self.body_iterator:
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 55, in iterate_in_threadpool
+    yield await anyio.to_thread.run_sync(_next, as_iterator)
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/to_thread.py", line 63, in run_sync
+    return await get_async_backend().run_sync_in_worker_thread(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 2518, in run_sync_in_worker_thread
+    return await future
+           ^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/anyio/_backends/_asyncio.py", line 1002, in run
+    result = context.run(func, *args)
+             ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/.venv/lib/python3.12/site-packages/starlette/concurrency.py", line 44, in _next
+    return next(iterator)
+           ^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/app/main.py", line 1420, in replay_lines
+    for event in query_events(req, req.start_date, replay_days, area_bounds):
+  File "/home/ubuntu/dev/fireguard/app/main.py", line 1269, in query_events
+    response = es("POST", "/_search/scroll", {"scroll": "1m", "scroll_id": scroll_id})
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/app/main.py", line 98, in es
+    return json.loads(http(method, env("ELASTICSEARCH_URL").rstrip("/") + path, data, headers))
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/ubuntu/dev/fireguard/app/main.py", line 88, in http
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 215, in urlopen
+    return opener.open(url, data, timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 521, in open
+    response = meth(req, response)
+               ^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 630, in http_response
+    response = self.parent.error(
+               ^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 559, in error
+    return self._call_chain(*args)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 492, in _call_chain
+    result = func(*args)
+             ^^^^^^^^^^^
+  File "/usr/lib/python3.12/urllib/request.py", line 639, in http_error_default
+    raise HTTPError(req.full_url, code, msg, hdrs, fp)
+urllib.error.HTTPError: HTTP Error 404: Not Found
+INFO:     127.0.0.1:58596 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58606 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58628 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58618 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58642 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58656 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50184 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34118 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34126 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34136 - "POST /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34138 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34144 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34146 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34162 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34164 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34176 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34182 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34198 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34214 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43738 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43744 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43750 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53432 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53442 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53458 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53472 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53482 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41392 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41406 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41420 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41426 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41440 - "GET /api/intelligence/sessions/ses_288da3c6c19f4cb2bee4efbb90b75194/runs/run_b829e2ceb2f14812a15f3d2bc3c4c80b/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41452 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41464 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41474 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41486 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:41492 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48492 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48506 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48522 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40770 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39946 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39948 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52108 - "POST /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52112 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52128 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52140 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52142 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52146 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52158 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52160 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52174 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52182 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52190 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52204 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52220 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39234 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39238 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39254 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39262 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39276 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39292 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39296 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39310 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39316 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39332 - "GET /api/intelligence/sessions/ses_3fd23ef88a4a4466b65c99f8080ce43a/runs/run_5944eeb4682944db949c5b3c5dbcfefd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43060 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43070 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43078 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43082 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43098 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58452 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58462 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58464 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43338 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35478 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35486 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34336 - "POST /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34342 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34354 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34364 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34372 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34374 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34390 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34400 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34412 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34428 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34444 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34454 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:34468 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52668 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52680 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52684 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52696 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52702 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52712 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52728 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52730 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52742 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52752 - "GET /api/intelligence/sessions/ses_58eb87493c3f4a829cdede404e624262/runs/run_b7db8b1253cc4516a80aee9ec511f268/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52766 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52780 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35622 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35632 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35634 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42296 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42312 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42320 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56768 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56772 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56780 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45472 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45480 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45492 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56204 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56210 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56222 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42316 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42332 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42346 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37342 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37352 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:37368 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35868 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35870 - "GET /api/config HTTP/1.1" 200 OK
+INFO:     127.0.0.1:35886 - "GET /api/stats HTTP/1.1" 200 OK
+INFO:     127.0.0.1:39066 - "POST /api/replay/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40450 - "POST /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40466 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40470 - "POST /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/workflows/runs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40478 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40484 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40486 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40494 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40508 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40518 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40532 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40544 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47572 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47576 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47580 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47594 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42252 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42264 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42276 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42292 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42308 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50258 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50268 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50280 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50288 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50294 - "GET /api/intelligence/sessions/ses_77168030a3c34574a4d62f6488b0cac4/runs/run_c9abaf4bdffd43ad93a0696a9d098bcd/events?include_ancestors=true HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50310 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50314 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50324 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50334 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50340 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46996 - "GET /api/intelligence/sessions HTTP/1.1" 200 OK
