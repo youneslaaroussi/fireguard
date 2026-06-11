@@ -41,12 +41,11 @@ def test_fireguard_stats_returns_counts_and_source_buckets() -> None:
     async def elastic_stub(
         base_url: str,
         api_key: str,
-        method: str,
-        path: str,
-        body: dict[str, Any] | None = None,
+        index: str,
+        query_body: dict[str, Any],
     ) -> dict[str, Any]:
-        calls.append({"base_url": base_url, "api_key": api_key, "method": method, "path": path, "body": body})
-        if path == "/fireguard-firms/_search":
+        calls.append({"base_url": base_url, "api_key": api_key, "index": index, "body": query_body})
+        if index == "fireguard-firms":
             return {
                 "hits": {"total": {"value": 12}},
                 "aggregations": {
@@ -55,27 +54,27 @@ def test_fireguard_stats_returns_counts_and_source_buckets() -> None:
                     "sources": {"buckets": [{"key": "VIIRS_SNPP_NRT", "doc_count": 7}]},
                 },
             }
-        if path == "/fireguard-bcws-incidents/_count":
-            return {"count": 3}
-        if path == "/fireguard-bcws-perimeters/_count":
-            return {"count": 2}
-        raise AssertionError(path)
+        if index == "fireguard-bcws-incidents":
+            return {"hits": {"total": {"value": 3}, "hits": []}}
+        if index == "fireguard-bcws-perimeters":
+            return {"hits": {"total": {"value": 2}, "hits": []}}
+        raise AssertionError(index)
 
-    original = tools_module._elastic_request
-    tools_module._elastic_request = elastic_stub
+    original = tools_module._elastic_mcp_search
+    tools_module._elastic_mcp_search = elastic_stub
     try:
         output = _invoke("fireguard_stats")
     finally:
-        tools_module._elastic_request = original
+        tools_module._elastic_mcp_search = original
 
     assert output["firms_count"] == 12
     assert output["bcws_incident_count"] == 3
     assert output["bcws_perimeter_count"] == 2
     assert output["sources"] == [{"source": "VIIRS_SNPP_NRT", "count": 7}]
-    assert [call["path"] for call in calls] == [
-        "/fireguard-firms/_search",
-        "/fireguard-bcws-incidents/_count",
-        "/fireguard-bcws-perimeters/_count",
+    assert [call["index"] for call in calls] == [
+        "fireguard-firms",
+        "fireguard-bcws-incidents",
+        "fireguard-bcws-perimeters",
     ]
 
 
@@ -85,13 +84,12 @@ def test_fireguard_search_events_builds_geo_and_date_filters() -> None:
     async def elastic_stub(
         base_url: str,
         api_key: str,
-        method: str,
-        path: str,
-        body: dict[str, Any] | None = None,
+        index: str,
+        query_body: dict[str, Any],
     ) -> dict[str, Any]:
-        del base_url, api_key, method
-        captured["path"] = path
-        captured["body"] = body
+        del base_url, api_key
+        captured["index"] = index
+        captured["body"] = query_body
         return {
             "hits": {
                 "hits": [
@@ -110,8 +108,8 @@ def test_fireguard_search_events_builds_geo_and_date_filters() -> None:
             }
         }
 
-    original = tools_module._elastic_request
-    tools_module._elastic_request = elastic_stub
+    original = tools_module._elastic_mcp_search
+    tools_module._elastic_mcp_search = elastic_stub
     try:
         output = _invoke(
             "fireguard_search_events",
@@ -126,9 +124,9 @@ def test_fireguard_search_events_builds_geo_and_date_filters() -> None:
             },
         )
     finally:
-        tools_module._elastic_request = original
+        tools_module._elastic_mcp_search = original
 
-    assert captured["path"] == "/fireguard-firms/_search"
+    assert captured["index"] == "fireguard-firms"
     filters = captured["body"]["query"]["bool"]["filter"]
     assert filters[0]["geo_distance"]["distance"] == "75.0km"
     assert {"range": {"acquired_at": {"gte": "2026-06-01", "lte": "2026-06-03"}}} in filters
@@ -152,13 +150,12 @@ def test_fireguard_search_shelters_builds_geo_status_filter() -> None:
     async def elastic_stub(
         base_url: str,
         api_key: str,
-        method: str,
-        path: str,
-        body: dict[str, Any] | None = None,
+        index: str,
+        query_body: dict[str, Any],
     ) -> dict[str, Any]:
-        del base_url, api_key, method
-        captured["path"] = path
-        captured["body"] = body
+        del base_url, api_key
+        captured["index"] = index
+        captured["body"] = query_body
         return {
             "hits": {
                 "hits": [
@@ -180,8 +177,8 @@ def test_fireguard_search_shelters_builds_geo_status_filter() -> None:
             }
         }
 
-    original = tools_module._elastic_request
-    tools_module._elastic_request = elastic_stub
+    original = tools_module._elastic_mcp_search
+    tools_module._elastic_mcp_search = elastic_stub
     try:
         output = _invoke(
             "fireguard_search_shelters",
@@ -194,9 +191,9 @@ def test_fireguard_search_shelters_builds_geo_status_filter() -> None:
             },
         )
     finally:
-        tools_module._elastic_request = original
+        tools_module._elastic_mcp_search = original
 
-    assert captured["path"] == "/fireguard-shelters/_search"
+    assert captured["index"] == "fireguard-shelters"
     filters = captured["body"]["query"]["bool"]["filter"]
     assert filters[0]["geo_distance"]["distance"] == "25.0km"
     assert {"term": {"status": "OPEN"}} in filters
@@ -224,13 +221,12 @@ def test_fireguard_search_road_events_builds_geo_query() -> None:
     async def elastic_stub(
         base_url: str,
         api_key: str,
-        method: str,
-        path: str,
-        body: dict[str, Any] | None = None,
+        index: str,
+        query_body: dict[str, Any],
     ) -> dict[str, Any]:
-        del base_url, api_key, method
-        captured["path"] = path
-        captured["body"] = body
+        del base_url, api_key
+        captured["index"] = index
+        captured["body"] = query_body
         return {
             "hits": {
                 "hits": [
@@ -252,17 +248,17 @@ def test_fireguard_search_road_events_builds_geo_query() -> None:
             }
         }
 
-    original = tools_module._elastic_request
-    tools_module._elastic_request = elastic_stub
+    original = tools_module._elastic_mcp_search
+    tools_module._elastic_mcp_search = elastic_stub
     try:
         output = _invoke(
             "fireguard_search_road_events",
             {"latitude": 50.7, "longitude": -120.4, "radius_km": 25, "size": 5},
         )
     finally:
-        tools_module._elastic_request = original
+        tools_module._elastic_mcp_search = original
 
-    assert captured["path"] == "/fireguard-road-events/_search"
+    assert captured["index"] == "fireguard-road-events"
     filters = captured["body"]["query"]["bool"]["filter"]
     assert filters[0]["geo_distance"]["distance"] == "25.0km"
     assert captured["body"]["sort"][0]["_geo_distance"]["order"] == "asc"
@@ -277,13 +273,12 @@ def test_fireguard_evaluate_route_checks_fires_road_events_and_hypotheticals() -
     async def elastic_stub(
         base_url: str,
         api_key: str,
-        method: str,
-        path: str,
-        body: dict[str, Any] | None = None,
+        index: str,
+        query_body: dict[str, Any],
     ) -> dict[str, Any]:
-        del base_url, api_key, method
-        calls.append({"path": path, "body": body})
-        if path == "/fireguard-firms/_search":
+        del base_url, api_key
+        calls.append({"index": index, "body": query_body})
+        if index == "fireguard-firms":
             return {
                 "hits": {
                     "hits": [
@@ -298,7 +293,7 @@ def test_fireguard_evaluate_route_checks_fires_road_events_and_hypotheticals() -
                     ]
                 }
             }
-        if path == "/fireguard-road-events/_search":
+        if index == "fireguard-road-events":
             return {
                 "hits": {
                     "hits": [
@@ -316,10 +311,10 @@ def test_fireguard_evaluate_route_checks_fires_road_events_and_hypotheticals() -
                     ]
                 }
             }
-        raise AssertionError(path)
+        raise AssertionError(index)
 
-    original = tools_module._elastic_request
-    tools_module._elastic_request = elastic_stub
+    original = tools_module._elastic_mcp_search
+    tools_module._elastic_mcp_search = elastic_stub
     try:
         output = _invoke(
             "fireguard_evaluate_route",
@@ -336,11 +331,11 @@ def test_fireguard_evaluate_route_checks_fires_road_events_and_hypotheticals() -
             },
         )
     finally:
-        tools_module._elastic_request = original
+        tools_module._elastic_mcp_search = original
 
-    assert [call["path"] for call in calls] == [
-        "/fireguard-firms/_search",
-        "/fireguard-road-events/_search",
+    assert [call["index"] for call in calls] == [
+        "fireguard-firms",
+        "fireguard-road-events",
     ]
     fire_filters = calls[0]["body"]["query"]["bool"]["filter"]
     assert {"range": {"acquired_at": {"gte": "2026-06-01", "lte": "2026-06-02"}}} in fire_filters
@@ -360,13 +355,12 @@ def test_fireguard_bcws_context_reads_incidents_and_perimeters() -> None:
     async def elastic_stub(
         base_url: str,
         api_key: str,
-        method: str,
-        path: str,
-        body: dict[str, Any] | None = None,
+        index: str,
+        query_body: dict[str, Any],
     ) -> dict[str, Any]:
-        del base_url, api_key, method
-        calls.append({"path": path, "body": body})
-        if path == "/fireguard-bcws-incidents/_search":
+        del base_url, api_key
+        calls.append({"index": index, "body": query_body})
+        if index == "fireguard-bcws-incidents":
             return {
                 "hits": {
                     "hits": [
@@ -382,7 +376,7 @@ def test_fireguard_bcws_context_reads_incidents_and_perimeters() -> None:
                     ]
                 }
             }
-        if path == "/fireguard-bcws-perimeters/_search":
+        if index == "fireguard-bcws-perimeters":
             return {
                 "hits": {
                     "hits": [
@@ -396,21 +390,21 @@ def test_fireguard_bcws_context_reads_incidents_and_perimeters() -> None:
                     ]
                 }
             }
-        raise AssertionError(path)
+        raise AssertionError(index)
 
-    original = tools_module._elastic_request
-    tools_module._elastic_request = elastic_stub
+    original = tools_module._elastic_mcp_search
+    tools_module._elastic_mcp_search = elastic_stub
     try:
         output = _invoke(
             "fireguard_bcws_context",
             {"latitude": 49.2, "longitude": -123.2, "radius_km": 25, "size": 5},
         )
     finally:
-        tools_module._elastic_request = original
+        tools_module._elastic_mcp_search = original
 
-    assert [call["path"] for call in calls] == [
-        "/fireguard-bcws-incidents/_search",
-        "/fireguard-bcws-perimeters/_search",
+    assert [call["index"] for call in calls] == [
+        "fireguard-bcws-incidents",
+        "fireguard-bcws-perimeters",
     ]
     assert calls[0]["body"]["query"]["bool"]["filter"][0]["geo_bounding_box"]["location"]
     assert calls[1]["body"]["query"]["geo_shape"]["geometry"]["relation"] == "intersects"

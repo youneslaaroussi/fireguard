@@ -27,7 +27,11 @@ export function getStats() {
   return json<Stats>("/api/stats");
 }
 
-export async function replay(body: ReplayRequest, onMessage: (message: ReplayMessage) => void) {
+export async function replay(
+  body: ReplayRequest,
+  onMessage: (message: ReplayMessage) => void,
+  isPaused?: () => boolean,
+) {
   const response = await fetch("/api/replay/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -40,6 +44,10 @@ export async function replay(body: ReplayRequest, onMessage: (message: ReplayMes
   const decoder = new TextDecoder();
   let buffer = "";
   for (;;) {
+    // Hold here while paused — stops pulling bytes, letting server backpressure stall
+    while (isPaused?.()) {
+      await new Promise<void>((r) => setTimeout(r, 80));
+    }
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });

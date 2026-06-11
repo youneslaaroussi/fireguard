@@ -37,7 +37,7 @@ from .models import (
     new_id,
     utc_now,
 )
-from .openrouter import ChatComplete, ChatDelta, OpenRouterClient
+from .chat_stream import ChatComplete, ChatDelta
 from .project_data import PROJECT_DATA_PATH, ProjectDataBootstrapper
 from .storage import EventBroker, FileStore
 from .tools import ToolRegistry, build_base_tool_registry
@@ -107,9 +107,7 @@ class ChatClientProtocol(Protocol):
 
 
 def _client_for_config(config: AppConfig) -> ChatClientProtocol:
-    if config.provider == "vertex":
-        return VertexAIClient(config)
-    return OpenRouterClient(config)
+    return VertexAIClient(config)
 
 
 class WorkflowEngine:
@@ -1988,7 +1986,7 @@ def _agent_user_message(payload: dict[str, Any]) -> ChatMessage:
     content_parts = _content_parts_for_payload(payload)
     metadata: dict[str, Any] = {}
     if content_parts is not None:
-        metadata["openai_content_parts"] = content_parts
+        metadata["provider_content_parts"] = content_parts
     return ChatMessage(role=MessageRole.user, content=text, metadata=metadata)
 
 

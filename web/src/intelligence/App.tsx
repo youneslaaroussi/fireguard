@@ -31,7 +31,8 @@ import type {
   StreamEvent,
   WorkflowRun,
 } from "./types";
-import { WorkflowGraph } from "./WorkflowGraph";
+import { WorkflowGraph, type ClickedNodeInfo } from "./WorkflowGraph";
+import { NodeDetailModal } from "./NodeDetailModal";
 import { MessageToolCalls, buildAllToolCalls, toolCallsForMessage } from "./ToolFeed";
 import "./styles.css";
 
@@ -180,24 +181,30 @@ function formatBytes(size: number): string {
 
 type AgenticIntelligenceAppProps = {
   autoPrompt?: string | null;
+  externalPrompt?: { text: string; id: number } | null;
   workflowId?: string;
   sessionContext?: Record<string, unknown> | null;
   threat?: unknown;
-  mode?: "full" | "overlay";
+  mode?: "full" | "overlay" | "embedded";
+  googleMapsKey?: string;
   onClose?: () => void;
   onAnnotation?: (annotation: MapAnnotation) => void;
   onActions?: (plan: ActionPlan) => void;
+  onSpeakMessage?: (text: string) => void;
 };
 
 export function AgenticIntelligenceApp({
   autoPrompt = null,
+  externalPrompt = null,
   workflowId = "fireguard_intelligence",
   sessionContext = null,
   threat = null,
   mode = "full",
+  googleMapsKey = "",
   onClose,
   onAnnotation,
   onActions,
+  onSpeakMessage,
 }: AgenticIntelligenceAppProps) {
   const [busy, setBusy] = useState(false);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
@@ -215,17 +222,26 @@ export function AgenticIntelligenceApp({
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [edgePayloads, setEdgePayloads] = useState<Record<string, EdgePayload>>({});
   const [runEvents, setRunEvents] = useState<StreamEvent[]>([]);
+  const [clickedNode, setClickedNode] = useState<ClickedNodeInfo | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const embeddedMsgRef = useRef<HTMLDivElement | null>(null);
   const selectedNodeIdRef = useRef<string | null>(null);
   const modalOpenRef = useRef(false);
   const detailRefreshTimerRef = useRef<number | null>(null);
   const lastAutoPromptRef = useRef<string | null>(null);
   const onAnnotationRef = useRef(onAnnotation);
   const onActionsRef = useRef(onActions);
+  const onSpeakMessageRef = useRef(onSpeakMessage);
 
   useEffect(() => { onAnnotationRef.current = onAnnotation; }, [onAnnotation]);
   useEffect(() => { onActionsRef.current = onActions; }, [onActions]);
+  useEffect(() => { onSpeakMessageRef.current = onSpeakMessage; }, [onSpeakMessage]);
+
+  useEffect(() => {
+    const el = embeddedMsgRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [chatMessages.length]);
 
   useEffect(() => {
     selectedNodeIdRef.current = selectedNodeId;
@@ -543,6 +559,10 @@ export function AgenticIntelligenceApp({
     if (event.event_type === "agent.message.completed") {
       const id = ensureAssistantMessage(event);
       const content = event.data.content;
+      if (typeof content === "string" && content.trim().length > 0) {
+        const plain = content.replace(/[#*`_~>\[\]]/g, "").replace(/\s+/g, " ").trim();
+        if (plain.length > 0) onSpeakMessageRef.current?.(plain);
+      }
       const structured = event.data.structured;
       const askAnnotation =
         structured !== null &&
@@ -701,7 +721,11 @@ export function AgenticIntelligenceApp({
     setChatAttachments((current) => current.filter((attachment) => attachment.id !== id));
   }
 
-  async function sendChatMessage(messageText: string, attachments: ChatAttachment[] = []) {
+  async function sendChatMessage(
+    messageText: string,
+    attachments: ChatAttachment[] = [],
+    options: { useConfiguredWorkflow?: boolean } = {},
+  ) {
     const message = messageText.trim();
     if ((message.length === 0 && attachments.length === 0) || isActive(run) || busy) return;
     setBusy(true);
@@ -717,14 +741,14 @@ export function AgenticIntelligenceApp({
           : { session_id: run.session_id, title: "FireGuard Intelligence Chat", created_at: "", updated_at: "", metadata: {} });
       const prompt = message.length > 0 ? message : "Analyze the attached file(s).";
       const started =
-        workflowId === "fireguard_intelligence"
-          ? await startChatRun(session.session_id, prompt, attachments, sessionContext)
-          : await startRun(session.session_id, prompt, workflowId, {
+        options.useConfiguredWorkflow === true && workflowId !== "fireguard_intelligence"
+          ? await startRun(session.session_id, prompt, workflowId, {
               source: "replay_threat",
               attachments,
               session_context: sessionContext,
               threat,
-            });
+            })
+          : await startChatRun(session.session_id, prompt, attachments, sessionContext);
       const events = await getEvents(started.session_id, started.run_id, true);
       setCurrentSession(session);
       setRun(started);
@@ -766,8 +790,16 @@ export function AgenticIntelligenceApp({
     if (busy || isActive(run)) return;
     lastAutoPromptRef.current = autoPrompt;
     setChatInput(autoPrompt);
-    void sendChatMessage(autoPrompt);
+    void sendChatMessage(autoPrompt, [], { useConfiguredWorkflow: true });
   }, [autoPrompt, busy, run]);
+
+  const lastExternalPromptIdRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!externalPrompt || externalPrompt.text.trim().length === 0) return;
+    if (lastExternalPromptIdRef.current === externalPrompt.id) return;
+    lastExternalPromptIdRef.current = externalPrompt.id;
+    void sendChatMessage(externalPrompt.text);
+  }, [externalPrompt]);
 
   async function reloadChatHistory(currentRun: WorkflowRun) {
     const history = await getChatHistory(currentRun.session_id, currentRun.run_id, true);
@@ -882,6 +914,82 @@ export function AgenticIntelligenceApp({
       setSelectedEdgePayload(payload);
     }
     setEdgePayloadOpen(true);
+  }
+
+  // ── Embedded mode: graph + assistant chat + send bar only ──────────────────
+  if (mode === "embedded") {
+    const assistantMessages = chatMessages.filter((m) => m.role === "assistant");
+    return (
+      <div className="agenticIntelligence agenticIntelligence--embedded app-shell bp6-dark">
+        {error !== null && <div className="error-banner embedded-error">{error}</div>}
+        <div className="embedded-graph">
+          <WorkflowGraph
+            run={run}
+            selectedNodeId={selectedNodeId}
+            edgePayloads={edgePayloads}
+            events={runEvents}
+            onSelectNode={(nodeId) => void handleSelectNode(nodeId)}
+            onSelectGraphNode={(node) => setClickedNode(node)}
+            onSelectEdge={handleSelectEdge}
+            onRestartFromNode={null}
+          />
+        </div>
+        <NodeDetailModal
+          node={clickedNode}
+          events={runEvents}
+          googleMapsKey={googleMapsKey}
+          onClose={() => setClickedNode(null)}
+        />
+        <div className="embedded-chat">
+          <div className="embedded-messages" ref={embeddedMsgRef}>
+            {assistantMessages.length === 0 ? (
+              <div className="embedded-idle">
+                {isActive(run) ? (
+                  <span className="embedded-thinking">
+                    <span className="embeddedDot" /><span className="embeddedDot" /><span className="embeddedDot" />
+                    Analyzing…
+                  </span>
+                ) : (
+                  <span className="embedded-idle-text">Intelligence ready</span>
+                )}
+              </div>
+            ) : (
+              assistantMessages.map((message) => (
+                <div key={message.id} className="embedded-msg">
+                  <div className="embedded-msg-label">{agentLabel(message.agent_id, message.node_id)}</div>
+                  <MessageToolCalls calls={toolCallsForMessage(allToolCalls, message)} />
+                  {message.content.length > 0 && (
+                    <div className="embedded-msg-content">
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                    </div>
+                  )}
+                </div>
+              ))
+            )}
+          </div>
+          <div className="embedded-input-row">
+            <textarea
+              className="embedded-textarea"
+              value={chatInput}
+              placeholder="Message FireGuard…"
+              rows={1}
+              onChange={(e) => setChatInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSendChat(); }
+              }}
+            />
+            <button
+              className={`embedded-send${isActive(run) || busy ? " embedded-send--busy" : ""}`}
+              disabled={chatInput.trim().length === 0 || isActive(run) || busy}
+              onClick={() => void handleSendChat()}
+              type="button"
+            >
+              {isActive(run) || busy ? "…" : "↑"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   return (

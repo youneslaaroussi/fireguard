@@ -4,12 +4,15 @@ type Props = {
   progress: number;
   status: string;
   busy: boolean;
+  paused: boolean;
   onReplay: () => void;
+  onTogglePause: () => void;
 };
 
-export function Timeline({ start, end, progress, status, busy, onReplay }: Props) {
+export function Timeline({ start, end, progress, status, busy, paused, onReplay, onTogglePause }: Props) {
   const ticks = makeTicks(start, end);
   const pct = Math.max(0, Math.min(1, progress));
+  const running = busy && progress < 1;
 
   return (
     <div className="tlBar">
@@ -46,8 +49,34 @@ export function Timeline({ start, end, progress, status, busy, onReplay }: Props
         </div>
 
         {/* Status label */}
-        <div className="tlStatus">{status}</div>
+        <div className="tlStatus">{paused ? "⏸ PAUSED" : status}</div>
       </div>
+
+      {/* Pause button — only while replay is in progress */}
+      {running && (
+        <button
+          className={`tlPauseBtn${paused ? " tlPauseBtn--paused" : ""}`}
+          onClick={onTogglePause}
+          title={paused ? "Resume" : "Pause"}
+        >
+          {paused ? (
+            <>
+              <svg width="10" height="12" viewBox="0 0 10 12" fill="none" aria-hidden="true">
+                <path d="M1 1l8 5-8 5V1z" fill="currentColor"/>
+              </svg>
+              <span>RESUME</span>
+            </>
+          ) : (
+            <>
+              <svg width="10" height="12" viewBox="0 0 10 12" fill="none" aria-hidden="true">
+                <rect x="1" y="1" width="3" height="10" rx="1" fill="currentColor"/>
+                <rect x="6" y="1" width="3" height="10" rx="1" fill="currentColor"/>
+              </svg>
+              <span>PAUSE</span>
+            </>
+          )}
+        </button>
+      )}
 
       {/* Replay button */}
       <button

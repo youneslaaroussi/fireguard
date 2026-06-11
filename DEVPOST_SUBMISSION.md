@@ -18,9 +18,9 @@ The key output is not just "there is a fire." The key output is: who is affected
 
 We built a FastAPI backend that creates Elasticsearch indexes, seeds packaged BC context, streams FIRMS replay events as NDJSON, and emits a narrow `threat` payload when a hotspot passes the configured threshold.
 
-Elasticsearch is the geospatial evidence layer. FireGuard indexes FIRMS detections, evacuation zones, ESS shelters, road events, BCWS incidents, and BCWS perimeter shapes with stable `geo_point` and `geo_shape` mappings.
+Elasticsearch is the geospatial evidence layer. FireGuard indexes FIRMS detections, evacuation zones, ESS shelters, road events, BCWS incidents, and BCWS perimeter shapes with stable `geo_point` and `geo_shape` mappings. The agent-facing FireGuard search tools query those indexes through the Elastic MCP server.
 
-The agent runtime is a custom workflow engine with typed agents, tool calls, SSE updates, checkpointed runs, and provider support for OpenAI-compatible APIs or Vertex AI through Google ADK. The evacuation agent has a constrained tool sequence: zone scan, shelter scan, road scan, route evaluation, fire context, map annotation, and structured completion.
+The agent runtime is a custom workflow engine with typed agents, tool calls, SSE updates, checkpointed runs, and Vertex AI Gemini through Google ADK. The evacuation agent has a constrained tool sequence: zone scan, shelter scan, road scan, route evaluation, fire context, map annotation, and structured completion.
 
 The frontend is a React and Vite app with Mapbox GL JS. When the backend emits a threat, the UI opens the intelligence panel with `workflowId="fireguard_evacuation"` and passes the replay context into the workflow.
 

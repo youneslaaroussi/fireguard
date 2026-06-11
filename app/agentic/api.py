@@ -46,7 +46,6 @@ def create_app(
             "base_url": _settings_base_url(resolved_config),
             "light_model": resolved_config.light_model,
             "pro_model": resolved_config.pro_model,
-            "api_key_configured": len(resolved_config.api_key.strip()) > 0,
             "max_completion_tokens": resolved_config.max_completion_tokens,
             "max_agent_turns": resolved_config.max_agent_turns,
             "exa_configured": len(resolved_config.exa_api_key.strip()) > 0,
@@ -362,8 +361,6 @@ def _chat_messages(
 
 
 def _settings_base_url(config: AppConfig) -> str:
-    if config.provider != "vertex":
-        return config.base_url
     location = config.google_cloud_location.strip()
     host = "aiplatform.googleapis.com" if location == "global" else f"{location}-aiplatform.googleapis.com"
     return f"https://{host}/v1"

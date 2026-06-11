@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { getConfig, getStats, replay } from "../api";
 import type { BcwsContext, FireEvent, ReplayRequest, Stats, ThreatPayload } from "../types";
 import type { ActionPlan, MapAnnotation } from "../intelligence/types";
 import { AgenticIntelligenceApp } from "../intelligence/App";
 import { ActionsPanel } from "./ActionsPanel";
-import { AgentOrb } from "./AgentOrb";
 import { EventStream } from "./EventStream";
 import { MapPanel } from "./MapPanel";
 import { Sidebar } from "./Sidebar";
@@ -61,19 +60,48 @@ export function App() {
   const [context, setContext] = useState<BcwsContext>(emptyContext);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [paused, setPaused] = useState(false);
+  const pausedRef = useRef(false);
   const [mapboxToken, setMapboxToken] = useState("");
+  const [googleMapsKey, setGoogleMapsKey] = useState("");
   const [stats, setStats] = useState<Stats | null>(null);
   const [replayProgress, setReplayProgress] = useState(0);
   const [status, setStatus] = useState("Idle");
   const [threatAlert, setThreatAlert] = useState<ThreatPayload | null>(null);
   const [intelligencePrompt, setIntelligencePrompt] = useState<string | null>(null);
-  const [agentOverlayOpen, setAgentOverlayOpen] = useState(false);
   const [mapAnnotation, setMapAnnotation] = useState<MapAnnotation | null>(null);
   const [actionPlan, setActionPlan] = useState<ActionPlan | null>(null);
+  const [externalPrompt, setExternalPrompt] = useState<{ text: string; id: number } | null>(null);
+  const externalPromptCounter = useRef(0);
+  const [simDate, setSimDate] = useState<string | null>(null);
   const sessionContext = buildSessionContext(request, status, busy, events, context, stats, threatAlert);
+  const spokenThreatRef = useRef<string | null>(null);
+
+  const speak = useCallback(async (text: string) => {
+    try {
+      const res = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+      if (!res.ok) return;
+      const buf = await res.arrayBuffer();
+      const ctx = new AudioContext();
+      const decoded = await ctx.decodeAudioData(buf);
+      const src = ctx.createBufferSource();
+      src.buffer = decoded;
+      src.connect(ctx.destination);
+      src.start();
+    } catch {
+      // TTS is best-effort
+    }
+  }, []);
 
   useEffect(() => {
-    getConfig().then((config) => setMapboxToken(config.mapbox_access_token)).catch((err) => setError(String(err)));
+    getConfig().then((config) => {
+      setMapboxToken(config.mapbox_access_token);
+      setGoogleMapsKey(config.google_maps_api_key);
+    }).catch((err) => setError(String(err)));
     getStats().then(setStats).catch((err) => setError(String(err)));
   }, []);
 
@@ -84,10 +112,13 @@ export function App() {
     setContext(emptyContext);
     setThreatAlert(null);
     setIntelligencePrompt(null);
-    setAgentOverlayOpen(false);
     setMapAnnotation(null);
     setActionPlan(null);
+    setSimDate(null);
+    spokenThreatRef.current = null;
     setReplayProgress(0);
+    setPaused(false);
+    pausedRef.current = false;
     setStatus("Starting");
     // Batch streamed events so the table/map render ~8x/s instead of per event
     const eventBuffer: FireEvent[] = [];
@@ -124,13 +155,17 @@ export function App() {
         } else if (message.type === "event") {
           eventBuffer.push(message.event);
           if (flushTimer === null) flushTimer = window.setTimeout(flush, 120);
+          const acquired = message.event.acquired_at;
+          if (acquired) setSimDate(acquired.slice(0, 16).replace("T", " ") + " UTC");
         } else if (message.type === "threat") {
           flush();
           const payload = { hotspot: message.hotspot, zone: message.zone };
           setThreatAlert(payload);
           setIntelligencePrompt(buildEvacuationPrompt(payload, request));
-          // Let the map zoom-enhance sequence play before the intelligence panel mounts
-          window.setTimeout(() => setAgentOverlayOpen(true), 7800);
+          if (spokenThreatRef.current !== payload.zone.name) {
+            spokenThreatRef.current = payload.zone.name;
+            void speak(`Threat detected. High-confidence fire hotspot near ${payload.zone.name}. FireGuard intelligence is analyzing evacuation routes.`);
+          }
         } else if (message.type === "done") {
           flush();
           setReplayProgress(1);
@@ -138,14 +173,23 @@ export function App() {
         } else if (message.type === "error") {
           setError(message.error);
         }
-      });
+      }, () => pausedRef.current);
     } catch (err) {
       setError(String(err));
     } finally {
       if (flushTimer !== null) window.clearTimeout(flushTimer);
       flush();
       setBusy(false);
+      setPaused(false);
+      pausedRef.current = false;
     }
+  }
+
+  function togglePause() {
+    setPaused((p) => {
+      pausedRef.current = !p;
+      return !p;
+    });
   }
 
   return (
@@ -158,7 +202,7 @@ export function App() {
         <span className="headerCrumb headerCrumb--dim">CARIBOO FIRE CENTRE, BC</span>
         <div className="headerFill" />
         {threatAlert !== null && (
-          <button className="statusChip statusChip--threat" type="button" onClick={() => setAgentOverlayOpen(true)}>
+          <button className="statusChip statusChip--threat" type="button">
             THREAT · {threatAlert.zone.name}
           </button>
         )}
@@ -192,17 +236,41 @@ export function App() {
             progress={replayProgress}
             status={status}
             busy={busy}
+            paused={paused}
             onReplay={() => void startReplay()}
+            onTogglePause={togglePause}
           />
           <EventStream events={events} busy={busy} />
-          {threatAlert !== null && (
-            <ThreatPanel threat={threatAlert} onOpenIntelligence={() => setAgentOverlayOpen(true)} />
+          <div className="centerIntel">
+            <AgenticIntelligenceApp
+              autoPrompt={intelligencePrompt}
+              externalPrompt={externalPrompt}
+              workflowId="fireguard_evacuation"
+              sessionContext={sessionContext}
+              threat={threatAlert}
+              mode="embedded"
+              googleMapsKey={googleMapsKey}
+              onAnnotation={setMapAnnotation}
+              onActions={setActionPlan}
+              onSpeakMessage={speak}
+            />
+          </div>
+          {actionPlan !== null && (
+            <ActionsPanel
+              plan={actionPlan}
+              onDismiss={() => setActionPlan(null)}
+              onAct={(text) => {
+                externalPromptCounter.current += 1;
+                setExternalPrompt({ text, id: externalPromptCounter.current });
+              }}
+            />
           )}
         </section>
 
         <section className="mapColumn">
           <MapPanel
             token={mapboxToken}
+            googleMapsKey={googleMapsKey}
             events={events}
             context={context}
             lat={request.latitude}
@@ -210,31 +278,46 @@ export function App() {
             radiusKm={request.radius_km}
             annotation={mapAnnotation}
             threat={threatAlert}
+            simDate={simDate}
+            annotationActive={mapAnnotation !== null}
+            busy={busy}
             onAreaChange={(lat, lon, radiusKm) =>
               setRequest((r) => ({ ...r, latitude: lat, longitude: lon, radius_km: Math.round(radiusKm) }))
             }
           />
+          {threatAlert !== null && (
+            <ThreatAlert threat={threatAlert} />
+          )}
         </section>
       </div>
 
-      {actionPlan !== null && (
-        <ActionsPanel plan={actionPlan} onDismiss={() => setActionPlan(null)} />
-      )}
-      {!agentOverlayOpen && <AgentOrb sessionContext={sessionContext} />}
-      {agentOverlayOpen && intelligencePrompt !== null && (
-        <div className="agentOverlay" role="dialog" aria-label="FireGuard agent">
-          <AgenticIntelligenceApp
-            autoPrompt={intelligencePrompt}
-            workflowId="fireguard_evacuation"
-            sessionContext={sessionContext}
-            threat={threatAlert}
-            mode="overlay"
-            onClose={() => setAgentOverlayOpen(false)}
-            onAnnotation={(ann) => setMapAnnotation(ann)}
-            onActions={(plan) => setActionPlan(plan)}
-          />
+    </div>
+  );
+}
+
+function ThreatAlert({ threat }: { threat: ThreatPayload }) {
+  const { hotspot, zone } = threat;
+  return (
+    <div className="threatAlert">
+      <div className="threatAlertPulse" />
+      <div className="threatAlertBody">
+        <div className="threatAlertHead">
+          <svg className="threatAlertIcon" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+            <path d="M10 1L1 18h18L10 1z" fill="#ff3a2a" opacity="0.15"/>
+            <path d="M10 1L1 18h18L10 1z" stroke="#ff3a2a" strokeWidth="1.5" strokeLinejoin="round"/>
+            <rect x="9.25" y="7" width="1.5" height="6" rx="0.75" fill="#ff3a2a"/>
+            <rect x="9.25" y="14.5" width="1.5" height="1.5" rx="0.75" fill="#ff3a2a"/>
+          </svg>
+          <span className="threatAlertTitle">THREAT DETECTED</span>
+          <span className="threatAlertZone">{zone.name}</span>
         </div>
-      )}
+        <div className="threatAlertStats">
+          <span><span className="threatAlertKey">FRP</span><span className="threatAlertVal">{hotspot.frp.toFixed(1)} MW</span></span>
+          <span><span className="threatAlertKey">CONF</span><span className="threatAlertVal">{hotspot.confidence ?? "—"}</span></span>
+          <span><span className="threatAlertKey">DIST</span><span className="threatAlertVal">{zone.distance_km != null ? `${zone.distance_km.toFixed(1)} km` : "—"}</span></span>
+          <span><span className="threatAlertKey">POP</span><span className="threatAlertVal">{zone.population != null ? zone.population.toLocaleString() : "—"}</span></span>
+        </div>
+      </div>
     </div>
   );
 }

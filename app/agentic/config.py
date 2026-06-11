@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 from pydantic import AliasChoices, Field, model_validator
@@ -9,30 +8,15 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class AppConfig(BaseSettings):
     provider: str = Field(
-        default="openrouter",
+        default="vertex",
         validation_alias=AliasChoices("FIREGUARD_INTELLIGENCE_PROVIDER", "DEEP_REPORT_PROVIDER"),
     )
-    api_key: str = Field(
-        default="",
-        validation_alias=AliasChoices(
-            "FIREGUARD_INTELLIGENCE_API_KEY",
-            "DEEP_REPORT_API_KEY",
-            "OPENROUTER_API_KEY",
-            "OPENAI_API_KEY",
-        ),
-    )
-    base_url: str = Field(
-        default="https://openrouter.ai/api/v1",
-        validation_alias=AliasChoices(
-            "FIREGUARD_INTELLIGENCE_BASE_URL", "DEEP_REPORT_BASE_URL", "OPENROUTER_BASE_URL"
-        ),
-    )
     light_model: str = Field(
-        default="openai/gpt-5.1",
+        default="gemini-3.1-pro-preview",
         validation_alias=AliasChoices("FIREGUARD_INTELLIGENCE_LIGHT_MODEL", "DEEP_REPORT_LIGHT_MODEL"),
     )
     pro_model: str = Field(
-        default="openai/gpt-5.1",
+        default="gemini-3.1-pro-preview",
         validation_alias=AliasChoices("FIREGUARD_INTELLIGENCE_PRO_MODEL", "DEEP_REPORT_PRO_MODEL"),
     )
 
@@ -170,32 +154,10 @@ class AppConfig(BaseSettings):
 
     @model_validator(mode="after")
     def validate_config(self) -> AppConfig:
-        if (
-            self.provider == "openrouter"
-            and len(self.api_key.strip()) == 0
-            and len(self.google_cloud_project.strip()) > 0
-            and not _setting_present(
-                (
-                    "FIREGUARD_INTELLIGENCE_PROVIDER",
-                    "DEEP_REPORT_PROVIDER",
-                    "OPENROUTER_API_KEY",
-                    "FIREGUARD_INTELLIGENCE_API_KEY",
-                    "DEEP_REPORT_API_KEY",
-                )
-            )
-        ):
-            self.provider = "vertex"
-        if self.provider == "vertex":
-            if self.light_model == "openai/gpt-5.1":
-                self.light_model = self.gemini_model
-            if self.pro_model == "openai/gpt-5.1":
-                self.pro_model = self.gemini_model
         if len(self.provider.strip()) == 0:
             raise ValueError("FIREGUARD_INTELLIGENCE_PROVIDER must be a non-empty string")
-        if self.provider not in {"openai", "openrouter", "vertex"}:
-            raise ValueError("FIREGUARD_INTELLIGENCE_PROVIDER must be openai, openrouter, or vertex")
-        if not self.base_url.startswith(("http://", "https://")):
-            raise ValueError("FIREGUARD_INTELLIGENCE_BASE_URL must start with http:// or https://")
+        if self.provider != "vertex":
+            raise ValueError("FIREGUARD_INTELLIGENCE_PROVIDER must be vertex")
         if len(self.light_model.strip()) == 0:
             raise ValueError("FIREGUARD_INTELLIGENCE_LIGHT_MODEL must be a non-empty string")
         if len(self.pro_model.strip()) == 0:
@@ -224,9 +186,7 @@ class AppConfig(BaseSettings):
             raise ValueError("FIREGUARD_DATA_BOOTSTRAP_PAGE_SIZE must be at least 1")
         if len(self.docker_sandbox_image.strip()) == 0:
             raise ValueError("DOCKER_SANDBOX_IMAGE must be a non-empty string")
-        if self.provider == "vertex" and len(self.google_cloud_project.strip()) == 0:
-            raise ValueError("GOOGLE_CLOUD_PROJECT must be set when FIREGUARD_INTELLIGENCE_PROVIDER=vertex")
-        if self.provider == "vertex" and len(self.google_cloud_location.strip()) == 0:
+        if len(self.google_cloud_location.strip()) == 0:
             raise ValueError("GOOGLE_CLOUD_LOCATION must be set when FIREGUARD_INTELLIGENCE_PROVIDER=vertex")
         if len(self.gemini_model.strip()) == 0:
             raise ValueError("GEMINI_MODEL must be a non-empty string")
@@ -252,17 +212,3 @@ def get_config() -> AppConfig:
     config = AppConfig()
     config.ensure_state_dir()
     return config
-
-
-def _setting_present(names: tuple[str, ...]) -> bool:
-    if any(len(os.environ.get(name, "").strip()) > 0 for name in names):
-        return True
-    env_path = Path(".env")
-    if not env_path.exists():
-        return False
-    try:
-        lines = env_path.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return False
-    keys = {line.split("=", 1)[0].strip() for line in lines if "=" in line and not line.lstrip().startswith("#")}
-    return any(name in keys for name in names)

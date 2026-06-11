@@ -93,8 +93,22 @@ const ANN_ROUTE_COLORS: Record<string, string> = {
   alternate: "#f97316",
 };
 
+const FADE_LAYERS: Array<[string, string]> = [
+  ["firms-events-heat",     "heatmap-opacity"],
+  ["firms-events-points",   "circle-opacity"],
+  ["firms-events-symbols",  "icon-opacity"],
+  ["bcws-incidents",        "icon-opacity"],
+  ["bcws-perimeters-fill",  "fill-opacity"],
+  ["bcws-perimeters-outline","line-opacity"],
+  ["wind-vectors",          "line-opacity"],
+  ["wind-vector-heads",     "circle-opacity"],
+  ["snapshot-wind-vectors", "line-opacity"],
+  ["snapshot-wind-vector-heads", "circle-opacity"],
+];
+
 type Props = {
   token: string;
+  googleMapsKey?: string;
   events: FireEvent[];
   context: BcwsContext;
   lat: number;
@@ -102,10 +116,13 @@ type Props = {
   radiusKm: number;
   annotation?: MapAnnotation | null;
   threat?: ThreatPayload | null;
+  simDate?: string | null;
+  annotationActive?: boolean;
+  busy?: boolean;
   onAreaChange: (lat: number, lon: number, radiusKm: number) => void;
 };
 
-export function MapPanel({ token, events, context, lat, lon, radiusKm, annotation = null, threat = null, onAreaChange }: Props) {
+export function MapPanel({ token, googleMapsKey = "", events, context, lat, lon, radiusKm, annotation = null, threat = null, simDate = null, annotationActive = false, busy = false, onAreaChange }: Props) {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<Map | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -137,11 +154,21 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
   useEffect(() => { onAreaChangeRef.current = onAreaChange; }, [onAreaChange]);
 
   useEffect(() => {
+    if (!map.current || !loaded) return;
+    const m = map.current;
+    for (const [layerId, prop] of FADE_LAYERS) {
+      if (!m.getLayer(layerId)) continue;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      m.setPaintProperty(layerId, prop as any, annotationActive ? 0.08 : undefined);
+    }
+  }, [annotationActive, loaded]);
+
+  useEffect(() => {
     if (!token || !container.current || map.current) return;
     mapboxgl.accessToken = token;
     map.current = new mapboxgl.Map({
       container: container.current,
-      style: "mapbox://styles/mapbox/dark-v11",
+      style: "mapbox://styles/mapbox/outdoors-v12",
       center: [areaRef.current.lon, areaRef.current.lat],
       zoom: 5.5,
       attributionControl: true
@@ -325,6 +352,43 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
       m.addLayer({ id: "snapshot-wind-vectors",   type: "line",   source: "snapshot-wind-vectors",   paint: { "line-color": "#34e7ff", "line-width": 2.5, "line-opacity": 0.9, "line-dasharray": [2, 2] } });
       m.addLayer({ id: "snapshot-wind-vector-heads", type: "circle", source: "snapshot-wind-vector-heads", paint: { "circle-radius": 4, "circle-color": "#34e7ff", "circle-opacity": 0.95 } });
 
+      // Threat score labels — shown at each scored detection above zoom 6
+      m.addSource("threat-scores", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+      m.addLayer({
+        id: "threat-score-labels",
+        type: "symbol",
+        source: "threat-scores",
+        minzoom: 5,
+        layout: {
+          "text-field": ["get", "label"],
+          "text-font": ["DIN Pro Bold", "Arial Unicode MS Bold"],
+          "text-size": ["interpolate", ["linear"], ["zoom"], 5, 9, 8, 12, 11, 14],
+          "text-allow-overlap": false,
+          "text-ignore-placement": false,
+          "text-offset": [0, -1.2],
+          "text-anchor": "bottom",
+        },
+        paint: {
+          "text-color": ["get", "color"],
+          "text-halo-color": "rgba(0,0,0,0.85)",
+          "text-halo-width": 1.5,
+          "text-opacity": ["interpolate", ["linear"], ["zoom"], 5, 0.7, 9, 1],
+        },
+      });
+      m.addLayer({
+        id: "threat-score-dots",
+        type: "circle",
+        source: "threat-scores",
+        minzoom: 5,
+        paint: {
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 5, 3, 9, 5],
+          "circle-color": ["get", "color"],
+          "circle-opacity": 0.85,
+          "circle-stroke-width": 1,
+          "circle-stroke-color": "rgba(0,0,0,0.5)",
+        },
+      });
+
       setLoaded(true);
     }
     return () => {
@@ -423,6 +487,14 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
     (instance.getSource("snapshot-wind-vectors") as GeoJSONSource | undefined)?.setData(snapshotWindLines);
     (instance.getSource("snapshot-wind-vector-heads") as GeoJSONSource | undefined)?.setData(snapshotWindHeads);
   }, [context, data, essData, evacuationRecordData, evacuationZoneData, incidentData, loaded, perimeterData, roadData, snapshotWindHeads, snapshotWindLines, windHeads, windLines]);
+
+  // Update threat score markers whenever events change
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !loaded || !instance.isStyleLoaded()) return;
+    (instance.getSource("threat-scores") as GeoJSONSource | undefined)
+      ?.setData(toScoreCollection(events));
+  }, [events, loaded]);
 
   // Fit the camera when a replay data set loads, then leave user pan/zoom alone.
   useEffect(() => {
@@ -535,7 +607,7 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
       el.innerHTML = `<div class="annMarkerIcon">${ANN_MARKER_ICONS[marker.type] ?? ANN_ICON_ZONE}</div>`;
 
       const popup = new mapboxgl.Popup({ offset: 18, closeButton: false, className: "annPopup" })
-        .setHTML(buildAnnPopupHTML(marker));
+        .setHTML(buildAnnPopupHTML(marker, googleMapsKey));
 
       const mbMarker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
         .setLngLat([marker.lon, marker.lat])
@@ -569,6 +641,9 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
     );
   }
 
+  const latestEvent = events[events.length - 1];
+  const ingestSource = latestEvent?.source ?? null;
+
   return (
     <div className="mapFullScreen">
       <div ref={container} className="mapCanvas" />
@@ -578,7 +653,9 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, annotatio
           <span>{annotation.message}</span>
         </div>
       )}
+      {busy && ingestSource && <NasaIngestBanner source={ingestSource} count={events.length} />}
       {threat && hotspotPx && <ThreatEnhanceOverlay threat={threat} active={enhancing} px={hotspotPx} />}
+      {simDate && <div className="mapSimDate">{simDate}</div>}
     </div>
   );
 }
@@ -604,9 +681,9 @@ function ThreatEnhanceOverlay({ threat, active, px }: { threat: ThreatPayload; a
       <div className="enhanceCorner enhanceCorner--br" style={{ left: x + BOX, top: y + BOX }} />
 
       {/* horizontal scan line — pinned to hotspot Y, full width */}
-      <div className="enhanceScanH" style={{ top: y - BOX }} />
+      <div className="enhanceScanH" style={{ top: y }} />
       {/* vertical scan line — pinned to hotspot X, full height */}
-      <div className="enhanceScanV" style={{ left: x - BOX }} />
+      <div className="enhanceScanV" style={{ left: x }} />
 
       {/* reticle centered on projected pixel */}
       <div className="enhanceReticle" style={{ left: x, top: y }}>
@@ -634,9 +711,33 @@ function ThreatEnhanceOverlay({ threat, active, px }: { threat: ThreatPayload; a
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function buildAnnPopupHTML(marker: MapAnnotationMarker): string {
+function buildAnnPopupHTML(marker: MapAnnotationMarker, googleMapsKey: string): string {
   const detail = marker.detail ? `<div class="annPopupDetail">${marker.detail}</div>` : "";
-  return `<div class="annPopupInner"><strong>${marker.label}</strong>${detail}</div>`;
+  let photo = "";
+  if (googleMapsKey) {
+    const w = 280, h = 160;
+    // Street View Static for shelters/zones; satellite for hotspots
+    if (marker.type === "hotspot") {
+      const params = new URLSearchParams({
+        center: `${marker.lat},${marker.lon}`,
+        zoom: "13",
+        size: `${w}x${h}`,
+        maptype: "satellite",
+        key: googleMapsKey,
+      });
+      photo = `<img class="annPopupPhoto" src="https://maps.googleapis.com/maps/api/staticmap?${params}" width="${w}" height="${h}" loading="lazy" />`;
+    } else {
+      const params = new URLSearchParams({
+        location: `${marker.lat},${marker.lon}`,
+        size: `${w}x${h}`,
+        fov: "90",
+        pitch: "10",
+        key: googleMapsKey,
+      });
+      photo = `<img class="annPopupPhoto" src="https://maps.googleapis.com/maps/api/streetview?${params}" width="${w}" height="${h}" loading="lazy" />`;
+    }
+  }
+  return `<div class="annPopupInner">${photo}<div class="annPopupBody"><strong>${marker.label}</strong>${detail}</div></div>`;
 }
 
 function setCircleSource(mapInstance: Map | null, cLat: number, cLon: number, r: number) {
@@ -880,6 +981,65 @@ function toSnapshotWindHeadCollection(context: BcwsContext): GeoJSON.FeatureColl
       }
     }]
   };
+}
+
+function scoreColor(score: number): string {
+  if (score >= 75) return "#ff2a1a";
+  if (score >= 50) return "#ff7a0a";
+  if (score >= 25) return "#facc15";
+  return "#86efac";
+}
+
+function toScoreCollection(events: FireEvent[]): GeoJSON.FeatureCollection {
+  // Show every event that has a score (all events with FRP > 0)
+  const scored = events.filter((e) => (e.threat_score ?? 0) > 0);
+  // Deduplicate to ~1 km grid — keep highest score per cell
+  const best: Record<string, FireEvent> = {};
+  for (const e of scored) {
+    const key = `${e.latitude.toFixed(2)},${e.longitude.toFixed(2)}`;
+    if (!best[key] || (e.threat_score ?? 0) > (best[key].threat_score ?? 0)) {
+      best[key] = e;
+    }
+  }
+  return {
+    type: "FeatureCollection",
+    features: Object.values(best).map((e) => {
+      const score = e.threat_score!;
+      return {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [e.longitude, e.latitude] },
+        properties: { score, label: String(score), color: scoreColor(score) },
+      };
+    }),
+  };
+}
+
+// ── NASA Ingestion Banner ─────────────────────────────────────────────────────
+
+function abbrevSource(source: string): string {
+  return source
+    .replace("VIIRS_NOAA20_NRT", "VIIRS·NOAA-20")
+    .replace("VIIRS_NOAA21_NRT", "VIIRS·NOAA-21")
+    .replace("VIIRS_SNPP_NRT",   "VIIRS·SNPP")
+    .replace("VIIRS_NOAA20_SP",  "VIIRS·NOAA-20")
+    .replace("VIIRS_NOAA21_SP",  "VIIRS·NOAA-21")
+    .replace("VIIRS_SNPP_SP",    "VIIRS·SNPP")
+    .replace("MODIS_NRT",        "MODIS")
+    .replace("MODIS_SP",         "MODIS");
+}
+
+function NasaIngestBanner({ source, count }: { source: string; count: number }) {
+  return (
+    <div className="nasaBanner">
+      <img src={LOGOS.nasa.src} alt="NASA" className="nasaBannerLogo" />
+      <div className="nasaBannerText">
+        <span className="nasaBannerSource">{abbrevSource(source)}</span>
+        <span className="nasaBannerLabel">LIVE ACQUISITION</span>
+      </div>
+      <div className="nasaBannerCount">{count.toLocaleString()}</div>
+      <div className="nasaBannerPulse" />
+    </div>
+  );
 }
 
 function toFeatureCollection(events: FireEvent[]): GeoJSON.FeatureCollection {

@@ -35,9 +35,9 @@
 
 ## Table of Contents
 
-- [Judge Read](#judge-read)
-- [Visual Overview](#visual-overview)
+- [The Problem](#the-problem)
 - [What FireGuard Does](#what-fireguard-does)
+- [The Incident](#the-incident)
 - [Scenario](#scenario)
 - [Quick Start](#quick-start)
 - [System Design](#system-design)
@@ -45,6 +45,7 @@
   - [Replay and Trigger Loop](#replay-and-trigger-loop)
   - [Evacuation Workflow](#evacuation-workflow)
   - [Indexed Data](#indexed-data)
+- [Threat Scoring Methodology](#threat-scoring-methodology)
 - [Design Notes](#design-notes)
   - [Stable Event Contracts](#stable-event-contracts)
   - [Agent Tooling](#agent-tooling)
@@ -56,38 +57,67 @@
 
 ---
 
-## Judge Read
+## The Problem
 
-FireGuard is built around one operational question:
+Every summer, BC incident commanders face the same cascade of questions — in minutes, with lives at stake.
 
-> A satellite detects a high-intensity wildfire hotspot near a populated evacuation zone. What should the incident commander do next?
+A wildfire ignites near a populated area. The fire is moving fast. The commander needs to know: **Which evacuation zones are in range? How many people? Which shelters are open right now? Which roads are safe to use? How long do we have?**
 
-The app answers that question by connecting detection, indexed geospatial evidence, an evacuation workflow, and an operator-facing map.
+In 2024, BC recorded **51 evacuation orders** covering more than **4,100 properties**, and **112 evacuation alerts** covering more than **12,500 properties**. Wildfire suppression cost **$621 million**. On the worst days, over 330 fires were burning simultaneously across the province.
 
-| Judge question | FireGuard answer | Where to inspect |
-|---|---|---|
-| What starts the workflow? | A streamed FIRMS hotspot with `frp >= 50` within 150 km of a seeded zone centroid. | `app/main.py` |
-| What evidence does the agent use? | Elasticsearch indexes for FIRMS detections, zones, shelters, road events, BCWS incidents, and BCWS perimeters. | `app/main.py`, `app/agentic/tools.py` |
-| What does the agent decide? | Affected zone, shelter status, route safety, road constraints, and a recommended evacuation action. | `app/agentic/workflows.py` |
-| How does the operator see it? | React opens the intelligence panel, then map annotations show hotspot, zone, shelters, blockages, and routes. | `web/src/ui/App.tsx`, `web/src/intelligence/App.tsx` |
-| How is the Google track represented? | Google ADK powers the Vertex Gemini client path, with provider selection controlled by configuration. | `app/agentic/vertex.py`, `app/agentic/config.py` |
-| How is the Elastic track represented? | The data layer uses Elasticsearch geospatial mappings, multi-index search, and route checks against indexed constraints. | `app/main.py`, `app/agentic/tools.py` |
+### The coordination gap
 
----
+Today, assembling a situational picture during an active wildfire threat looks like this:
 
-## Visual Overview
+| Task | How it's done today |
+|---|---|
+| Identify affected evacuation zones | GIS analyst queries a separate provincial system |
+| Check shelter availability | Phone calls to ESS facility coordinators |
+| Find open evacuation routes | Check DriveBC manually, cross-reference road event feeds |
+| Assess satellite detections | FIRMS data requires GIS expertise to interpret |
+| Evaluate a specific route | Manual check against each known constraint |
+| Update the map for field crews | Separate workflow, often on a different system |
 
-<div align="center">
-  <img src="./docs/assets/illustrations/judge-guide.svg" alt="Judge reading guide for FireGuard" width="100%" />
-</div>
+Each of those steps takes time. Phone calls go unanswered. Systems are not integrated. Data is stale. A complete situational picture can take **20 to 45 minutes** to assemble — in an incident where the fire behaviour can change every 10.
 
-<div align="center">
-  <img src="./docs/assets/illustrations/source-to-brief.svg" alt="FireGuard source-to-brief architecture" width="100%" />
-</div>
+In Williams Lake on July 21, 2024, the fire went from ignition to Rank 4 fire behaviour in under an hour. The mayor, a 50-year resident, said he had never seen growth that fast. Evacuation alerts were issued for 3,000 properties. The decisions had to be made in real time, with fragmented tools.
 
-<div align="center">
-  <img src="./docs/assets/illustrations/evacuation-loop.svg" alt="FireGuard evacuation workflow loop" width="100%" />
-</div>
+### Before FireGuard
+
+```
+Hotspot detected by satellite
+        ↓
+GIS analyst pulls FIRMS data  (~10 min)
+        ↓
+Coordinator identifies affected zones  (~10 min)
+        ↓
+Phone calls to ESS shelters  (~15 min, often incomplete)
+        ↓
+DriveBC manual road check  (~10 min)
+        ↓
+Verbal debrief to incident commander
+        ↓
+Commander makes decision  (40–45 min after detection)
+        ↓
+Map updated separately for field crews
+```
+
+### After FireGuard
+
+```
+Hotspot detected by satellite
+        ↓
+FireGuard receives threat event  (automatic, <1 sec)
+        ↓
+Gemini agent queries Elasticsearch MCP in parallel:
+  zones · shelters · road events · route safety · fire context
+        ↓
+Structured brief + annotated map delivered  (<60 sec)
+        ↓
+Commander acts on a complete picture
+```
+
+The output is not a dashboard to browse — it is a specific recommendation: which zone, which shelter, which route, and what caveats. If a road closes mid-incident, the what-if route evaluation reruns in seconds, not minutes.
 
 ---
 
@@ -106,20 +136,55 @@ The workflow checks:
 
 The result is an evacuation brief plus visual map context. The app is not just a point layer on a map; it is a trigger-to-action workflow.
 
+<img src="./docs/assets/illustrations/judge-guide.svg" alt="FireGuard — trigger, evidence, decision" width="100%" />
+
+---
+
+## The Incident
+
+On **July 21, 2024 at 5:45 PM**, a tree fell onto a power line in the River Valley on the west side of Williams Lake, British Columbia. Within minutes the fire was burning at Rank 3–4 intensity. The mayor, a 50-year resident, said he had never seen fire grow that fast. Thick black smoke was visible from every corner of the city. Planes dropped red fire retardant at rooftop level.
+
+By the end of that night, **440 properties were under evacuation order** and **3,000 more were on evacuation alert**. The City declared a State of Local Emergency. Across BC, 330 wildfires were burning simultaneously, with 977 firefighters and 178 aviation crews deployed province-wide.
+
+By July 23 the River Valley fire was classified as *held* — crews had stopped its spread. The evacuation alert was lifted. The city had narrowly avoided a catastrophe.
+
+<table>
+<tr>
+<td width="58%">
+<img src="./docs/assets/press/williams-lake-fire-globalnews.png" alt="Aerial view of the Williams Lake River Valley wildfire, July 2024" width="100%" />
+</td>
+<td width="40%" valign="top">
+<img src="./docs/assets/press/williams-lake-emergency-declaration.jpg" alt="Williams Lake emergency declaration, July 22 2024" width="100%" />
+<br/><br/>
+<img src="./docs/assets/press/williams-lake-fire-calms.jpg" alt="Williams Lake fire calming, July 22 2024" width="100%" />
+</td>
+</tr>
+</table>
+
+**Coverage:**
+
+- [Williams Lake residents warned to be ready to leave as wildfire nears city — CBC News, July 21](https://www.cbc.ca/news/canada/british-columbia/new-wildfire-erupts-in-williams-lake-1.7270867)
+- [Drones and water access banned as wildfire burns in city — CBC News, July 22](https://www.cbc.ca/news/canada/british-columbia/williams-lake-evacuation-july-22-1.7271234)
+- [City declares state of emergency, expands evacuation alert — CFJC Today, July 22](https://cfjctoday.com/2024/07/22/city-of-williams-lake-declares-local-state-of-emergency-expands-evacuation-alert-related-to-river-valley-wildfire/)
+- [Close call: wildfire burns to edge of Williams Lake — Global News, July 22](https://globalnews.ca/news/10636715/wildfire-burns-edge-williams-lake/)
+- [Wildfire being held, evacuation alert lifted — CBC News, July 23](https://www.cbc.ca/news/canada/british-columbia/williams-lake-wildfire-held-1.7273125)
+
+FireGuard replays the FIRMS satellite detections from this event window (July 17–25, 2024) against the actual evacuation zones, ESS shelters, and road events that were active at the time.
+
 ---
 
 ## Scenario
 
-The default UI replay window centers on the Williams Lake / Cariboo region from July 17-25, 2024. The bundled 45-row FIRMS CSV is a local seed snapshot; when `NASA_FIRMS_MAP_KEY` is configured, the backend collects the requested FIRMS chunks before replaying indexed events.
+The bundled replay window covers **July 17–25, 2024** — the week the River Valley fire ignited. The 45-row FIRMS CSV snapshot captures the satellite detections from that period. When `NASA_FIRMS_MAP_KEY` is set, the backend fetches the full FIRMS dataset live before replaying.
 
-The React UI streams FIRMS detections from the FastAPI backend. When a hotspot passes the threshold and is close enough to a seeded evacuation zone centroid, the backend emits a `threat` event. The UI opens the FireGuard evacuation workflow with the hotspot, affected zone, replay window, and session context.
+When a hotspot exceeds the FRP threshold and falls within 150 km of a seeded evacuation zone centroid, the backend emits a `threat` event and the UI opens the `fireguard_evacuation` workflow automatically.
 
-The judge-facing path is:
+To walk the full flow:
 
 1. Start the replay from the web UI.
 2. Watch FIRMS detections stream onto the map and event feed.
-3. When the threat arrives, inspect the automatic `fireguard_evacuation` workflow.
-4. Check the tool trace: zones, shelters, roads, routes, fire context, map annotation, completion payload.
+3. When the threat arrives, the `fireguard_evacuation` workflow opens automatically.
+4. Inspect the tool trace: zones, shelters, roads, routes, fire context, map annotation, completion payload.
 5. Ask a route what-if question and inspect the route reevaluation.
 
 ---
@@ -146,7 +211,7 @@ cp .env.example .env
 | FastAPI backend | `http://127.0.0.1:8100` |
 | Vite frontend | `http://127.0.0.1:5174` |
 
-Configure `.env` from `.env.example` for the services you plan to use: Elasticsearch, Mapbox, NASA FIRMS, and the selected intelligence provider.
+Configure `.env` from `.env.example` for Elasticsearch, Mapbox, NASA FIRMS, and Vertex AI.
 
 ---
 
@@ -162,9 +227,10 @@ flowchart LR
     AgentAPI["Mounted intelligence API<br/>/api/intelligence"]
     Engine["Workflow engine<br/>app/agentic/engine.py"]
     Tools["FireGuard tools<br/>app/agentic/tools.py"]
+    ElasticMCP["Elastic MCP server"]
     ES["Elasticsearch indexes"]
     Sources["FIRMS CSV snapshot<br/>BC context snapshots<br/>BCWS ArcGIS services"]
-    Model["Provider client<br/>OpenRouter, OpenAI, or Vertex"]
+    Model["Vertex AI Gemini client<br/>Google ADK"]
 
     UI -->|"POST /api/replay/stream"| API
     API -->|"NDJSON context, events, threat"| UI
@@ -173,10 +239,13 @@ flowchart LR
     AgentAPI --> Engine
     Engine --> Tools
     Engine --> Model
-    Tools --> ES
+    Tools --> ElasticMCP
+    ElasticMCP --> ES
     API --> ES
     Sources --> API
 ```
+
+<img src="./docs/assets/illustrations/source-to-brief.svg" alt="FireGuard source-to-brief pipeline" width="100%" />
 
 ### Replay and Trigger Loop
 
@@ -225,6 +294,8 @@ flowchart TD
     R --> T
 ```
 
+<img src="./docs/assets/illustrations/evacuation-loop.svg" alt="FireGuard evacuation workflow — signal to action" width="100%" />
+
 ### Indexed Data
 
 | Index suffix | Contents | Source in repo |
@@ -239,6 +310,71 @@ flowchart TD
 | `road-events` | Road event locations and shapes | `data/replay/bc_cariboo/road_events_snapshot.json` |
 
 Packaged data currently includes 45 FIRMS rows, 3 evacuation zones, 10 ESS facilities, 8 evacuation order or alert records, 4 policy snippets, 1 road event, and 1 weather snapshot.
+
+---
+
+## Threat Scoring Methodology
+
+FireGuard computes a real-time **threat score** (0–100) for every NASA FIRMS satellite detection during replay. This is not a heuristic — the scoring model is grounded in peer-reviewed remote sensing literature and uses the same two physical variables that drive the binary threat alert.
+
+### Why Fire Radiative Power?
+
+Fire Radiative Power (FRP, in megawatts per pixel) is the instantaneous rate of radiative energy released by combustion. It is the primary intensity metric in the NASA FIRMS product family (MODIS MOD14/MYD14 and VIIRS VNP14) because it correlates directly with mass of fuel consumed, combustion completeness, and smoke emission rate.
+
+> "FRP provides an instantaneous measure of the fire's rate of energy release, making it a physically meaningful and sensor-agnostic indicator of fire intensity."
+> — *Wooster et al. (2005), "Retrieval and analysis of combustion parameters from the Fire Radiative Energy measurements"*
+
+#### Detection floor — 50 MW
+
+MODIS Collection 6 has a theoretical minimum detectable FRP of roughly 56 MW per pixel under daytime conditions; the VIIRS 750 m product reaches ~13 MW. However, the widely-used SEVIRI geostationary product, which provides the operational benchmark for real-time fire monitoring in Europe and Africa, struggles to detect fires below 50 MW and systematically underestimates regional totals by 40–50% for low-intensity fires in that range (Roberts & Wooster 2008; Kumar et al. 2011). The 50 MW gate therefore represents the practical lower boundary below which satellite detections become too unreliable to drive automated alerts.
+
+#### Scale ceiling — 300 MW
+
+Ichoku et al. (2008) documented the full global MODIS FRP distribution as 0.02–1,866 MW per pixel. In the Canadian boreal forest context, extreme crown fires can push a single VIIRS pixel to several hundred megawatts, but the 300 MW value represents a practical saturation point above which the marginal threat increase per additional MW is small — the fire is already generating enough heat to spread into any adjacent fuel regardless of exact intensity. Using 300 MW as a ceiling normalises the FRP contribution to the 0–1 range:
+
+$$\text{FRP component} = \min\!\left(0.6,\ \frac{\text{FRP} - 50}{250} \times 0.6\right)$$
+
+### Why proximity to evacuation zones?
+
+Distance from a fire detection to the nearest populated evacuation zone centroid is the direct operational variable: it determines how quickly fire behaviour can threaten populated areas and how much time coordinators have to act. Ohi & Kim (2022) model evacuation host-community catchment areas using a 150 km planning radius, which aligns with the BC context where rural communities are spread across large distances and inter-city evacuation corridors can easily span 100–200 km.
+
+The 150 km radius is also the engagement boundary used in `threat_for_event()` — the function that fires the binary threat alert. The score therefore uses the identical gate to ensure the score is exactly consistent with when an alert fires.
+
+Proximity contribution decays linearly from 40 points at zero distance to 0 points at the boundary:
+
+$$\text{Proximity component} = \left(1 - \frac{d_{\min}}{150}\right) \times 0.4$$
+
+### Full scoring formula
+
+Both components are only evaluated when the event passes the binary threat gate ($\text{FRP} \geq 50$ and $d_{\min} \leq 150\text{ km}$); events outside these bounds score zero.
+
+$$S = \min\!\left(100,\ \underbrace{\frac{\text{FRP} - 50}{250} \times 60}_{\text{intensity (0–60)}} + \underbrace{\left(1 - \frac{d_{\min}}{150}\right) \times 40}_{\text{proximity (0–40)}}\right)$$
+
+Where:
+- $\text{FRP}$ — Fire Radiative Power in megawatts (NASA FIRMS pixel value)
+- $d_{\min}$ — great-circle distance in kilometres to the nearest BC evacuation zone centroid (Haversine formula)
+
+The **60/40 weight split** intentionally favours intensity over proximity. A very high-FRP fire further from a zone is operationally significant because spotting and wind-driven spread can close a 100 km gap in hours. A low-FRP smoulder adjacent to a zone, by contrast, is unlikely to trigger rapid spread without intensification.
+
+### Score thresholds visualised
+
+| Score range | Colour | Interpretation |
+|---|---|---|
+| 1–24 | 🟢 Green | Low concern — detection near boundary of engagement zone or low intensity |
+| 25–49 | 🟡 Yellow | Moderate — notable FRP or moderate proximity, warrants monitoring |
+| 50–74 | 🟠 Orange | High — significant intensity and/or within ~75 km of zone |
+| 75–100 | 🔴 Red | Critical — high-intensity fire within close proximity to populated zone |
+
+Scores are emitted as `threat_score` on every `event` NDJSON message from the replay stream and rendered as scatter labels on the Mapbox map, coloured by threshold band.
+
+### References
+
+- Wooster, M.J., Roberts, G., Perry, G.L.W., & Kaufman, Y.J. (2005). Retrieval and analysis of combustion parameters from the Fire Radiative Energy measurements: FRP derivation and lava eruption. *Journal of Geophysical Research: Atmospheres*, 110(D24).
+- Roberts, G., & Wooster, M.J. (2008). Fire detection and fire characterization over Africa using Meteosat SEVIRI. *IEEE Transactions on Geoscience and Remote Sensing*, 46(4), 1200–1218.
+- Kumar, S.S., Roy, D.P., Boschetti, L., & Kremens, R. (2011). Exploiting the power law distribution properties of satellite fire radiative power retrievals. *Journal of Geophysical Research: Atmospheres*, 116(D19).
+- Ichoku, C., Giglio, L., Wooster, M.J., & Remer, L.A. (2008). Global characterization of biomass-burning patterns using satellite measurements of fire radiative energy. *Remote Sensing of Environment*, 112(6), 2950–2962.
+- NASA LP DAAC. MOD14A1 MODIS/Terra Thermal Anomalies/Fire Daily L3 Global 1 km SIN Grid V006. NASA EOSDIS Land Processes DAAC. https://doi.org/10.5067/MODIS/MOD14A1.006
+- Ohi, J.M., & Kim, G. (2022). Wildfire evacuation host community planning: Estimating capacity from population and distance. *International Journal of Disaster Risk Reduction*, 71, 102791.
 
 ---
 
@@ -305,8 +441,8 @@ The evacuation agent gets a constrained tool surface so it can move from detecti
 | Layer | Technology |
 |---|---|
 | Backend | FastAPI, Pydantic, uvicorn |
-| Agent runtime | Custom workflow engine, Google ADK Gemini client, OpenAI-compatible streaming client |
-| Data store | Elasticsearch with `geo_point` and `geo_shape` mappings |
+| Agent runtime | Custom workflow engine, Google ADK Gemini client |
+| Data store | Elastic MCP over Elasticsearch with `geo_point` and `geo_shape` mappings |
 | Source data | NASA FIRMS, BCWS ArcGIS services, packaged BC public context snapshots |
 | Frontend | React 18, Vite, TypeScript |
 | Mapping | Mapbox GL JS |

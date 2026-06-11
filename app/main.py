@@ -13,7 +13,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
 
 from app.agentic.api import create_app as create_agentic_app
@@ -1303,7 +1303,75 @@ def load_zone_centroids():
     return zones
 
 
+def threat_score(event, zones):
+    """
+    Compute a 0–100 threat score for a single NASA FIRMS fire detection,
+    using the same two variables that drive threat_for_event() so the score
+    is fully consistent with when a full threat alert fires.
+
+    Returns 0 for any event that would not pass threat_for_event's gates
+    (FRP < 50 MW or nearest evac zone > 150 km).
+
+    Score components
+    ----------------
+    FRP component (0–60 pts)
+        Fire Radiative Power in megawatts measures the radiant heat flux
+        released by the fire.  MODIS Collection 6 can detect fires down to
+        ~56 MW per pixel; VIIRS 750 m product down to ~13 MW.  Operational
+        geostationary systems (SEVIRI) treat 50 MW as the practical lower
+        bound below which detections become unreliable
+        (Roberts & Wooster 2008; Kumar et al. 2011).
+        We therefore use 50 MW as the zero point and 300 MW as the upper
+        saturation — well within the documented MODIS global range of
+        0.02–1 866 MW per pixel (Ichoku et al. 2008,
+        https://www.earthdata.nasa.gov/data/catalog/lpcloud-mod14a1-006).
+
+    Proximity component (0–40 pts)
+        Linear decay from the nearest BC evacuation zone centroid.
+        The 150 km radius matches the engagement zone used in
+        threat_for_event() and is consistent with Canadian wildfire
+        evacuation host-community planning literature which models
+        threat catchments on that order of magnitude
+        (cf. Ohi & Kim 2022, "Within the 150 km coverage radius").
+        Score is zero at the boundary, maximum at the hotspot location.
+
+    The 60/40 split weights fire intensity slightly more than proximity
+    because a very high-FRP fire well outside a zone is still operationally
+    significant for spread prediction, while a low-FRP smoulder near a zone
+    may not warrant the same urgency.
+    """
+    frp = event.get("frp") or 0
+    lat = event.get("latitude")
+    lon = event.get("longitude")
+
+    # Gate 1: MODIS/VIIRS practical detection floor (Roberts & Wooster 2008)
+    if frp <= 0 or lat is None or lon is None:
+        return 0
+
+    nearest_dist = min(
+        (distance_km(lat, lon, z["latitude"], z["longitude"]) for z in zones),
+        default=999,
+    )
+
+    # FRP pts: 0 MW → 0, 300 MW → 60  (linear; capped at 60)
+    # 300 MW chosen as saturation — extreme Canadian wildfires rarely exceed
+    # this per-pixel value (global max ~1 866 MW, Ichoku et al. 2008).
+    frp_pts = min(60, frp / 300 * 60)
+
+    # Distance pts: decays from 40 at 0 km to 0 at 300 km — wider than the
+    # binary threat gate (150 km) so that distant detections still show a
+    # low non-zero score on the map for situational awareness.
+    dist_pts = max(0, (1 - nearest_dist / 300) * 40)
+
+    return max(1, round(min(100, frp_pts + dist_pts)))
+
+
 def threat_for_event(event, zones):
+    """
+    Detect whether a fire event crosses the operational threat threshold.
+    Gates mirror threat_score(): FRP ≥ 50 MW AND nearest evac zone ≤ 150 km.
+    Returns a threat payload dict when both conditions are met, else None.
+    """
     frp = event.get("frp")
     lat = event.get("latitude")
     lon = event.get("longitude")
@@ -1427,6 +1495,7 @@ def replay_lines(req):
             time.sleep(wait_seconds)
         sim_clock = event_at
         event["replay_second"] = (event_at - base_at).total_seconds() / req.speed
+        event["threat_score"] = threat_score(event, zones)
         attach_bcws(event, bcws_context)
         if not threat_emitted:
             threat = threat_for_event(event, zones)
@@ -1462,7 +1531,38 @@ def health():
 
 @app.get("/api/config")
 def config():
-    return {"mapbox_access_token": os.environ.get("MAPBOX_ACCESS_TOKEN", "")}
+    return {
+        "mapbox_access_token": os.environ.get("MAPBOX_ACCESS_TOKEN", ""),
+        "google_maps_api_key": os.environ.get("GOOGLE_MAPS_API_KEY", ""),
+    }
+
+
+class TtsRequest(BaseModel):
+    text: str
+    voice: str = "en-US-Neural2-D"
+    speed: float = 1.0
+    pitch: float = -2.0
+
+
+@app.post("/api/tts")
+def tts(body: TtsRequest):
+    key = os.environ.get("GOOGLE_MAPS_API_KEY", "")
+    if not key:
+        raise HTTPException(status_code=503, detail="Google API key not configured")
+    payload = json.dumps({
+        "input": {"text": body.text},
+        "voice": {"languageCode": "en-US", "name": body.voice},
+        "audioConfig": {"audioEncoding": "MP3", "speakingRate": body.speed, "pitch": body.pitch},
+    }).encode("utf-8")
+    url = f"https://texttospeech.googleapis.com/v1/text:synthesize?key={key}"
+    try:
+        raw = http("POST", url, payload, {"Content-Type": "application/json"})
+    except urllib.error.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=exc.read().decode("utf-8")) from exc
+    audio_b64 = json.loads(raw).get("audioContent", "")
+    import base64
+    audio_bytes = base64.b64decode(audio_b64)
+    return Response(content=audio_bytes, media_type="audio/mpeg")
 
 
 @app.get("/api/stats")

@@ -18,7 +18,6 @@ from app.main import app as fireguard_app
 def _config(tmp_path: Path) -> AppConfig:
     return AppConfig(
         state_dir=tmp_path,
-        api_key="test-key",
         fireguard_elasticsearch_url="http://elastic.invalid",
         fireguard_elasticsearch_api_key="test-key",
     )
@@ -65,7 +64,6 @@ def test_env_example_includes_agentic_runtime_settings() -> None:
 
     assert {
         "FIREGUARD_INTELLIGENCE_PROVIDER",
-        "FIREGUARD_INTELLIGENCE_BASE_URL",
         "FIREGUARD_INTELLIGENCE_STREAM_TIMEOUT_SECONDS",
         "FIREGUARD_INTELLIGENCE_MAX_RETRIES",
         "FIREGUARD_INTELLIGENCE_MAX_PARALLEL_TOOLS",

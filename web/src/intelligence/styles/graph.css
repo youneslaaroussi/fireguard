@@ -270,6 +270,77 @@
   box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
 }
 
+/* Kill the white outer wrapper G6 wraps around our custom tooltip element */
+.agenticIntelligence .tooltip {
+  background: transparent !important;
+  background-color: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  line-height: normal !important;
+  font-family: inherit !important;
+}
+
+.agenticIntelligence .g6-legend {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 3;
+  width: 118px;
+  background: rgba(6, 12, 22, 0.92);
+  border: 1px solid rgba(30, 58, 95, 0.8);
+  border-radius: 6px;
+  padding: 7px 8px 8px;
+  pointer-events: none;
+  backdrop-filter: blur(6px);
+}
+
+.agenticIntelligence .g6-legend-title {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  color: #4b6278;
+  margin-bottom: 6px;
+}
+
+.agenticIntelligence .g6-legend-section {
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: #2a3d52;
+  margin: 6px 0 3px;
+  text-transform: uppercase;
+}
+
+.agenticIntelligence .g6-legend-section:first-of-type {
+  margin-top: 0;
+}
+
+.agenticIntelligence .g6-legend-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 3px;
+}
+
+.agenticIntelligence .g6-legend-icon {
+  font-size: 10px;
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.agenticIntelligence .g6-legend-label {
+  font-size: 9.5px;
+  color: #6b8fa8;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
 /* Platform badge on tool nodes */
 
 .agenticIntelligence .gflow-platform-badge {

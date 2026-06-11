@@ -180,11 +180,11 @@ def build_base_tool_registry(
 
     async def fireguard_stats(invocation: ToolInvocation) -> dict[str, Any]:
         del invocation
-        firms = await _elastic_request(
+        firms = await _elastic_search(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "POST",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'firms')}/_search",
+            fireguard_elasticsearch_index_prefix,
+            "firms",
             {
                 "size": 0,
                 "track_total_hits": True,
@@ -195,17 +195,17 @@ def build_base_tool_registry(
                 },
             },
         )
-        incidents = await _elastic_request(
+        incident_count = await _elastic_count(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "GET",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'bcws-incidents')}/_count",
+            fireguard_elasticsearch_index_prefix,
+            "bcws-incidents",
         )
-        perimeters = await _elastic_request(
+        perimeter_count = await _elastic_count(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "GET",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'bcws-perimeters')}/_count",
+            fireguard_elasticsearch_index_prefix,
+            "bcws-perimeters",
         )
         total = firms.get("hits", {}).get("total", 0)
         total_value = total.get("value", 0) if isinstance(total, dict) else total
@@ -228,8 +228,8 @@ def build_base_tool_registry(
                 ),
             },
             "firms_count": int(total_value or 0),
-            "bcws_incident_count": int(incidents.get("count", 0)),
-            "bcws_perimeter_count": int(perimeters.get("count", 0)),
+            "bcws_incident_count": incident_count,
+            "bcws_perimeter_count": perimeter_count,
             "min_acquired_at": aggs.get("min_time", {}).get("value_as_string"),
             "max_acquired_at": aggs.get("max_time", {}).get("value_as_string"),
             "sources": [
@@ -294,11 +294,11 @@ def build_base_tool_registry(
                 "place",
             ],
         }
-        result = await _elastic_request(
+        result = await _elastic_search(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "POST",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'firms')}/_search",
+            fireguard_elasticsearch_index_prefix,
+            "firms",
             body,
         )
         hits = result.get("hits", {}).get("hits", [])
@@ -381,11 +381,11 @@ def build_base_tool_registry(
                 "location",
             ],
         }
-        result = await _elastic_request(
+        result = await _elastic_search(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "POST",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'zones')}/_search",
+            fireguard_elasticsearch_index_prefix,
+            "zones",
             body,
         )
         hits = result.get("hits", {}).get("hits", [])
@@ -471,11 +471,11 @@ def build_base_tool_registry(
                 "capacity",
             ],
         }
-        result = await _elastic_request(
+        result = await _elastic_search(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "POST",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'shelters')}/_search",
+            fireguard_elasticsearch_index_prefix,
+            "shelters",
             body,
         )
         hits = result.get("hits", {}).get("hits", [])
@@ -563,11 +563,11 @@ def build_base_tool_registry(
                 "geometry",
             ],
         }
-        result = await _elastic_request(
+        result = await _elastic_search(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "POST",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'road-events')}/_search",
+            fireguard_elasticsearch_index_prefix,
+            "road-events",
             body,
         )
         hits = result.get("hits", {}).get("hits", [])
@@ -661,11 +661,11 @@ def build_base_tool_registry(
             if end_date is not None:
                 date_range["lte"] = end_date
             fire_filters.append({"range": {"acquired_at": date_range}})
-        fires_result = await _elastic_request(
+        fires_result = await _elastic_search(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "POST",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'firms')}/_search",
+            fireguard_elasticsearch_index_prefix,
+            "firms",
             {
                 "size": 200,
                 "sort": [
@@ -690,11 +690,11 @@ def build_base_tool_registry(
                 ],
             },
         )
-        road_result = await _elastic_request(
+        road_result = await _elastic_search(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "POST",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'road-events')}/_search",
+            fireguard_elasticsearch_index_prefix,
+            "road-events",
             {
                 "size": 100,
                 "sort": [
@@ -950,18 +950,18 @@ def build_base_tool_registry(
                 "updated_at",
             ],
         }
-        incidents = await _elastic_request(
+        incidents = await _elastic_search(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "POST",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'bcws-incidents')}/_search",
+            fireguard_elasticsearch_index_prefix,
+            "bcws-incidents",
             incident_body,
         )
-        perimeters = await _elastic_request(
+        perimeters = await _elastic_search(
             fireguard_elasticsearch_url,
             fireguard_elasticsearch_api_key,
-            "POST",
-            f"/{_fireguard_index(fireguard_elasticsearch_index_prefix, 'bcws-perimeters')}/_search",
+            fireguard_elasticsearch_index_prefix,
+            "bcws-perimeters",
             perimeter_body,
         )
         incident_hits = incidents.get("hits", {}).get("hits", [])
@@ -1163,6 +1163,48 @@ def build_base_tool_registry(
             timeout_seconds=10,
         ),
         fireguard_map_annotation,
+    )
+
+    async def fireguard_actions(invocation: ToolInvocation) -> dict[str, Any]:
+        return {"ok": True, "plan": invocation.args}
+
+    registry.register(
+        ToolDefinition(
+            name="fireguard_actions",
+            description=(
+                "Push a structured action plan to the FireGuard UI. Call this ONCE after "
+                "completing your analysis, before complete_workflow_node. "
+                "Provide a short summary sentence and a list of prioritised actions the "
+                "incident commander should take immediately."
+            ),
+            parameters={
+                "type": "object",
+                "properties": {
+                    "summary": {
+                        "type": "string",
+                        "description": "One sentence summarising the overall recommended action.",
+                    },
+                    "actions": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "id":       {"type": "string"},
+                                "priority": {"type": "string", "enum": ["immediate", "urgent", "monitor"]},
+                                "title":    {"type": "string", "description": "Short imperative action title, max 12 words."},
+                                "detail":   {"type": "string", "description": "One sentence of supporting detail or caveat."},
+                                "owner":    {"type": "string", "description": "Responsible party, e.g. 'Incident Commander', 'ESS'."},
+                            },
+                            "required": ["id", "priority", "title"],
+                        },
+                    },
+                },
+                "required": ["summary", "actions"],
+            },
+            mutating=False,
+            concurrency_safe=True,
+        ),
+        fireguard_actions,
     )
 
     async def complete_workflow_node(invocation: ToolInvocation) -> dict[str, Any]:
@@ -1503,29 +1545,38 @@ def _fireguard_index(prefix: str, suffix: str) -> str:
     return f"{prefix.strip()}-{suffix}"
 
 
-async def _elastic_request(
+async def _elastic_search(
     base_url: str,
     api_key: str,
-    method: str,
-    path: str,
+    index_prefix: str,
+    index_suffix: str,
     body: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    url = base_url.rstrip("/") + path
-    headers: dict[str, str] = {"Content-Type": "application/json"}
-    if api_key:
-        headers["Authorization"] = f"ApiKey {api_key}"
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        if method == "GET":
-            resp = await client.get(url, headers=headers)
-        elif method == "POST":
-            resp = await client.post(url, headers=headers, json=body)
-        else:
-            raise RuntimeError(f"Unsupported HTTP method: {method}")
-    resp.raise_for_status()
-    data = resp.json()
-    if not isinstance(data, dict):
-        raise RuntimeError("Elasticsearch response must be an object")
-    return data
+    return await _elastic_mcp_search(
+        base_url,
+        api_key,
+        _fireguard_index(index_prefix, index_suffix),
+        body or {"query": {"match_all": {}}},
+    )
+
+
+async def _elastic_count(
+    base_url: str,
+    api_key: str,
+    index_prefix: str,
+    index_suffix: str,
+) -> int:
+    result = await _elastic_search(
+        base_url,
+        api_key,
+        index_prefix,
+        index_suffix,
+        {"size": 0, "track_total_hits": True, "query": {"match_all": {}}},
+    )
+    total = result.get("hits", {}).get("total", 0)
+    if isinstance(total, dict):
+        return int(total.get("value", 0) or 0)
+    return int(total or 0)
 
 
 async def _elastic_mcp_search(

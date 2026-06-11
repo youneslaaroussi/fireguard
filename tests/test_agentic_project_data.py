@@ -142,7 +142,6 @@ class ExportingBootstrapper(ProjectDataBootstrapper):
 def _config(tmp_path: Path) -> AppConfig:
     return AppConfig(
         state_dir=tmp_path,
-        api_key="test-key",
         fireguard_elasticsearch_url="http://elastic.invalid",
         fireguard_elasticsearch_api_key="test-key",
         fireguard_data_bootstrap_max_docs_per_index=1,

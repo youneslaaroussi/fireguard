@@ -4,9 +4,9 @@ from app.agentic.config import AppConfig
 from app.agentic.models import ChatMessage, MessageRole, ModelTier, TokenUsage, ToolDefinition
 from app.agentic.vertex import (
     _content_from_vertex_dict,
-    _openai_tool_calls,
     _request_payload,
     _usage_from_response,
+    _vertex_tool_calls,
 )
 from app.agentic.workflows import CHAT_AGENT_RESPONSE_FORMAT
 
@@ -17,8 +17,6 @@ def test_config_selects_vertex_from_google_project(monkeypatch, tmp_path) -> Non
     monkeypatch.setenv("GOOGLE_CLOUD_LOCATION", "global")
     monkeypatch.setenv("GEMINI_MODEL", "gemini-3.1-pro-preview")
     monkeypatch.delenv("FIREGUARD_INTELLIGENCE_PROVIDER", raising=False)
-    monkeypatch.delenv("FIREGUARD_INTELLIGENCE_API_KEY", raising=False)
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
 
     config = AppConfig(_env_file=None)
 
@@ -27,26 +25,13 @@ def test_config_selects_vertex_from_google_project(monkeypatch, tmp_path) -> Non
     assert config.pro_model == "gemini-3.1-pro-preview"
 
 
-def test_explicit_openrouter_provider_keeps_openrouter(monkeypatch) -> None:
+def test_only_vertex_provider_is_supported(monkeypatch) -> None:
     monkeypatch.setenv("GOOGLE_CLOUD_PROJECT", "fireguard-project")
-    monkeypatch.setenv("FIREGUARD_INTELLIGENCE_PROVIDER", "openrouter")
-    monkeypatch.delenv("FIREGUARD_INTELLIGENCE_API_KEY", raising=False)
-    monkeypatch.delenv("OPENROUTER_API_KEY", raising=False)
+    monkeypatch.setenv("FIREGUARD_INTELLIGENCE_PROVIDER", "vertex")
 
     config = AppConfig(_env_file=None)
 
-    assert config.provider == "openrouter"
-
-
-def test_source_openai_provider_value_is_supported(monkeypatch) -> None:
-    monkeypatch.setenv("FIREGUARD_INTELLIGENCE_PROVIDER", "openai")
-    monkeypatch.setenv("FIREGUARD_INTELLIGENCE_BASE_URL", "https://api.openai.com/v1")
-    monkeypatch.setenv("FIREGUARD_INTELLIGENCE_API_KEY", "test-key")
-
-    config = AppConfig(_env_file=None)
-
-    assert config.provider == "openai"
-    assert config.base_url == "https://api.openai.com/v1"
+    assert config.provider == "vertex"
 
 
 def test_vertex_request_payload_maps_messages_tools_and_function_responses() -> None:
@@ -140,7 +125,7 @@ def test_vertex_response_helpers_map_usage_and_tool_calls() -> None:
         ModelTier.light,
         "agent:chat_agent",
     )
-    calls = _openai_tool_calls([{"name": "echo_json", "args": {"value": 7}, "thought_signature": "YWJj"}])
+    calls = _vertex_tool_calls([{"name": "echo_json", "args": {"value": 7}, "thought_signature": "YWJj"}])
 
     assert isinstance(usage, TokenUsage)
     assert usage.total_tokens == 5

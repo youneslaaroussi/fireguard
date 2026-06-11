@@ -39,6 +39,7 @@ EVACUATION_TOOLS = [
     "fireguard_evaluate_route",
     "fireguard_bcws_context",
     "fireguard_map_annotation",
+    "fireguard_actions",
     "exa_search",
     "emit_message",
     "complete_workflow_node",
@@ -69,6 +70,13 @@ EVACUATION_RESEARCH_SYSTEM_PROMPT = (
     "shelter (type=shelter_open or shelter_closed), any blockages (type=blockage), and the "
     "recommended alternate if the primary is blocked (type=alternate). Include all evaluated "
     "routes with status=safe/blocked. Write a 1-2 sentence message summarizing the decision.\n\n"
+    "7. ACTION PLAN: Call fireguard_actions ONCE with a summary sentence and a list of prioritised "
+    "actions for the incident commander. Use priority='immediate' for life-safety actions (issue "
+    "evacuation order, open shelter), 'urgent' for time-sensitive support actions (traffic control, "
+    "notify ESS coordinator), and 'monitor' for ongoing watch items. Include owner and detail fields. "
+    "Typical actions: issue evacuation order for the zone, direct evacuees to the open shelter, "
+    "dispatch traffic control to key intersections, alert ESS coordinator at destination shelter, "
+    "monitor fire spread with next satellite pass.\n\n"
     "Then call complete_workflow_node with a 'message' field for the user. Do NOT repeat any tool call. "
     "Your message must cover: affected zone (name, population, homes), shelter availability "
     "(list each facility name, community, OPEN/CLOSED, distance from zone), best evacuation route "
@@ -223,13 +231,17 @@ def _built_in_intelligence_workflow() -> WorkflowDefinition:
         system_prompt=(
             "You are the user-facing routing agent for FireGuard intelligence. Produce an object matching "
             "the provided response schema. "
-            "Choose respond for greetings, normal chat, simple answers, acknowledgements, and "
-            "anything that does not need an intelligence workflow. Choose ask_user only when the user "
+            "The default action is respond. Use respond for any input you can answer directly in "
+            "user_response, including greetings, complaints, insults, acknowledgements, short commands "
+            "that need no tools, normal chat, and simple questions. Keep respond answers concise, direct, "
+            "and natural; set handoff and questions to null. Do not turn ordinary chat into a workflow "
+            "because FireGuard app context or prior run context is present. Choose ask_user only when the user "
             "clearly wants an intelligence workflow but essential details are missing; in that "
             "case questions must be a non-empty array of objects with id, question, and options. "
             "Do not choose ask_user without questions. Choose handoff_to_research only when the "
-            "request is actionable enough for wildfire intelligence analysis. Choose handoff_to_writer when "
-            "session_context.active_result.kind is deliverable and the request only edits the existing report, "
+            "latest user request explicitly asks for wildfire intelligence analysis, data lookup, route "
+            "evaluation, source-backed research, map annotation, or report generation. Choose handoff_to_writer when "
+            "session_context.active_result.kind is deliverable and the latest user request only edits the existing report, "
             "such as shortening, expanding, reformatting, translating, retitling, or changing tone without "
             "new analysis. Choose report_failure when the input contains a downstream failure payload. "
             "handoff must be a clean task contract with "
@@ -238,7 +250,7 @@ def _built_in_intelligence_workflow() -> WorkflowDefinition:
             "confidence, and uncertainty requirements when the user supplied them. Do not put conversational prose "
             "in handoff except where it is the original user request. The user payload may include "
             "session_context with latest_run metadata and active_result from the previous run. Treat "
-            "that as first-class context. For follow-up work over an existing result, choose the "
+            "that as context only when the latest user request clearly refers to prior work. For follow-up work over an existing result, choose the "
             "narrowest handoff route that can complete the request; the runtime will attach session_context "
             "to the handoff. If session_context contains a concrete prior result, do not answer with "
             "placeholders or invented replacement values. Route from the provided session state and "

@@ -1,5 +1,6 @@
 fastapi==0.136.3
 google-adk==2.2.0
+google-cloud-aiplatform[agent_engines,adk]==1.157.0
 httpx>=0.28.0
 mcp>=1.27.2
 orjson>=3.10.0

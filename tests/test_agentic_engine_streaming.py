@@ -34,7 +34,7 @@ from app.agentic.models import (
     WorkflowRun,
     utc_now,
 )
-from app.agentic.openrouter import ChatComplete, ChatDelta
+from app.agentic.chat_stream import ChatComplete, ChatDelta
 from app.agentic.project_data import PROJECT_DATA_PATH, ProjectDataBootstrapper
 from app.agentic.storage import EventBroker, FileStore
 from app.agentic.tools import build_base_tool_registry
@@ -153,7 +153,6 @@ class ScriptedSandboxManager:
 def _make_engine(tmp_path: Path, responses: list[str]) -> tuple[WorkflowEngine, ScriptedClient]:
     config = AppConfig(
         state_dir=tmp_path,
-        api_key="test-key",
         fireguard_elasticsearch_url="http://elastic.invalid",
         fireguard_elasticsearch_api_key="test-key",
         default_tool_timeout_seconds=5,
@@ -1384,7 +1383,7 @@ def test_agent_user_message_builds_multimodal_content_parts() -> None:
         }
     )
 
-    parts = message.metadata["openai_content_parts"]
+    parts = message.metadata["provider_content_parts"]
     assert any(part.get("type") == "image_url" for part in parts)
     assert any(
         part.get("type") == "file" and part.get("file", {}).get("filename") == "brief.pdf"

@@ -48,6 +48,11 @@ def test_builtin_workflow_uses_fireguard_pipeline() -> None:
     assert "FireGuard intelligence" in chat_agent.system_prompt
     assert "session_context" in chat_agent.system_prompt
     assert "handoff_to_writer" in chat_agent.system_prompt
+    assert "The default action is respond" in chat_agent.system_prompt
+    assert "any input you can answer directly" in chat_agent.system_prompt
+    assert "Do not turn ordinary chat into a workflow" in chat_agent.system_prompt
+    assert "latest user request explicitly asks" in chat_agent.system_prompt
+    assert "clearly refers to prior work" in chat_agent.system_prompt
     assert "app-side keyword rules" in chat_agent.system_prompt
 
     research_agent = next(agent for agent in workflow.agents if agent.agent_id == "research_agent")

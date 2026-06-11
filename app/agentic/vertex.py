@@ -16,7 +16,7 @@ from google.genai import errors, types
 
 from .config import AppConfig
 from .models import ChatMessage, MessageRole, ModelTier, TokenUsage, ToolDefinition
-from .openrouter import ChatComplete, ChatDelta, RetryEmitter, StreamChunk
+from .chat_stream import ChatComplete, ChatDelta, RetryEmitter, StreamChunk
 
 
 class VertexAIError(RuntimeError):
@@ -125,7 +125,7 @@ class VertexAIClient:
         message = ChatMessage(
             role=MessageRole.assistant,
             content="".join(content_parts),
-            tool_calls=_openai_tool_calls(function_calls),
+            tool_calls=_vertex_tool_calls(function_calls),
         )
         yield ChatComplete(message=message, usage=usage)
 
@@ -443,7 +443,7 @@ def _content_for_message(
 
 
 def _user_parts(message: ChatMessage) -> list[dict[str, Any]]:
-    content_parts = message.metadata.get("openai_content_parts")
+    content_parts = message.metadata.get("provider_content_parts")
     if not isinstance(content_parts, list) or len(content_parts) == 0:
         return [{"text": message.content}]
     parts: list[dict[str, Any]] = []
@@ -700,7 +700,7 @@ def _response_parts(data: dict[str, Any]) -> list[dict[str, Any]]:
     return parts
 
 
-def _openai_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+def _vertex_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
     if len(calls) == 0:
         return None
     out: list[dict[str, Any]] = []

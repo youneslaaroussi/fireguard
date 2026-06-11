@@ -1,76 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
-  <title id="title">FireGuard judge reading guide</title>
-  <desc id="desc">A guide showing the shortest path for judges to evaluate FireGuard.</desc>
+<svg viewBox="0 0 880 230" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:880px;margin:24px auto;display:block;font-family:'Google Sans',sans-serif">
   <defs>
-    <style>
-      .bg{fill:#101820}
-      .panel{fill:#ffffff;stroke:#dbe4ee;stroke-width:1.5}
-      .title{font:700 30px Arial, sans-serif;fill:#f8fafc}
-      .subtitle{font:400 15px Arial, sans-serif;fill:#a8b6c6}
-      .kicker{font:700 12px Arial, sans-serif;fill:#64748b;letter-spacing:1.2px}
-      .head{font:700 22px Arial, sans-serif;fill:#17202a}
-      .body{font:400 15px Arial, sans-serif;fill:#526273}
-      .metric{font:700 34px Arial, sans-serif;fill:#0f172a}
-      .metricLabel{font:700 12px Arial, sans-serif;fill:#64748b;letter-spacing:1px}
-      .chip{fill:#edf4fb;stroke:#cfe0ef;stroke-width:1}
-      .chipText{font:700 13px Arial, sans-serif;fill:#213244}
-      .barA{fill:#e03c31}
-      .barB{fill:#005571}
-      .barC{fill:#8e75b2}
-    </style>
+    <filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="5" flood-opacity="0.07"/></filter>
   </defs>
+  <rect width="880" height="230" rx="16" fill="#f8f9fa" stroke="#e8eaed"/>
 
-  <rect class="bg" width="1200" height="520" rx="22"/>
-  <text class="title" x="56" y="58">Judge reading guide</text>
-  <text class="subtitle" x="56" y="84">Read FireGuard by following the operational chain: trigger, evidence, decision.</text>
+  <!-- Card 1 — Detect -->
+  <rect x="20" y="20" width="268" height="190" rx="12" fill="#fff" filter="url(#s)"/>
+  <image href="../logos/nasa.svg" x="130" y="40" width="48" height="48"/>
+  <text x="154" y="112" text-anchor="middle" fill="#EA4335" font-size="10" font-weight="700" letter-spacing="1.4">DETECT</text>
+  <text x="154" y="133" text-anchor="middle" fill="#1f1f1f" font-size="15" font-weight="500">Satellite signal</text>
+  <text x="154" y="156" text-anchor="middle" fill="#5F6368" font-size="12">A NASA FIRMS hotspot triggers</text>
+  <text x="154" y="173" text-anchor="middle" fill="#5F6368" font-size="12">the evacuation workflow.</text>
 
-  <g transform="translate(56 128)">
-    <rect class="panel" width="330" height="300" rx="18"/>
-    <rect class="barA" width="330" height="8" rx="4"/>
-    <text class="kicker" x="28" y="42">1. TRIGGER</text>
-    <image href="../logos/nasa.svg" x="260" y="24" width="42" height="42"/>
-    <text class="head" x="28" y="84">Satellite signal opens</text>
-    <text class="head" x="28" y="112">the workflow</text>
-    <text class="body" x="28" y="150">The backend streams FIRMS rows and emits</text>
-    <text class="body" x="28" y="172">a threat only when the hotspot passes</text>
-    <text class="body" x="28" y="194">the configured zone-distance threshold.</text>
-    <g transform="translate(28 230)">
-      <text class="metric">FRP &gt;= 50</text>
-      <text class="metricLabel" x="0" y="34">WITHIN 150 KM OF A ZONE</text>
-    </g>
-  </g>
+  <!-- Card 2 — Analyse -->
+  <rect x="306" y="20" width="268" height="190" rx="12" fill="#fff" filter="url(#s)"/>
+  <image href="../logos/elastic.svg" x="416" y="40" width="48" height="48"/>
+  <text x="440" y="112" text-anchor="middle" fill="#4285F4" font-size="10" font-weight="700" letter-spacing="1.4">ANALYSE</text>
+  <text x="440" y="133" text-anchor="middle" fill="#1f1f1f" font-size="15" font-weight="500">Geospatial evidence</text>
+  <text x="440" y="156" text-anchor="middle" fill="#5F6368" font-size="12">The agent queries zones, shelters,</text>
+  <text x="440" y="173" text-anchor="middle" fill="#5F6368" font-size="12">and roads from Elasticsearch MCP.</text>
 
-  <g transform="translate(435 128)">
-    <rect class="panel" width="330" height="300" rx="18"/>
-    <rect class="barB" width="330" height="8" rx="4"/>
-    <text class="kicker" x="28" y="42">2. EVIDENCE</text>
-    <image href="../logos/elasticsearch.svg" x="260" y="24" width="42" height="42"/>
-    <text class="head" x="28" y="84">Every check is a tool call</text>
-    <text class="body" x="28" y="124">The agent searches zones, shelters, road</text>
-    <text class="body" x="28" y="146">events, fire detections, and route safety</text>
-    <text class="body" x="28" y="168">through indexed geospatial data.</text>
-    <g transform="translate(28 212)">
-      <rect class="chip" width="126" height="34" rx="9"/>
-      <text class="chipText" x="16" y="22">geo_point</text>
-      <rect class="chip" x="144" width="126" height="34" rx="9"/>
-      <text class="chipText" x="160" y="22">geo_shape</text>
-    </g>
-  </g>
-
-  <g transform="translate(814 128)">
-    <rect class="panel" width="330" height="300" rx="18"/>
-    <rect class="barC" width="330" height="8" rx="4"/>
-    <text class="kicker" x="28" y="42">3. DECISION</text>
-    <image href="../logos/gemini.svg" x="260" y="24" width="42" height="42"/>
-    <text class="head" x="28" y="84">The answer is an action</text>
-    <text class="body" x="28" y="124">The workflow returns the affected zone,</text>
-    <text class="body" x="28" y="146">shelter availability, safe route, closures,</text>
-    <text class="body" x="28" y="168">and map annotations for the operator.</text>
-    <g transform="translate(28 212)">
-      <rect class="chip" width="126" height="34" rx="9"/>
-      <text class="chipText" x="16" y="22">brief</text>
-      <rect class="chip" x="144" width="126" height="34" rx="9"/>
-      <text class="chipText" x="160" y="22">map overlay</text>
-    </g>
-  </g>
+  <!-- Card 3 — Act -->
+  <rect x="592" y="20" width="268" height="190" rx="12" fill="#fff" filter="url(#s)"/>
+  <image href="../logos/gemini.svg" x="702" y="40" width="48" height="48"/>
+  <text x="726" y="112" text-anchor="middle" fill="#34A853" font-size="10" font-weight="700" letter-spacing="1.4">ACT</text>
+  <text x="726" y="133" text-anchor="middle" fill="#1f1f1f" font-size="15" font-weight="500">Evacuation decision</text>
+  <text x="726" y="156" text-anchor="middle" fill="#5F6368" font-size="12">The agent returns a recommended</text>
+  <text x="726" y="173" text-anchor="middle" fill="#5F6368" font-size="12">route and map annotations.</text>
 </svg>

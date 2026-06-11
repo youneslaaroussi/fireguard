@@ -31,7 +31,6 @@ import {
 
 export function buildGraphSignature(
   run: WorkflowRun | null,
-  selectedNodeId: string | null,
   edgePayloads: Record<string, EdgePayload>,
   events: StreamEvent[],
 ): string {
@@ -44,7 +43,7 @@ export function buildGraphSignature(
   const tools = toolList.map((n) => `${n.node_id}:${n.status}`).join("|");
   const entities = entitiesFromTools(toolList).map((n) => `${n.node_id}:${n.status}:${Math.round(n.importance)}`).join("|");
   const payloads = Object.keys(edgePayloads).sort().join("|");
-  return `${run.run_id}::${run.status}::${selectedNodeId ?? ""}::${statuses}::${subs}::${tools}::${entities}::${payloads}`;
+  return `${run.run_id}::${run.status}::${statuses}::${subs}::${tools}::${entities}::${payloads}`;
 }
 
 export function buildGraphModel(

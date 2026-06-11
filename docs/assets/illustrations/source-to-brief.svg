@@ -1,181 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="680" viewBox="0 0 1200 680" role="img" aria-labelledby="title desc">
-  <title id="title">FireGuard source-to-brief architecture</title>
-  <desc id="desc">A layered diagram showing source data, ingestion, Elasticsearch, intelligence, and operator output.</desc>
+<svg viewBox="0 0 800 200" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:800px;margin:24px auto;display:block;font-family:'Google Sans',sans-serif">
   <defs>
-    <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto">
-      <path d="M2 2 L10 6 L2 10 Z" fill="#98a7b8"/>
-    </marker>
-    <style>
-      .bg{fill:#0b1117}
-      .panel{fill:#121a23;stroke:#2a3745;stroke-width:1.5}
-      .card{fill:#f8fafc;stroke:#d8e0e8;stroke-width:1}
-      .title{font:700 30px Arial, sans-serif;fill:#f8fafc}
-      .subtitle{font:400 15px Arial, sans-serif;fill:#9fb0c2}
-      .label{font:700 13px Arial, sans-serif;fill:#85b8ff;letter-spacing:1px}
-      .cardTitle{font:700 15px Arial, sans-serif;fill:#17202a}
-      .cardText{font:400 12px Arial, sans-serif;fill:#526273}
-      .chip{fill:#1b2733;stroke:#33485c;stroke-width:1}
-      .chipText{font:700 12px Arial, sans-serif;fill:#d7e4ef}
-      .arrow{stroke:#98a7b8;stroke-width:2.5;fill:none;marker-end:url(#arrow)}
-      .accentA{fill:#e03c31}
-      .accentB{fill:#00a88f}
-      .accentC{fill:#4285f4}
-      .accentD{fill:#8e75b2}
-      .accentE{fill:#38bdf8}
-    </style>
+    <filter id="s"><feDropShadow dx="0" dy="2" stdDeviation="4" flood-opacity="0.07"/></filter>
+    <marker id="a" viewBox="0 0 10 7" refX="10" refY="3.5" markerWidth="8" markerHeight="6" orient="auto"><polygon points="0 0, 10 3.5, 0 7" fill="#d1d5db"/></marker>
   </defs>
+  <rect width="800" height="200" rx="16" fill="#f8f9fa" stroke="#e8eaed"/>
 
-  <rect class="bg" width="1200" height="680" rx="22"/>
-  <text class="title" x="48" y="58">FireGuard source-to-brief pipeline</text>
-  <text class="subtitle" x="48" y="84">What judges should track: signals enter, shapes stay stable, geospatial checks run, the agent returns a route and shelter action.</text>
+  <!-- 5 cards x=60,200,340,480,620  w=120  h=160  centers=120,260,400,540,680 -->
 
-  <g transform="translate(42 128)">
-    <rect class="panel" width="200" height="470" rx="16"/>
-    <rect class="accentA" x="0" y="0" width="200" height="7" rx="4"/>
-    <text class="label" x="20" y="34">SOURCES</text>
+  <!-- Card 1 — NASA FIRMS -->
+  <rect x="60" y="20" width="120" height="160" rx="10" fill="#fff" filter="url(#s)"/>
+  <image href="../logos/nasa.svg" x="100" y="36" width="40" height="40"/>
+  <text x="120" y="96" text-anchor="middle" fill="#1f1f1f" font-size="12" font-weight="500">FIRMS</text>
+  <text x="120" y="113" text-anchor="middle" fill="#5F6368" font-size="10">Provides satellite hotspot</text>
+  <text x="120" y="128" text-anchor="middle" fill="#5F6368" font-size="10">detection data.</text>
 
-    <g transform="translate(18 58)">
-      <rect class="card" width="164" height="66" rx="10"/>
-      <image href="../logos/nasa.svg" x="14" y="15" width="34" height="34"/>
-      <text class="cardTitle" x="60" y="28">NASA FIRMS</text>
-      <text class="cardText" x="60" y="47">VIIRS hotspot rows</text>
-    </g>
-    <g transform="translate(18 138)">
-      <rect class="card" width="164" height="66" rx="10"/>
-      <image href="../logos/bc.svg" x="14" y="15" width="34" height="34"/>
-      <text class="cardTitle" x="60" y="28">BC context</text>
-      <text class="cardText" x="60" y="47">zones, ESS, roads</text>
-    </g>
-    <g transform="translate(18 218)">
-      <rect class="card" width="164" height="66" rx="10"/>
-      <image href="../logos/googlemaps.svg" x="14" y="15" width="34" height="34"/>
-      <text class="cardTitle" x="60" y="28">Maps context</text>
-      <text class="cardText" x="60" y="47">place enrichment</text>
-    </g>
-    <g transform="translate(18 298)">
-      <rect class="card" width="164" height="66" rx="10"/>
-      <circle cx="31" cy="32" r="18" fill="#ff7a1a"/>
-      <text x="31" y="37" text-anchor="middle" font-family="Arial" font-size="14" font-weight="700" fill="#fff">WX</text>
-      <text class="cardTitle" x="60" y="28">Weather</text>
-      <text class="cardText" x="60" y="47">wind snapshot</text>
-    </g>
-  </g>
+  <!-- Card 2 — Google Cloud -->
+  <rect x="200" y="20" width="120" height="160" rx="10" fill="#fff" filter="url(#s)"/>
+  <image href="../logos/googlecloud.svg" x="240" y="36" width="40" height="40"/>
+  <text x="260" y="96" text-anchor="middle" fill="#1f1f1f" font-size="12" font-weight="500">Google Cloud</text>
+  <text x="260" y="113" text-anchor="middle" fill="#5F6368" font-size="10">Ingests and streams</text>
+  <text x="260" y="128" text-anchor="middle" fill="#5F6368" font-size="10">events to the UI.</text>
 
-  <path class="arrow" d="M254 362 H314"/>
+  <!-- Card 3 — Elasticsearch MCP -->
+  <rect x="340" y="20" width="120" height="160" rx="10" fill="#fff" filter="url(#s)"/>
+  <image href="../logos/elastic.svg" x="372" y="36" width="40" height="40"/>
+  <text x="400" y="96" text-anchor="middle" fill="#1f1f1f" font-size="12" font-weight="500">Elasticsearch MCP</text>
+  <text x="400" y="113" text-anchor="middle" fill="#5F6368" font-size="10">Stores and queries zones,</text>
+  <text x="400" y="128" text-anchor="middle" fill="#5F6368" font-size="10">shelters, and road events.</text>
 
-  <g transform="translate(326 128)">
-    <rect class="panel" width="190" height="470" rx="16"/>
-    <rect class="accentB" x="0" y="0" width="190" height="7" rx="4"/>
-    <text class="label" x="20" y="34">INGESTION</text>
-    <rect class="card" x="16" y="52" width="52" height="58" rx="12"/>
-    <image href="../logos/fastapi.svg" x="20" y="59" width="44" height="44"/>
-    <text class="subtitle" x="74" y="79">FastAPI</text>
-    <text class="subtitle" x="74" y="98">replay stream</text>
+  <!-- Card 4 — Gemini -->
+  <rect x="480" y="20" width="120" height="160" rx="10" fill="#fff" filter="url(#s)"/>
+  <image href="../logos/gemini.svg" x="520" y="36" width="40" height="40"/>
+  <text x="540" y="96" text-anchor="middle" fill="#1f1f1f" font-size="12" font-weight="500">Gemini</text>
+  <text x="540" y="113" text-anchor="middle" fill="#5F6368" font-size="10">Runs the fireguard</text>
+  <text x="540" y="128" text-anchor="middle" fill="#5F6368" font-size="10">evacuation workflow.</text>
 
-    <g transform="translate(20 132)">
-      <rect class="chip" width="150" height="36" rx="8"/>
-      <text class="chipText" x="16" y="23">normalize payloads</text>
-    </g>
-    <g transform="translate(20 186)">
-      <rect class="chip" width="150" height="36" rx="8"/>
-      <text class="chipText" x="16" y="23">seed indexes</text>
-    </g>
-    <g transform="translate(20 240)">
-      <rect class="chip" width="150" height="36" rx="8"/>
-      <text class="chipText" x="16" y="23">stream NDJSON</text>
-    </g>
-    <g transform="translate(20 316)">
-      <rect class="card" width="150" height="86" rx="10"/>
-      <text class="cardTitle" x="16" y="28">Threat rule</text>
-      <text class="cardText" x="16" y="50">FRP &gt;= 50</text>
-      <text class="cardText" x="16" y="68">zone within 150 km</text>
-    </g>
-  </g>
+  <!-- Card 5 — Mapbox -->
+  <rect x="620" y="20" width="120" height="160" rx="10" fill="#fff" filter="url(#s)"/>
+  <image href="../logos/mapbox.svg" x="660" y="36" width="40" height="40"/>
+  <text x="680" y="96" text-anchor="middle" fill="#1f1f1f" font-size="12" font-weight="500">Mapbox</text>
+  <text x="680" y="113" text-anchor="middle" fill="#5F6368" font-size="10">Renders the route and</text>
+  <text x="680" y="128" text-anchor="middle" fill="#5F6368" font-size="10">shelter map for operators.</text>
 
-  <path class="arrow" d="M528 362 H588"/>
-
-  <g transform="translate(600 128)">
-    <rect class="panel" width="190" height="470" rx="16"/>
-    <rect class="accentC" x="0" y="0" width="190" height="7" rx="4"/>
-    <text class="label" x="20" y="34">ELASTIC LAYER</text>
-    <rect class="card" x="16" y="52" width="112" height="58" rx="12"/>
-    <image href="../logos/elastic.svg" x="20" y="60" width="42" height="42"/>
-    <image href="../logos/elasticsearch.svg" x="72" y="60" width="42" height="42"/>
-    <text class="subtitle" x="20" y="122">geo_point + geo_shape</text>
-
-    <g transform="translate(20 148)">
-      <rect class="chip" width="150" height="32" rx="8"/>
-      <text class="chipText" x="16" y="21">fireguard-firms</text>
-    </g>
-    <g transform="translate(20 192)">
-      <rect class="chip" width="150" height="32" rx="8"/>
-      <text class="chipText" x="16" y="21">zones + shelters</text>
-    </g>
-    <g transform="translate(20 236)">
-      <rect class="chip" width="150" height="32" rx="8"/>
-      <text class="chipText" x="16" y="21">road-events</text>
-    </g>
-    <g transform="translate(20 280)">
-      <rect class="chip" width="150" height="32" rx="8"/>
-      <text class="chipText" x="16" y="21">BCWS context</text>
-    </g>
-    <g transform="translate(20 350)">
-      <rect class="card" width="150" height="52" rx="10"/>
-      <text class="cardTitle" x="16" y="25">Query shape</text>
-      <text class="cardText" x="16" y="43">distance + shape checks</text>
-    </g>
-  </g>
-
-  <path class="arrow" d="M802 362 H862"/>
-
-  <g transform="translate(874 128)">
-    <rect class="panel" width="190" height="470" rx="16"/>
-    <rect class="accentD" x="0" y="0" width="190" height="7" rx="4"/>
-    <text class="label" x="20" y="34">INTELLIGENCE</text>
-    <rect class="card" x="16" y="52" width="112" height="58" rx="12"/>
-    <image href="../logos/gemini.svg" x="20" y="60" width="42" height="42"/>
-    <image href="../logos/googlecloud.svg" x="72" y="60" width="42" height="42"/>
-    <text class="subtitle" x="20" y="122">fireguard_evacuation</text>
-
-    <g transform="translate(20 148)">
-      <rect class="chip" width="150" height="32" rx="8"/>
-      <text class="chipText" x="16" y="21">zone scan</text>
-    </g>
-    <g transform="translate(20 192)">
-      <rect class="chip" width="150" height="32" rx="8"/>
-      <text class="chipText" x="16" y="21">shelter scan</text>
-    </g>
-    <g transform="translate(20 236)">
-      <rect class="chip" width="150" height="32" rx="8"/>
-      <text class="chipText" x="16" y="21">route checks</text>
-    </g>
-    <g transform="translate(20 280)">
-      <rect class="chip" width="150" height="32" rx="8"/>
-      <text class="chipText" x="16" y="21">what-if closure</text>
-    </g>
-    <g transform="translate(20 350)">
-      <rect class="card" width="150" height="52" rx="10"/>
-      <text class="cardTitle" x="16" y="25">Output contract</text>
-      <text class="cardText" x="16" y="43">brief + map annotation</text>
-    </g>
-  </g>
-
-  <path class="arrow" d="M1076 362 H1124"/>
-
-  <g transform="translate(988 622)">
-    <rect class="card" x="-5" y="-17" width="34" height="34" rx="9"/>
-    <image href="../logos/mapbox.svg" x="0" y="-12" width="24" height="24"/>
-    <text class="subtitle" x="34" y="6">Mapbox operator surface</text>
-  </g>
-
-  <g transform="translate(1076 202)">
-    <rect class="panel" width="82" height="320" rx="16"/>
-    <rect class="accentE" x="0" y="0" width="82" height="7" rx="4"/>
-    <rect class="card" x="19" y="30" width="44" height="44" rx="10"/>
-    <image href="../logos/react.svg" x="23" y="34" width="36" height="36"/>
-    <text x="41" y="112" text-anchor="middle" font-family="Arial" font-size="12" font-weight="700" fill="#d7e4ef">MAP</text>
-    <text x="41" y="146" text-anchor="middle" font-family="Arial" font-size="12" font-weight="700" fill="#d7e4ef">BRIEF</text>
-    <text x="41" y="180" text-anchor="middle" font-family="Arial" font-size="12" font-weight="700" fill="#d7e4ef">ACTIONS</text>
-    <text x="41" y="214" text-anchor="middle" font-family="Arial" font-size="12" font-weight="700" fill="#d7e4ef">WHAT-IF</text>
-  </g>
+  <!-- Arrows at y=100 -->
+  <line x1="182" y1="100" x2="198" y2="100" stroke="#d1d5db" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="322" y1="100" x2="338" y2="100" stroke="#d1d5db" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="462" y1="100" x2="478" y2="100" stroke="#d1d5db" stroke-width="1.5" marker-end="url(#a)"/>
+  <line x1="602" y1="100" x2="618" y2="100" stroke="#d1d5db" stroke-width="1.5" marker-end="url(#a)"/>
 </svg>

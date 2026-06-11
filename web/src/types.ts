@@ -19,6 +19,7 @@ export type FireEvent = {
   frp?: number;
   brightness?: number;
   replay_second: number;
+  threat_score?: number;
   weather?: WeatherResult | null;
   place?: PlaceResult | null;
   bcws?: BcwsMatch;
@@ -26,6 +27,7 @@ export type FireEvent = {
 
 export type ClientConfig = {
   mapbox_access_token: string;
+  google_maps_api_key: string;
 };
 
 export type Stats = {
