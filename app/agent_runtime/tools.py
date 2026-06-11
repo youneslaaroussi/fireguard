@@ -1128,32 +1128,32 @@ async def _elastic_mcp_search(
 ) -> dict[str, Any]:
     if len(base_url.strip()) == 0:
         raise RuntimeError("ELASTICSEARCH_URL is not configured")
-    image = os.environ.get("ELASTICSEARCH_MCP_IMAGE", "docker.elastic.co/mcp/elasticsearch")
-    env = {"ES_URL": _mcp_elasticsearch_url(base_url)}
+    import shutil
+    use_docker = bool(shutil.which("docker"))
+    env_vars = {"ES_URL": _mcp_elasticsearch_url(base_url)}
     if len(api_key.strip()) > 0:
-        env["ES_API_KEY"] = api_key
-    server = StdioServerParameters(
-        command="docker",
-        args=[
-            "run",
-            "-i",
-            "--rm",
-            "--add-host=host.docker.internal:host-gateway",
-            "-e",
-            "ES_URL",
-            "-e",
-            "ES_API_KEY",
-            image,
-            "stdio",
-        ],
-        env=env,
-    )
+        env_vars["ES_API_KEY"] = api_key
+    if use_docker:
+        image = os.environ.get("ELASTICSEARCH_MCP_IMAGE", "docker.elastic.co/mcp/elasticsearch")
+        server = StdioServerParameters(
+            command="docker",
+            args=["run", "-i", "--rm", "--add-host=host.docker.internal:host-gateway",
+                  "-e", "ES_URL", "-e", "ES_API_KEY", image, "stdio"],
+            env=env_vars,
+        )
+        search_kwargs: dict[str, Any] = {"index": index, "query_body": query_body}
+    else:
+        binary = shutil.which("mcp-server-elasticsearch") or "mcp-server-elasticsearch"
+        server = StdioServerParameters(
+            command=binary,
+            args=["stdio"],
+            env={**os.environ, **env_vars},
+        )
+        search_kwargs = {"index": index, "queryBody": query_body}
     async with stdio_client(server) as (read_stream, write_stream):
         async with ClientSession(read_stream, write_stream) as session:
             await session.initialize()
-            result = await session.call_tool(
-                "search", {"index": index, "query_body": query_body}
-            )
+            result = await session.call_tool("search", search_kwargs)
     return _mcp_tool_result_object(result)
 
 

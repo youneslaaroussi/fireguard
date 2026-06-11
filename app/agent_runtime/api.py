@@ -60,6 +60,23 @@ def create_app() -> FastAPI:
     async def health() -> dict[str, str]:
         return {"status": "ok"}
 
+    # ── Tool proxy endpoints — ADK agent (running in GCP) calls back here ─────
+    @app.post("/api/tools/fireguard_search_shelters")
+    async def proxy_search_shelters(request: Request) -> dict:
+        return await _run_tool_direct(_tool_registry(), "fireguard_search_shelters", await request.json())
+
+    @app.post("/api/tools/fireguard_evaluate_route")
+    async def proxy_evaluate_route(request: Request) -> dict:
+        return await _run_tool_direct(_tool_registry(), "fireguard_evaluate_route", await request.json())
+
+    @app.post("/api/tools/fireguard_map_annotation")
+    async def proxy_map_annotation(request: Request) -> dict:
+        return await _run_tool_direct(_tool_registry(), "fireguard_map_annotation", await request.json())
+
+    @app.post("/api/tools/fireguard_actions")
+    async def proxy_actions(request: Request) -> dict:
+        return await _run_tool_direct(_tool_registry(), "fireguard_actions", await request.json())
+
     @app.get("/settings")
     async def settings() -> dict[str, object]:
         return {
@@ -247,56 +264,51 @@ async def _execute_adk_run(state: "RuntimeState", run: "RunRecord") -> None:
         tool_names: dict[str, str] = {}
         usage: dict[str, Any] | None = None
         model_version: str | None = None
-        assistant_text = _simple_chat_response(run.prompt, evidence)
-        if assistant_text is None:
-            async for chunk in _stream_agent_runtime(_agent_runtime_message(run.prompt, evidence), run.session_id):
-                model_version = chunk.get("model_version") if isinstance(chunk.get("model_version"), str) else model_version
-                usage = chunk.get("usage_metadata") if isinstance(chunk.get("usage_metadata"), dict) else usage
-                content = chunk.get("content")
-                if not isinstance(content, dict):
+        async for chunk in _stream_agent_runtime(_agent_runtime_message(run.prompt, evidence), run.session_id):
+            model_version = chunk.get("model_version") if isinstance(chunk.get("model_version"), str) else model_version
+            usage = chunk.get("usage_metadata") if isinstance(chunk.get("usage_metadata"), dict) else usage
+            content = chunk.get("content")
+            if not isinstance(content, dict):
+                continue
+            for part in content.get("parts", []):
+                if not isinstance(part, dict):
                     continue
-                for part in content.get("parts", []):
-                    if not isinstance(part, dict):
-                        continue
-                    call = part.get("function_call")
-                    if isinstance(call, dict):
-                        invocation_id = str(call.get("id") or new_id("tool"))
-                        tool_name = str(call.get("name") or "tool")
-                        args = call.get("args") if isinstance(call.get("args"), dict) else {}
-                        tool_names[invocation_id] = tool_name
-                        state.publish(
-                            run,
-                            "agent.tool_calls.requested",
-                            FIREGUARD_AGENT_ID,
-                            FIREGUARD_AGENT_ID,
-                            {"tool_calls": [{"id": invocation_id, "name": tool_name, "args": args}]},
-                        )
-                        state.publish(
-                            run,
-                            "tool.started",
-                            FIREGUARD_AGENT_ID,
-                            FIREGUARD_AGENT_ID,
-                            {"invocation_id": invocation_id, "tool_name": tool_name, "args": args},
-                        )
-                    response = part.get("function_response")
-                    if isinstance(response, dict):
-                        invocation_id = str(response.get("id") or new_id("tool"))
-                        tool_name = str(response.get("name") or tool_names.get(invocation_id) or "tool")
-                        output = response.get("response") if isinstance(response.get("response"), dict) else {}
-                        state.publish(
-                            run,
-                            "tool.completed",
-                            FIREGUARD_AGENT_ID,
-                            FIREGUARD_AGENT_ID,
-                            {"invocation_id": invocation_id, "tool_name": tool_name, "ok": True, "output": output},
-                        )
-                    text = part.get("text")
-                    if isinstance(text, str) and text:
-                        text_parts.append(text)
-            assistant_text = "".join(text_parts).strip()
-
-        if not assistant_text and evidence.get("mode") == "evacuation":
-            assistant_text = _render_fireguard_brief(evidence)
+                call = part.get("function_call")
+                if isinstance(call, dict):
+                    invocation_id = str(call.get("id") or new_id("tool"))
+                    tool_name = str(call.get("name") or "tool")
+                    args = call.get("args") if isinstance(call.get("args"), dict) else {}
+                    tool_names[invocation_id] = tool_name
+                    state.publish(
+                        run,
+                        "agent.tool_calls.requested",
+                        FIREGUARD_AGENT_ID,
+                        FIREGUARD_AGENT_ID,
+                        {"tool_calls": [{"id": invocation_id, "name": tool_name, "args": args}]},
+                    )
+                    state.publish(
+                        run,
+                        "tool.started",
+                        FIREGUARD_AGENT_ID,
+                        FIREGUARD_AGENT_ID,
+                        {"invocation_id": invocation_id, "tool_name": tool_name, "args": args},
+                    )
+                response = part.get("function_response")
+                if isinstance(response, dict):
+                    invocation_id = str(response.get("id") or new_id("tool"))
+                    tool_name = str(response.get("name") or tool_names.get(invocation_id) or "tool")
+                    output = response.get("response") if isinstance(response.get("response"), dict) else {}
+                    state.publish(
+                        run,
+                        "tool.completed",
+                        FIREGUARD_AGENT_ID,
+                        FIREGUARD_AGENT_ID,
+                        {"invocation_id": invocation_id, "tool_name": tool_name, "ok": True, "output": output},
+                    )
+                text = part.get("text")
+                if isinstance(text, str) and text:
+                    text_parts.append(text)
+        assistant_text = "".join(text_parts).strip()
         run.assistant_text = assistant_text
         run.history.append(
             {
@@ -442,33 +454,6 @@ async def _collect_fireguard_evidence(state: "RuntimeState", run: "RunRecord") -
         {"latitude": hot_lat, "longitude": hot_lon, "radius_km": 120, "size": 25},
     )
 
-    shelter = _selected_shelter(shelters)
-    route: dict[str, Any] | None = None
-    if shelter is not None:
-        shelter_lat, shelter_lon = _point(shelter)
-        if shelter_lat is not None and shelter_lon is not None:
-            route_args: dict[str, Any] = {
-                "origin_lat": zone_lat,
-                "origin_lon": zone_lon,
-                "destination_lat": shelter_lat,
-                "destination_lon": shelter_lon,
-                "fire_buffer_km": 5,
-                "road_closure_buffer_km": 2,
-            }
-            if replay.get("start_date"):
-                route_args["start_date"] = replay["start_date"]
-            if replay.get("end_date"):
-                route_args["end_date"] = replay["end_date"]
-            route = await tool("fireguard_evaluate_route", route_args)
-
-    annotation = await tool(
-        "fireguard_map_annotation",
-        _annotation_args(hotspot, zone, shelter, route),
-    )
-    actions = await tool(
-        "fireguard_actions",
-        _action_args(zone, shelter, route),
-    )
     evidence.update(
         {
             "replay": replay,
@@ -477,10 +462,6 @@ async def _collect_fireguard_evidence(state: "RuntimeState", run: "RunRecord") -
             "road_events": roads,
             "fire_detections": fires,
             "bcws": bcws,
-            "selected_shelter": shelter,
-            "route": route,
-            "map_annotation": annotation,
-            "action_plan": actions,
         }
     )
     return evidence
@@ -537,56 +518,47 @@ def _tool_registry() -> Any:
     )
 
 
+async def _run_tool_direct(registry: Any, tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
+    """Execute a tool directly without SSE events — used by the proxy endpoints."""
+    invocation = ToolInvocation(
+        invocation_id=new_id("tool"),
+        tool_name=tool_name,
+        session_id="proxy",
+        run_id="proxy",
+        node_id="proxy",
+        agent_id=None,
+        args=args,
+    )
+    results = await registry.run_tools([invocation])
+    result = results[0]
+    if not result.ok:
+        raise HTTPException(status_code=500, detail=result.output.get("error", "tool error"))
+    return result.output
+
+
 def _agent_runtime_message(prompt: str, evidence: dict[str, Any]) -> str:
     if evidence.get("mode") != "evacuation":
         return prompt
     compact = _compact_evidence_for_model(evidence)
+    replay = evidence.get("replay", {})
+    date_hint = ""
+    if isinstance(replay, dict) and replay.get("start_date") and replay.get("end_date"):
+        date_hint = (
+            f"\nREPLAY DATE RANGE: {replay['start_date']} to {replay['end_date']}. "
+            f"Pass start_date/end_date to fireguard_evaluate_route.\n"
+        )
     return (
         f"{prompt}\n\n"
-        "Use the FireGuard evidence below as the source for the evacuation brief. "
-        "Do not repeat raw JSON. Include affected zone, shelter choice, route status, "
-        "road constraints, fire context, and recommended action.\n\n"
-        f"FIREGUARD_EVIDENCE:\n{json.dumps(compact, separators=(',', ':'), default=str)}"
+        "FIREGUARD_EVIDENCE — raw indexed data, no conclusions drawn yet. "
+        "Follow your protocol: check shelter status, evaluate route to an OPEN shelter, "
+        "annotate the map, push action plan, then write the brief.\n"
+        f"{date_hint}\n"
+        f"EVIDENCE:\n{json.dumps(compact, separators=(',', ':'), default=str)}"
     )
-
-
-def _simple_chat_response(prompt: str, evidence: dict[str, Any]) -> str | None:
-    if evidence.get("mode") != "chat":
-        return None
-    text = prompt.strip()
-    if not text:
-        return "Send a FireGuard question or replay trigger and I’ll take it from there."
-    normalized = " ".join(text.lower().split())
-    operational_terms = (
-        "bcws",
-        "brief",
-        "data",
-        "detection",
-        "elastic",
-        "evac",
-        "fire",
-        "firms",
-        "hotspot",
-        "index",
-        "map",
-        "perimeter",
-        "replay",
-        "road",
-        "route",
-        "shelter",
-        "status",
-        "tool",
-        "weather",
-        "zone",
-    )
-    if any(term in normalized for term in operational_terms):
-        return None
-    if len(text) <= 140 or len(text.split()) <= 18:
-        return "I’m here. Send a FireGuard question or replay trigger when you want analysis."
-    return None
 
 
 def _compact_evidence_for_model(evidence: dict[str, Any]) -> dict[str, Any]:
+    """Compact raw evidence to send to the ADK agent as context."""
     shelters = evidence.get("shelters", {}).get("shelters", []) if isinstance(evidence.get("shelters"), dict) else []
     road_events = evidence.get("road_events", {}).get("road_events", []) if isinstance(evidence.get("road_events"), dict) else []
     fires = evidence.get("fire_detections", {}).get("events", []) if isinstance(evidence.get("fire_detections"), dict) else []
@@ -594,168 +566,18 @@ def _compact_evidence_for_model(evidence: dict[str, Any]) -> dict[str, Any]:
     return {
         "hotspot": evidence.get("hotspot"),
         "zone": evidence.get("zone"),
-        "selected_shelter": evidence.get("selected_shelter"),
-        "route": evidence.get("route"),
-        "shelters": shelters[:8] if isinstance(shelters, list) else [],
+        "shelters": shelters[:10] if isinstance(shelters, list) else [],
         "road_events": road_events[:8] if isinstance(road_events, list) else [],
         "fire_detections": fires[:12] if isinstance(fires, list) else [],
         "bcws_incident_count": len(bcws.get("incidents", [])) if isinstance(bcws.get("incidents"), list) else 0,
         "bcws_perimeter_count": len(bcws.get("perimeters", [])) if isinstance(bcws.get("perimeters"), list) else 0,
-        "action_plan": evidence.get("action_plan", {}).get("plan") if isinstance(evidence.get("action_plan"), dict) else None,
     }
-
-
-def _render_fireguard_brief(evidence: dict[str, Any]) -> str:
-    zone = evidence.get("zone") if isinstance(evidence.get("zone"), dict) else {}
-    shelter = evidence.get("selected_shelter") if isinstance(evidence.get("selected_shelter"), dict) else None
-    route = evidence.get("route") if isinstance(evidence.get("route"), dict) else None
-    zone_name = str(zone.get("name") or "Affected zone")
-    population = zone.get("population")
-    homes = zone.get("homes")
-    lines = [f"Evacuation Decision Brief\n\nAffected Zone: {zone_name}"]
-    if population is not None or homes is not None:
-        lines[-1] += f" (Population: {population or 'unknown'}, Homes: {homes or 'unknown'})."
-    else:
-        lines[-1] += "."
-    if shelter is not None:
-        lines.append(
-            f"\nShelter: {shelter.get('name', 'selected shelter')} ({shelter.get('community', 'unknown')}) - {shelter.get('status', 'unknown')}."
-        )
-    if route is not None:
-        safe = route.get("safe") is True
-        lines.append(
-            f"\nRoute Evaluation: {'SAFE' if safe else 'UNSAFE'}; distance {route.get('distance_km', 'unknown')} km; duration {route.get('duration_minutes', 'unknown')} minutes."
-        )
-        flags = route.get("risk_flags")
-        if isinstance(flags, list) and flags:
-            lines.append("Constraints: " + "; ".join(str(item) for item in flags[:5]) + ".")
-    lines.append("\nRecommended Action: " + _route_message(zone, shelter, route))
-    return "\n".join(lines)
 
 
 def _replay_context(payload: dict[str, Any]) -> dict[str, Any]:
     context = payload.get("session_context")
     replay = context.get("replay") if isinstance(context, dict) else None
     return replay if isinstance(replay, dict) else {}
-
-
-def _selected_shelter(shelters_output: dict[str, Any]) -> dict[str, Any] | None:
-    shelters = shelters_output.get("shelters")
-    if not isinstance(shelters, list):
-        return None
-    candidates = [item for item in shelters if isinstance(item, dict)]
-    open_items = [
-        item for item in candidates
-        if str(item.get("status", "")).upper() == "OPEN"
-    ]
-    return (open_items or candidates or [None])[0]
-
-
-def _annotation_args(
-    hotspot: dict[str, Any],
-    zone: dict[str, Any],
-    shelter: dict[str, Any] | None,
-    route: dict[str, Any] | None,
-) -> dict[str, Any]:
-    markers: list[dict[str, Any]] = []
-    hot_lat = _number(hotspot.get("lat"))
-    hot_lon = _number(hotspot.get("lon"))
-    if hot_lat is not None and hot_lon is not None:
-        markers.append(
-            {
-                "lat": hot_lat,
-                "lon": hot_lon,
-                "type": "hotspot",
-                "label": "Hotspot",
-                "detail": f"FRP {hotspot.get('frp', 'unknown')}",
-            }
-        )
-    zone_lat = _number(zone.get("latitude"))
-    zone_lon = _number(zone.get("longitude"))
-    if zone_lat is not None and zone_lon is not None:
-        markers.append(
-            {
-                "lat": zone_lat,
-                "lon": zone_lon,
-                "type": "zone",
-                "label": str(zone.get("name") or "Affected zone"),
-                "detail": f"Population {zone.get('population', 'unknown')}",
-            }
-        )
-    if shelter is not None:
-        shelter_lat, shelter_lon = _point(shelter)
-        if shelter_lat is not None and shelter_lon is not None:
-            is_open = str(shelter.get("status", "")).upper() == "OPEN"
-            markers.append(
-                {
-                    "lat": shelter_lat,
-                    "lon": shelter_lon,
-                    "type": "shelter_open" if is_open else "shelter_closed",
-                    "label": str(shelter.get("name") or "ESS shelter"),
-                    "detail": str(shelter.get("community") or shelter.get("status") or ""),
-                }
-            )
-    routes: list[dict[str, Any]] = []
-    if route is not None:
-        origin = route.get("origin") if isinstance(route.get("origin"), dict) else {}
-        destination = route.get("destination") if isinstance(route.get("destination"), dict) else {}
-        from_lat = _number(origin.get("lat"))
-        from_lon = _number(origin.get("lon"))
-        to_lat = _number(destination.get("lat"))
-        to_lon = _number(destination.get("lon"))
-        if None not in (from_lat, from_lon, to_lat, to_lon):
-            safe = route.get("safe") is True
-            routes.append(
-                {
-                    "from_lat": from_lat,
-                    "from_lon": from_lon,
-                    "to_lat": to_lat,
-                    "to_lon": to_lon,
-                    "status": "safe" if safe else "blocked",
-                    "label": "Evacuation route",
-                    "distance_km": route.get("distance_km"),
-                    "duration_minutes": route.get("duration_minutes"),
-                }
-            )
-    return {
-        "message": _route_message(zone, shelter, route),
-        "markers": markers,
-        "routes": routes,
-    }
-
-
-def _action_args(zone: dict[str, Any], shelter: dict[str, Any] | None, route: dict[str, Any] | None) -> dict[str, Any]:
-    safe = route is not None and route.get("safe") is True
-    zone_name = str(zone.get("name") or "affected zone")
-    shelter_name = str(shelter.get("name") or "selected shelter") if shelter is not None else "available shelter"
-    return {
-        "summary": _route_message(zone, shelter, route),
-        "actions": [
-            {
-                "id": "evacuation-action",
-                "priority": "urgent" if safe else "immediate",
-                "title": "Route evacuees" if safe else "Hold evacuation route",
-                "detail": (
-                    f"Use route from {zone_name} to {shelter_name}."
-                    if safe
-                    else f"Do not route {zone_name} until constraints are cleared or an alternate shelter is selected."
-                ),
-                "owner": "Incident Commander",
-            }
-        ],
-    }
-
-
-def _route_message(zone: dict[str, Any], shelter: dict[str, Any] | None, route: dict[str, Any] | None) -> str:
-    zone_name = str(zone.get("name") or "affected zone")
-    if shelter is None:
-        return f"No shelter candidate found for {zone_name}; hold decision pending ESS confirmation."
-    shelter_name = str(shelter.get("name") or "selected shelter")
-    if route is None:
-        return f"Shelter candidate {shelter_name} found for {zone_name}; route was not evaluated."
-    if route.get("safe") is True:
-        return f"Route from {zone_name} to {shelter_name} is currently usable based on indexed constraints."
-    return f"Route from {zone_name} to {shelter_name} is constrained by indexed fire or road evidence."
 
 
 def _number(value: Any) -> float | None:

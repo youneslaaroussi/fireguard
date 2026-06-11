@@ -11,13 +11,13 @@ import urllib.request
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from app.agent_runtime.api import create_app as create_agent_runtime_app
+from app.agent_runtime.api import create_app as create_agent_runtime_app, _run_tool_direct, _tool_registry
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -52,6 +52,25 @@ agent_runtime_app = create_agent_runtime_app()
 
 app = FastAPI(title="FireGuard API")
 app.mount("/api/intelligence", agent_runtime_app)
+
+
+@app.post("/api/tools/fireguard_search_shelters")
+async def top_proxy_shelters(request: Request) -> dict:
+    return await _run_tool_direct(_tool_registry(), "fireguard_search_shelters", await request.json())
+
+@app.post("/api/tools/fireguard_evaluate_route")
+async def top_proxy_route(request: Request) -> dict:
+    return await _run_tool_direct(_tool_registry(), "fireguard_evaluate_route", await request.json())
+
+@app.post("/api/tools/fireguard_map_annotation")
+async def top_proxy_annotation(request: Request) -> dict:
+    return await _run_tool_direct(_tool_registry(), "fireguard_map_annotation", await request.json())
+
+@app.post("/api/tools/fireguard_actions")
+async def top_proxy_actions(request: Request) -> dict:
+    return await _run_tool_direct(_tool_registry(), "fireguard_actions", await request.json())
+
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://127.0.0.1:5173", "http://localhost:5173", "http://127.0.0.1:5174", "http://localhost:5174"],
@@ -1513,7 +1532,10 @@ def replay_lines(req):
 def startup():
     load_env()
     if data_env_ready():
-        create_indices()
+        try:
+            create_indices()
+        except Exception as exc:
+            print(f"WARNING: create_indices failed on startup (non-fatal): {exc}")
 
 
 @app.get("/api/health")
