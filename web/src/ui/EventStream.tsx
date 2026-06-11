@@ -45,11 +45,31 @@ export function EventStream({ events, busy = false }: Props) {
       <div className="etBody" ref={bodyRef} onScroll={handleScroll}>
         {feed.length === 0 && (
           <div className="etEmpty">
-            <span className="etEmptyTitle">{busy ? "ACQUIRING" : "NO DETECTIONS"}</span>
+            <div className="etEmptyHud">
+              <div className="etEmptyHudRow">
+                <span className="etEmptyHudLabel">STATUS</span>
+                <span className={`etEmptyHudValue${busy ? " etEmptyHudValue--live" : ""}`}>
+                  {busy ? "ACQUIRING SATELLITE FRAME" : "STANDBY · SENSORS NOMINAL"}
+                </span>
+              </div>
+              <div className="etEmptyHudRow">
+                <span className="etEmptyHudLabel">ORBIT</span>
+                <span className="etEmptyHudValue">VIIRS NPP · NOAA-20 · NOAA-21 · MODIS AQUA/TERRA</span>
+              </div>
+              <div className="etEmptyHudRow">
+                <span className="etEmptyHudLabel">CORPUS</span>
+                <span className="etEmptyHudValue">38,744 FIRMS detections indexed · 633 BCWS incidents</span>
+              </div>
+              <div className="etEmptyHudRow">
+                <span className="etEmptyHudLabel">SCENE</span>
+                <span className="etEmptyHudValue">Williams Lake · Cariboo Fire Centre · BC</span>
+              </div>
+            </div>
+            <span className="etEmptyTitle">{busy ? "INGESTING" : "AWAITING REPLAY SIGNAL"}</span>
             <span className="etEmptyHint">
               {busy
-                ? "Indexing satellite detection chunks — events stream as the replay clock advances"
-                : "Press REPLAY to stream the acquisition window"}
+                ? "Streaming hotspot detections from cached FIRMS chunks · threat scoring active"
+                : "REPLAY simulates the July 17–25 2024 acquisition window in compressed time"}
             </span>
           </div>
         )}

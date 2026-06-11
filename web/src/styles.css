@@ -691,20 +691,95 @@ select.sbInput { appearance: none; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 12px;
   height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+@keyframes etEmptyScan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.etEmpty::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(74,180,245,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(74,180,245,0.03) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+}
+
+.etEmpty::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: linear-gradient(180deg, transparent, rgba(74,180,245,0.06), transparent);
+  animation: etEmptyScan 6s linear infinite;
+  pointer-events: none;
+}
+
+.etEmptyHud {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 14px 18px;
+  background: rgba(8, 14, 22, 0.75);
+  border: 1px solid rgba(74, 180, 245, 0.18);
+  border-left: 2px solid rgba(74, 180, 245, 0.55);
+  font-family: 'Courier New', monospace;
+  min-width: 360px;
+  z-index: 1;
+}
+
+.etEmptyHudRow {
+  display: flex;
+  gap: 14px;
+  align-items: baseline;
+  font-size: 10px;
+}
+
+.etEmptyHudLabel {
+  width: 56px;
+  flex-shrink: 0;
+  color: #4b5563;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+}
+
+.etEmptyHudValue {
+  color: #9ab0c4;
+  letter-spacing: 0.04em;
+  font-weight: 500;
+}
+
+.etEmptyHudValue--live {
+  color: #4ab4f5;
+  text-shadow: 0 0 4px rgba(74,180,245,0.4);
+  animation: tlBusy 1.6s ease-in-out infinite;
 }
 
 .etEmptyTitle {
-  font-size: 10px;
-  letter-spacing: 0.24em;
-  color: #374151;
+  font-size: 11px;
+  letter-spacing: 0.32em;
+  color: #5a7a9a;
   font-family: 'Courier New', monospace;
+  font-weight: 700;
+  z-index: 1;
 }
 
 .etEmptyHint {
   font-size: 10px;
-  color: #2a3340;
+  color: #3a4a5a;
+  z-index: 1;
+  max-width: 360px;
+  text-align: center;
+  line-height: 1.5;
 }
 
 .etCounter {
