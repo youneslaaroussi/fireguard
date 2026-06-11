@@ -11,6 +11,7 @@ import { KpiStrip } from "./KpiStrip";
 import { MapPanel } from "./MapPanel";
 import { Sidebar } from "./Sidebar";
 import { SystemHUD } from "./SystemHUD";
+import { TechFooter } from "./TechFooter";
 import { ThreatPanel } from "./ThreatPanel";
 import { Timeline } from "./Timeline";
 import { sources } from "./state";
@@ -341,6 +342,8 @@ export function App() {
           <SystemHUD events={events} busy={busy} threat={threatAlert} status={status} />
         </section>
       </div>
+
+      <TechFooter />
 
       {threatFlashKey > 0 && (
         <div key={threatFlashKey} className="threatFlash" aria-hidden="true" />
