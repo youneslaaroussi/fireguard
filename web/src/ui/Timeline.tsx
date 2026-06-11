@@ -52,10 +52,10 @@ export function Timeline({ start, end, progress, status, busy, paused, onReplay,
         <div className="tlStatus">{paused ? "⏸ PAUSED" : status}</div>
       </div>
 
-      {/* Pause button — only while replay is in progress */}
-      {running && (
+      {/* Single transport button — morphs between REPLAY / PAUSE / RESUME so it stays out of the timeline track's way */}
+      {running ? (
         <button
-          className={`tlPauseBtn${paused ? " tlPauseBtn--paused" : ""}`}
+          className={`tlTransportBtn${paused ? " tlTransportBtn--paused" : " tlTransportBtn--running"}`}
           onClick={onTogglePause}
           title={paused ? "Resume" : "Pause"}
         >
@@ -76,28 +76,27 @@ export function Timeline({ start, end, progress, status, busy, paused, onReplay,
             </>
           )}
         </button>
+      ) : (
+        <button
+          className={`tlTransportBtn tlTransportBtn--replay${busy ? " tlTransportBtn--busy" : ""}`}
+          onClick={onReplay}
+          disabled={busy}
+        >
+          {busy ? (
+            <>
+              <span className="tlBusyDots">▪▪▪</span>
+              <span>BUFFERING</span>
+            </>
+          ) : (
+            <>
+              <svg width="10" height="12" viewBox="0 0 10 12" fill="none" aria-hidden="true">
+                <path d="M1 1l8 5-8 5V1z" fill="currentColor"/>
+              </svg>
+              <span>REPLAY</span>
+            </>
+          )}
+        </button>
       )}
-
-      {/* Replay button */}
-      <button
-        className={`tlReplayBtn${busy ? " tlReplayBtn--busy" : ""}`}
-        onClick={onReplay}
-        disabled={busy}
-      >
-        {busy ? (
-          <>
-            <span className="tlBusyDots">▪▪▪</span>
-            <span>ACQUIRING</span>
-          </>
-        ) : (
-          <>
-            <svg width="10" height="12" viewBox="0 0 10 12" fill="none" aria-hidden="true">
-              <path d="M1 1l8 5-8 5V1z" fill="currentColor"/>
-            </svg>
-            <span>REPLAY</span>
-          </>
-        )}
-      </button>
     </div>
   );
 }

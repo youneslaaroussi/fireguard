@@ -535,13 +535,13 @@ select.sbInput { appearance: none; }
   50% { opacity: 1; }
 }
 
-.tlPauseBtn {
+/* Single transport button — morphs between REPLAY / PAUSE / RESUME.
+   Same width across all states so the timeline track width is stable. */
+.tlTransportBtn {
   flex-shrink: 0;
   width: 96px;
   border: none;
   border-left: 1px solid rgba(255,255,255,0.1);
-  background: rgba(251, 146, 60, 0.12);
-  color: #fb923c;
   font-size: 10px;
   font-family: 'Courier New', monospace;
   font-weight: 700;
@@ -555,52 +555,42 @@ select.sbInput { appearance: none; }
   transition: background 0.15s, color 0.15s;
 }
 
-.tlPauseBtn:hover {
+.tlTransportBtn--replay {
+  background: rgba(34, 197, 94, 0.1);
+  color: #4ade80;
+}
+
+.tlTransportBtn--replay:hover:not(:disabled) {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+}
+
+.tlTransportBtn--busy {
+  background: transparent;
+  color: #6b8fa8;
+  cursor: default;
+  animation: tlBusy 1.2s ease-in-out infinite;
+}
+
+.tlTransportBtn--running {
+  background: rgba(251, 146, 60, 0.12);
+  color: #fb923c;
+}
+
+.tlTransportBtn--running:hover {
   background: rgba(251, 146, 60, 0.24);
   color: #fdba74;
 }
 
-.tlPauseBtn--paused {
+.tlTransportBtn--paused {
   background: rgba(251, 146, 60, 0.22);
   color: #fdba74;
   animation: tlBusy 1.6s ease-in-out infinite;
 }
 
-.tlPauseBtn--paused:hover {
+.tlTransportBtn--paused:hover {
   background: rgba(251, 146, 60, 0.35);
   animation: none;
-}
-
-.tlReplayBtn {
-  flex-shrink: 0;
-  width: 110px;
-  border: none;
-  border-left: 1px solid rgba(255,255,255,0.1);
-  background: rgba(34, 197, 94, 0.1);
-  color: #4ade80;
-  font-size: 10px;
-  font-family: 'Courier New', monospace;
-  font-weight: 700;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
-  transition: background 0.15s, color 0.15s;
-}
-
-.tlReplayBtn:hover:not(:disabled) {
-  background: rgba(34, 197, 94, 0.2);
-  color: #86efac;
-}
-
-.tlReplayBtn--busy {
-  background: transparent;
-  color: #6b8fa8;
-  cursor: default;
-  animation: tlBusy 1.2s ease-in-out infinite;
 }
 
 .tlBusyDots { letter-spacing: 0.3em; }
