@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NonIdealState } from "@blueprintjs/core";
 import mapboxgl, { type GeoJSONSource, type Map } from "mapbox-gl";
-import type { BcwsContext, FireEvent } from "../types";
+import type { BcwsContext, FireEvent, ThreatPayload } from "../types";
+import type { MapAnnotation, MapAnnotationMarker } from "../intelligence/types";
 
 // ── Icon SVGs (white on transparent → SDF-tintable at runtime) ──────────────
 
@@ -45,6 +46,52 @@ function loadSvgIcon(m: Map, id: string, svg: string, w: number, h: number): Pro
   });
 }
 
+// ── Annotation marker SVGs ───────────────────────────────────────────────────
+
+const ANN_ICON_HOTSPOT = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="20" viewBox="0 0 16 20">
+  <path d="M8 0C7 4 4 6.5 4 10.5a4 4 0 0 0 8 0c0-2.2-1.3-4-2.2-5.2-.45 1.8-1.2 2.8-1.8 3.2C7.8 7 7.4 4 8 0z" fill="white"/>
+</svg>`;
+
+const ANN_ICON_SHELTER = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <path d="M8 1L1 7h2v8h4v-4h2v4h4V7h2L8 1z" fill="white"/>
+</svg>`;
+
+const ANN_ICON_ZONE = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="18" viewBox="0 0 14 18">
+  <path d="M7 0C4.2 0 2 2.2 2 5c0 4.4 5 13 5 13s5-8.6 5-13c0-2.8-2.2-5-5-5zm0 7a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" fill="white"/>
+</svg>`;
+
+const ANN_ICON_BLOCKAGE = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="14" viewBox="0 0 16 14">
+  <path d="M8 1L1 13h14L8 1z" fill="white"/>
+</svg>`;
+
+const ANN_ICON_ALTERNATE = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm-1 10L3.5 7.5l1.4-1.4L7 8.6l4.1-4.1 1.4 1.4L7 11z" fill="white"/>
+</svg>`;
+
+const ANN_MARKER_ICONS: Record<string, string> = {
+  hotspot:       ANN_ICON_HOTSPOT,
+  shelter_open:  ANN_ICON_SHELTER,
+  shelter_closed: ANN_ICON_SHELTER,
+  zone:          ANN_ICON_ZONE,
+  blockage:      ANN_ICON_BLOCKAGE,
+  alternate:     ANN_ICON_ALTERNATE,
+};
+
+const ANN_MARKER_COLORS: Record<string, string> = {
+  hotspot:        "#ff4422",
+  shelter_open:   "#10b981",
+  shelter_closed: "#64748b",
+  zone:           "#8b5cf6",
+  blockage:       "#ef4444",
+  alternate:      "#f97316",
+};
+
+const ANN_ROUTE_COLORS: Record<string, string> = {
+  safe:      "#10b981",
+  blocked:   "#ef4444",
+  alternate: "#f97316",
+};
+
 type Props = {
   token: string;
   events: FireEvent[];
@@ -52,18 +99,25 @@ type Props = {
   lat: number;
   lon: number;
   radiusKm: number;
+  annotation?: MapAnnotation | null;
+  threat?: ThreatPayload | null;
   onAreaChange: (lat: number, lon: number, radiusKm: number) => void;
 };
 
-export function MapPanel({ token, events, context, lat, lon, radiusKm, onAreaChange }: Props) {
+export function MapPanel({ token, events, context, lat, lon, radiusKm, annotation = null, threat = null, onAreaChange }: Props) {
   const container = useRef<HTMLDivElement | null>(null);
   const map = useRef<Map | null>(null);
   const [loaded, setLoaded] = useState(false);
   const centerMarker = useRef<mapboxgl.Marker | null>(null);
   const edgeMarker = useRef<mapboxgl.Marker | null>(null);
+  const annMarkers = useRef<mapboxgl.Marker[]>([]);
+  const annPopups = useRef<mapboxgl.Popup[]>([]);
   const areaRef = useRef({ lat, lon, radiusKm });
   const isDragging = useRef(false);
   const onAreaChangeRef = useRef(onAreaChange);
+  const autoFitSignature = useRef("");
+  const [enhancing, setEnhancing] = useState(false);
+  const enhanceThreatRef = useRef<ThreatPayload | null>(null);
 
   const data = useMemo(() => toFeatureCollection(events), [events]);
   const incidentData = useMemo(() => toIncidentCollection(context), [context]);
@@ -358,11 +412,127 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, onAreaCha
     (instance.getSource("wind-vector-heads") as GeoJSONSource | undefined)?.setData(windHeads);
     (instance.getSource("snapshot-wind-vectors") as GeoJSONSource | undefined)?.setData(snapshotWindLines);
     (instance.getSource("snapshot-wind-vector-heads") as GeoJSONSource | undefined)?.setData(snapshotWindHeads);
+  }, [context, data, essData, evacuationRecordData, evacuationZoneData, incidentData, loaded, perimeterData, roadData, snapshotWindHeads, snapshotWindLines, windHeads, windLines]);
+
+  // Fit the camera when a replay data set loads, then leave user pan/zoom alone.
+  useEffect(() => {
+    const instance = map.current;
+    if (!instance || !loaded || !instance.isStyleLoaded() || isDragging.current) return;
+
+    const signature = autoFitKey(events, context);
+    if (!signature) {
+      autoFitSignature.current = "";
+      return;
+    }
+    if (autoFitSignature.current === signature) return;
+    autoFitSignature.current = signature;
+
     const bounds = boundsFor(events, context);
     if (bounds) {
       instance.fitBounds(bounds, { padding: 48, maxZoom: 9, duration: 400 });
     }
-  }, [context, data, essData, evacuationRecordData, evacuationZoneData, events, incidentData, loaded, perimeterData, roadData, snapshotWindHeads, snapshotWindLines, windHeads, windLines]);
+  }, [context, events, loaded]);
+
+  // "ZOOM AND ENHANCE" — fly to threat hotspot with sci-fi overlay
+  useEffect(() => {
+    const instance = map.current;
+    if (!threat || !instance || !loaded) return;
+    if (enhanceThreatRef.current === threat) return;
+    enhanceThreatRef.current = threat;
+
+    // Phase 1: fly to overview of area (zoom out first for drama)
+    const startZoom = instance.getZoom();
+    const pullBackZoom = Math.max(4, startZoom - 1.5);
+
+    instance.flyTo({
+      center: [threat.hotspot.lon, threat.hotspot.lat],
+      zoom: pullBackZoom,
+      duration: 800,
+      easing: (t) => t * (2 - t),
+    });
+
+    // Phase 2: after pullback, snap enhance overlay on and zoom deep in
+    const t1 = setTimeout(() => {
+      setEnhancing(true);
+      instance.flyTo({
+        center: [threat.hotspot.lon, threat.hotspot.lat],
+        zoom: 12,
+        duration: 1800,
+        easing: (t) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t,
+      });
+    }, 900);
+
+    // Phase 3: hold, then fade the overlay out
+    const t2 = setTimeout(() => setEnhancing(false), 4500);
+
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [threat, loaded]);
+
+  // Render agent annotation markers + routes on the main map
+  useEffect(() => {
+    const m = map.current;
+    if (!m || !loaded) return;
+
+    // Remove previous annotation markers/popups
+    for (const marker of annMarkers.current) marker.remove();
+    for (const popup of annPopups.current) popup.remove();
+    annMarkers.current = [];
+    annPopups.current = [];
+
+    // Remove previous annotation layers/sources
+    if (m.getLayer("ann-routes-line")) m.removeLayer("ann-routes-line");
+    if (m.getLayer("ann-routes-casing")) m.removeLayer("ann-routes-casing");
+    if (m.getSource("ann-routes")) m.removeSource("ann-routes");
+
+    if (!annotation) return;
+
+    // Add route lines
+    const routeGeoJSON: GeoJSON.FeatureCollection = {
+      type: "FeatureCollection",
+      features: annotation.routes.map((r) => ({
+        type: "Feature",
+        geometry: { type: "LineString", coordinates: [[r.from_lon, r.from_lat], [r.to_lon, r.to_lat]] },
+        properties: { color: ANN_ROUTE_COLORS[r.status] ?? "#6366f1", label: r.label },
+      })),
+    };
+    m.addSource("ann-routes", { type: "geojson", data: routeGeoJSON });
+    m.addLayer({ id: "ann-routes-casing", type: "line", source: "ann-routes", paint: { "line-color": "#000", "line-width": 7, "line-opacity": 0.3 } });
+    m.addLayer({ id: "ann-routes-line",   type: "line", source: "ann-routes", paint: { "line-color": ["get", "color"], "line-width": 4, "line-opacity": 0.95 } });
+
+    // Add markers
+    const bounds = new mapboxgl.LngLatBounds();
+    for (const marker of annotation.markers) {
+      const el = document.createElement("div");
+      el.className = "annMarker";
+      el.style.setProperty("--ann-color", ANN_MARKER_COLORS[marker.type] ?? "#6366f1");
+      el.innerHTML = `<div class="annMarkerIcon">${ANN_MARKER_ICONS[marker.type] ?? ANN_ICON_ZONE}</div>`;
+
+      const popup = new mapboxgl.Popup({ offset: 18, closeButton: false, className: "annPopup" })
+        .setHTML(buildAnnPopupHTML(marker));
+
+      const mbMarker = new mapboxgl.Marker({ element: el, anchor: "bottom" })
+        .setLngLat([marker.lon, marker.lat])
+        .setPopup(popup)
+        .addTo(m);
+
+      if (marker.type === "hotspot" || marker.type === "shelter_open" || marker.type === "alternate") {
+        popup.addTo(m);
+      }
+
+      annMarkers.current.push(mbMarker);
+      annPopups.current.push(popup);
+      bounds.extend([marker.lon, marker.lat]);
+    }
+
+    for (const route of annotation.routes) {
+      bounds.extend([route.from_lon, route.from_lat]);
+      bounds.extend([route.to_lon, route.to_lat]);
+    }
+
+    if (!bounds.isEmpty()) {
+      m.fitBounds(bounds, { padding: 80, maxZoom: 8, duration: 600 });
+    }
+  }, [annotation, loaded]);
 
   if (!token) {
     return (
@@ -398,12 +568,80 @@ export function MapPanel({ token, events, context, lat, lon, radiusKm, onAreaCha
           Road closure
         </span>
         <span><i className="legendLine windLine" />Wind</span>
+        {annotation !== null && (
+          <>
+            <span className="legendSep" />
+            {annotation.routes.map((r, i) => (
+              <span key={i}>
+                <i className="legendLine" style={{ background: ANN_ROUTE_COLORS[r.status] ?? "#6366f1" }} />
+                {r.label}
+              </span>
+            ))}
+          </>
+        )}
+      </div>
+      {annotation?.message && (
+        <div className="annMessageBar">
+          <svg width="12" height="12" viewBox="0 0 16 16"><path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm.75 10.5h-1.5v-5h1.5v5zm0-6.5h-1.5V3.5h1.5V5z" fill="#facc15"/></svg>
+          <span>{annotation.message}</span>
+        </div>
+      )}
+      {threat && <ThreatEnhanceOverlay threat={threat} active={enhancing} />}
+    </div>
+  );
+}
+
+// ── Sci-fi "ZOOM AND ENHANCE" overlay ────────────────────────────────────────
+
+function ThreatEnhanceOverlay({ threat, active }: { threat: ThreatPayload; active: boolean }) {
+  const frp = threat.hotspot.frp.toFixed(1);
+  const conf = threat.hotspot.confidence ?? "–";
+  const dist = threat.zone.distance_km != null ? `${threat.zone.distance_km.toFixed(1)} km` : "–";
+  const zone = threat.zone.name;
+
+  return (
+    <div className={`enhanceOverlay${active ? " enhanceOverlay--on" : ""}`} aria-hidden="true">
+      {/* corner brackets */}
+      <div className="enhanceCorner enhanceCorner--tl" />
+      <div className="enhanceCorner enhanceCorner--tr" />
+      <div className="enhanceCorner enhanceCorner--bl" />
+      <div className="enhanceCorner enhanceCorner--br" />
+
+      {/* horizontal scan line */}
+      <div className="enhanceScanH" />
+      {/* vertical scan line */}
+      <div className="enhanceScanV" />
+
+      {/* center reticle */}
+      <div className="enhanceReticle">
+        <div className="enhanceReticleRing" />
+        <div className="enhanceReticleDot" />
+      </div>
+
+      {/* HUD readout — top-left */}
+      <div className="enhanceHud enhanceHud--tl">
+        <span className="enhanceHudLabel">TARGET ACQUIRED</span>
+        <span className="enhanceHudVal">{zone}</span>
+      </div>
+
+      {/* HUD readout — bottom-right */}
+      <div className="enhanceHud enhanceHud--br">
+        <span className="enhanceHudRow"><span className="enhanceHudKey">FRP</span><span className="enhanceHudVal">{frp} MW</span></span>
+        <span className="enhanceHudRow"><span className="enhanceHudKey">CONF</span><span className="enhanceHudVal">{conf}</span></span>
+        <span className="enhanceHudRow"><span className="enhanceHudKey">DIST</span><span className="enhanceHudVal">{dist}</span></span>
+        <span className="enhanceHudRow"><span className="enhanceHudKey">LAT</span><span className="enhanceHudVal">{threat.hotspot.lat.toFixed(4)}</span></span>
+        <span className="enhanceHudRow"><span className="enhanceHudKey">LON</span><span className="enhanceHudVal">{threat.hotspot.lon.toFixed(4)}</span></span>
       </div>
     </div>
   );
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+function buildAnnPopupHTML(marker: MapAnnotationMarker): string {
+  const detail = marker.detail ? `<div class="annPopupDetail">${marker.detail}</div>` : "";
+  return `<div class="annPopupInner"><strong>${marker.label}</strong>${detail}</div>`;
+}
 
 function setCircleSource(mapInstance: Map | null, cLat: number, cLon: number, r: number) {
   if (!mapInstance || !mapInstance.isStyleLoaded()) return;
@@ -662,6 +900,33 @@ function toFeatureCollection(events: FireEvent[]): GeoJSON.FeatureCollection {
       }
     }))
   };
+}
+
+function autoFitKey(events: FireEvent[], context: BcwsContext) {
+  const contextCount =
+    context.incidents.length +
+    context.perimeters.length +
+    context.evacuation_zones.length +
+    context.evacuation_records.length +
+    context.ess_facilities.length +
+    context.road_events.length +
+    (context.weather_snapshot ? 1 : 0);
+  if (contextCount > 0) {
+    return [
+      context.incidents.length,
+      context.perimeters.length,
+      context.evacuation_zones.length,
+      context.evacuation_records.length,
+      context.ess_facilities.length,
+      context.road_events.length,
+      context.weather_snapshot?.latitude ?? "",
+      context.weather_snapshot?.longitude ?? "",
+      context.weather_snapshot?.wind_speed_kph ?? "",
+      context.weather_snapshot?.wind_direction_degrees ?? "",
+    ].join(":");
+  }
+  const firstEvent = events[0];
+  return firstEvent ? `event:${firstEvent.source}:${firstEvent.acquired_at}:${firstEvent.latitude}:${firstEvent.longitude}` : "";
 }
 
 function boundsFor(events: FireEvent[], context: BcwsContext) {

@@ -35,6 +35,38 @@ body {
   z-index: 0;
 }
 
+.agentOverlay {
+  position: absolute;
+  top: 58px;
+  right: 12px;
+  bottom: 12px;
+  z-index: 180;
+  display: flex;
+  align-items: stretch;
+  justify-content: flex-end;
+  pointer-events: none;
+}
+
+.agentOverlay .agenticIntelligence {
+  pointer-events: auto;
+  width: min(520px, calc(100vw - 24px));
+  height: 100%;
+  box-shadow: -18px 0 54px rgba(0, 0, 0, 0.64), 0 0 0 1px rgba(80, 140, 210, 0.18);
+}
+
+@media (max-width: 980px) {
+  .agentOverlay {
+    top: 78px;
+    right: 8px;
+    bottom: 8px;
+    left: 8px;
+  }
+
+  .agentOverlay .agenticIntelligence {
+    width: 100%;
+  }
+}
+
 /* ================================================================
    APP HEADER — gradient Palantir bar
    ================================================================ */
@@ -683,6 +715,73 @@ body {
 }
 
 /* ================================================================
+   ANNOTATION MARKERS & POPUPS (agent map output on main map)
+   ================================================================ */
+
+.annMarker {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--ann-color, #6366f1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px rgba(0,0,0,0.5);
+}
+
+.annMarkerIcon { display: flex; align-items: center; justify-content: center; }
+.annMarkerIcon svg { filter: drop-shadow(0 0 2px rgba(0,0,0,0.6)); }
+
+.mapboxgl-popup.annPopup .mapboxgl-popup-content {
+  background: rgba(6, 14, 28, 0.92);
+  border: 1px solid rgba(80, 120, 180, 0.4);
+  border-radius: 4px;
+  padding: 6px 10px;
+  color: #c8daea;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  backdrop-filter: blur(6px);
+  max-width: 200px;
+}
+
+.mapboxgl-popup.annPopup .mapboxgl-popup-tip { border-top-color: rgba(6, 14, 28, 0.92); }
+
+.annPopupInner strong { display: block; color: #e0eaf4; margin-bottom: 2px; }
+.annPopupDetail { color: #7a9ab8; font-size: 10px; }
+
+.legendSep {
+  width: 1px;
+  height: 14px;
+  background: rgba(80, 120, 180, 0.3);
+  margin: 0 2px;
+}
+
+.annMessageBar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  background: rgba(6, 14, 28, 0.88);
+  border: 1px solid rgba(250, 204, 21, 0.4);
+  color: #facc15;
+  font-size: 11px;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.04em;
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+  white-space: nowrap;
+  max-width: calc(100% - 200px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ================================================================
    AGENT BAR — bottom-center wide input + expandable history
    ================================================================ */
 
@@ -1099,6 +1198,234 @@ body {
 .agentGraphBtn--live.active {
   animation: none;
   color: #4a90d0;
+}
+
+/* ================================================================
+   THREAT "ZOOM AND ENHANCE" OVERLAY
+   ================================================================ */
+
+@keyframes enhanceFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes enhanceFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+@keyframes enhanceScanH {
+  0%   { top: 8%; }
+  100% { top: 92%; }
+}
+
+@keyframes enhanceScanV {
+  0%   { left: 8%; }
+  100% { left: 92%; }
+}
+
+@keyframes enhanceCornerGrow {
+  0%   { width: 6px;  height: 6px; }
+  40%  { width: 28px; height: 28px; }
+  70%  { width: 22px; height: 22px; }
+  100% { width: 26px; height: 26px; }
+}
+
+@keyframes enhanceBoxGrow {
+  0%   { inset: 44% 44% 44% 44%; }
+  50%  { inset: 18% 18% 18% 18%; }
+  100% { inset: 22% 22% 22% 22%; }
+}
+
+@keyframes enhanceReticlePulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1);   opacity: 0.8; }
+  50%       { transform: translate(-50%, -50%) scale(1.2); opacity: 1; }
+}
+
+@keyframes enhanceReticleSpin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes enhanceDotBlink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
+.enhanceOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  pointer-events: none;
+  opacity: 0;
+  /* box defined by the animated corners */
+}
+
+.enhanceOverlay--on {
+  animation: enhanceFadeIn 0.25s ease forwards;
+}
+
+/* when --on is removed we fade out */
+.enhanceOverlay:not(.enhanceOverlay--on) {
+  animation: enhanceFadeOut 0.6s ease forwards;
+}
+
+/* Corner brackets — each is a small L-shaped border fragment */
+.enhanceCorner {
+  position: absolute;
+  width: 0;
+  height: 0;
+  animation: enhanceCornerGrow 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+}
+
+.enhanceOverlay--on .enhanceCorner {
+  animation: enhanceCornerGrow 0.4s cubic-bezier(0.22, 1, 0.36, 1) 0.1s forwards;
+}
+
+.enhanceCorner--tl {
+  top: 20%;
+  left: 20%;
+  border-top: 2px solid #ff3a2a;
+  border-left: 2px solid #ff3a2a;
+  box-shadow: -2px -2px 8px rgba(255, 58, 42, 0.5);
+}
+
+.enhanceCorner--tr {
+  top: 20%;
+  right: 20%;
+  border-top: 2px solid #ff3a2a;
+  border-right: 2px solid #ff3a2a;
+  box-shadow: 2px -2px 8px rgba(255, 58, 42, 0.5);
+}
+
+.enhanceCorner--bl {
+  bottom: 20%;
+  left: 20%;
+  border-bottom: 2px solid #ff3a2a;
+  border-left: 2px solid #ff3a2a;
+  box-shadow: -2px 2px 8px rgba(255, 58, 42, 0.5);
+}
+
+.enhanceCorner--br {
+  bottom: 20%;
+  right: 20%;
+  border-bottom: 2px solid #ff3a2a;
+  border-right: 2px solid #ff3a2a;
+  box-shadow: 2px 2px 8px rgba(255, 58, 42, 0.5);
+}
+
+/* Horizontal scan line */
+.enhanceScanH {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 58, 42, 0.6) 20%, rgba(255, 58, 42, 0.9) 50%, rgba(255, 58, 42, 0.6) 80%, transparent 100%);
+  top: 8%;
+  animation: enhanceScanH 1.8s cubic-bezier(0.4, 0, 0.6, 1) 0.3s forwards;
+  box-shadow: 0 0 6px rgba(255, 58, 42, 0.5);
+}
+
+/* Vertical scan line */
+.enhanceScanV {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, transparent 0%, rgba(80, 180, 255, 0.5) 20%, rgba(80, 180, 255, 0.8) 50%, rgba(80, 180, 255, 0.5) 80%, transparent 100%);
+  left: 8%;
+  animation: enhanceScanV 1.4s cubic-bezier(0.4, 0, 0.6, 1) 0.5s forwards;
+  box-shadow: 0 0 6px rgba(80, 180, 255, 0.4);
+}
+
+/* Center crosshair reticle */
+.enhanceReticle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 0;
+  height: 0;
+}
+
+.enhanceReticleRing {
+  position: absolute;
+  width: 52px;
+  height: 52px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 58, 42, 0.7);
+  box-shadow: 0 0 12px rgba(255, 58, 42, 0.4), inset 0 0 8px rgba(255, 58, 42, 0.1);
+  animation: enhanceReticleSpin 4s linear infinite;
+}
+
+.enhanceReticleDot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: #ff3a2a;
+  box-shadow: 0 0 8px rgba(255, 58, 42, 0.8);
+  animation: enhanceDotBlink 0.8s ease-in-out infinite;
+}
+
+/* HUD text panels */
+.enhanceHud {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  background: rgba(4, 9, 20, 0.72);
+  border: 1px solid rgba(255, 58, 42, 0.35);
+  backdrop-filter: blur(3px);
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  animation: enhanceFadeIn 0.3s ease 0.5s both;
+}
+
+.enhanceHud--tl {
+  top: calc(20% - 48px);
+  left: 20%;
+  border-color: rgba(255, 58, 42, 0.5);
+  box-shadow: 0 0 16px rgba(255, 58, 42, 0.15);
+}
+
+.enhanceHud--br {
+  bottom: calc(20% - 80px);
+  right: 20%;
+  text-align: right;
+  border-color: rgba(80, 180, 255, 0.4);
+  box-shadow: 0 0 16px rgba(80, 180, 255, 0.1);
+}
+
+.enhanceHudLabel {
+  color: #ff3a2a;
+  font-size: 8px;
+  letter-spacing: 0.22em;
+  font-weight: bold;
+}
+
+.enhanceHudVal {
+  color: #d0e8ff;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+}
+
+.enhanceHudRow {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.enhanceHudKey {
+  color: #3a5878;
+  font-size: 8.5px;
+  letter-spacing: 0.18em;
+  min-width: 32px;
+  text-align: left;
 }
 
 /* ================================================================

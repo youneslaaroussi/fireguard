@@ -12,7 +12,7 @@ import httpx
 from google.adk.models.google_llm import Gemini
 from google.adk.models.llm_request import LlmRequest
 from google.adk.models.llm_response import LlmResponse
-from google.genai import types
+from google.genai import errors, types
 
 from .config import AppConfig
 from .models import ChatMessage, MessageRole, ModelTier, TokenUsage, ToolDefinition
@@ -116,6 +116,10 @@ class VertexAIClient:
             raise VertexAIError("Vertex AI request timed out") from exc
         except httpx.HTTPError as exc:
             raise VertexAIError(f"Vertex AI request failed: {exc}") from exc
+        except errors.APIError as exc:
+            raise VertexAIError(
+                f"ADK Gemini request failed: {exc}", status_code=exc.code
+            ) from exc
         except Exception as exc:
             raise VertexAIError(f"ADK Gemini request failed: {exc}") from exc
         message = ChatMessage(
@@ -265,16 +269,18 @@ def _content_from_vertex_dict(item: dict[str, Any]) -> types.Content:
 
 
 def _part_from_vertex_dict(item: dict[str, Any]) -> types.Part:
+    thought_signature = _decode_thought_signature(item.get("thoughtSignature"))
     text = item.get("text")
     if isinstance(text, str):
-        return types.Part(text=text)
+        return types.Part(text=text, thought_signature=thought_signature)
     inline_data = item.get("inlineData")
     if isinstance(inline_data, dict):
         return types.Part(
             inline_data=types.Blob(
                 mime_type=str(inline_data.get("mimeType") or "application/octet-stream"),
                 data=inline_data.get("data"),
-            )
+            ),
+            thought_signature=thought_signature,
         )
     function_call = item.get("functionCall")
     if isinstance(function_call, dict):
@@ -282,7 +288,8 @@ def _part_from_vertex_dict(item: dict[str, Any]) -> types.Part:
             function_call=types.FunctionCall(
                 name=str(function_call.get("name") or ""),
                 args=function_call.get("args") if isinstance(function_call.get("args"), dict) else {},
-            )
+            ),
+            thought_signature=thought_signature,
         )
     function_response = item.get("functionResponse")
     if isinstance(function_response, dict):
@@ -292,9 +299,10 @@ def _part_from_vertex_dict(item: dict[str, Any]) -> types.Part:
                 response=function_response.get("response")
                 if isinstance(function_response.get("response"), dict)
                 else {"content": function_response.get("response")},
-            )
+            ),
+            thought_signature=thought_signature,
         )
-    return types.Part(text=json.dumps(item, default=str))
+    return types.Part(text=json.dumps(item, default=str), thought_signature=thought_signature)
 
 
 def _tools_from_vertex_payload(payload: dict[str, Any]) -> list[types.Tool] | None:
@@ -487,7 +495,36 @@ def _function_call_part(raw_call: dict[str, Any]) -> dict[str, Any]:
         raise VertexAIError(f"tool call arguments are not valid JSON: {exc}") from exc
     if not isinstance(args, dict):
         raise VertexAIError("tool call arguments must decode to an object")
-    return {"functionCall": {"name": name, "args": args}}
+    part: dict[str, Any] = {"functionCall": {"name": name, "args": args}}
+    thought_signature = _tool_call_thought_signature(raw_call)
+    if thought_signature is not None:
+        part["thoughtSignature"] = thought_signature
+    return part
+
+
+def _tool_call_thought_signature(raw_call: dict[str, Any]) -> str | None:
+    metadata = raw_call.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    value = metadata.get("vertex_thought_signature")
+    return value if isinstance(value, str) and len(value) > 0 else None
+
+
+def _decode_thought_signature(value: Any) -> bytes | None:
+    if isinstance(value, bytes):
+        return value
+    if not isinstance(value, str) or len(value) == 0:
+        return None
+    try:
+        return base64.b64decode(value.encode("ascii"), validate=True)
+    except (ValueError, UnicodeEncodeError):
+        return None
+
+
+def _encode_thought_signature(value: Any) -> str | None:
+    if isinstance(value, bytes) and len(value) > 0:
+        return base64.b64encode(value).decode("ascii")
+    return None
 
 
 def _function_response_part(
@@ -619,12 +656,14 @@ def _adk_function_calls(response: LlmResponse) -> list[dict[str, Any]]:
         call = part.function_call
         if call is None:
             continue
-        calls.append(
-            {
-                "name": call.name,
-                "args": call.args if isinstance(call.args, dict) else {},
-            }
-        )
+        item = {
+            "name": call.name,
+            "args": call.args if isinstance(call.args, dict) else {},
+        }
+        thought_signature = _encode_thought_signature(part.thought_signature)
+        if thought_signature is not None:
+            item["thought_signature"] = thought_signature
+        calls.append(item)
     return calls
 
 
@@ -670,13 +709,15 @@ def _openai_tool_calls(calls: list[dict[str, Any]]) -> list[dict[str, Any]] | No
         args = call.get("args", {})
         if not isinstance(name, str) or len(name.strip()) == 0:
             continue
-        out.append(
-            {
-                "id": f"call_vertex_{index}_{secrets.token_hex(6)}",
-                "type": "function",
-                "function": {"name": name, "arguments": json.dumps(args if isinstance(args, dict) else {})},
-            }
-        )
+        item = {
+            "id": f"call_vertex_{index}_{secrets.token_hex(6)}",
+            "type": "function",
+            "function": {"name": name, "arguments": json.dumps(args if isinstance(args, dict) else {})},
+        }
+        thought_signature = call.get("thought_signature")
+        if isinstance(thought_signature, str) and len(thought_signature) > 0:
+            item["metadata"] = {"vertex_thought_signature": thought_signature}
+        out.append(item)
     return out if len(out) > 0 else None
 
 

@@ -3,10 +3,10 @@ import type { StreamEvent, WorkflowRun, EdgePayload } from "../types";
 import {
   ACCENT_COLORS,
   CLICKABLE_EDGE_IDS,
+  DISPLAY_LABELS,
   FALLBACK_ICON,
   NODE_ICONS,
   NODE_ORDER,
-  PRIMARY_EDGE_IDS,
   PRIMARY_POSITIONS,
   RERUNNABLE_NODES,
   STATUS_BORDER,
@@ -55,9 +55,11 @@ export function buildGraphModel(
   const subagentList = subagentsFromEvents(events);
   const toolList = toolsFromEvents(events);
 
-  const subagentPositions = new Map<string, XYPosition>();
-  const subagentNodes = buildSubagentNodes(subagentList, selectedNodeId, subagentPositions);
-  const toolNodes = buildToolNodes(toolList, selectedNodeId, subagentPositions);
+  const nodePositions = new Map<string, XYPosition>(
+    Object.entries(PRIMARY_POSITIONS),
+  );
+  const subagentNodes = buildSubagentNodes(subagentList, selectedNodeId, nodePositions);
+  const toolNodes = buildToolNodes(toolList, selectedNodeId, nodePositions);
 
   return {
     nodes: [
@@ -82,7 +84,7 @@ function buildPrimaryNodes(
 ) {
   return [...run.workflow.nodes]
     .sort((a, b) => NODE_ORDER.indexOf(a.node_id) - NODE_ORDER.indexOf(b.node_id))
-    .map((node): Node<FlowNodeData> => {
+    .map((node, index): Node<FlowNodeData> => {
       const status = run.node_states[node.node_id]?.status ?? "pending";
       const toolName = node.config.tool_name;
       const accentColor =
@@ -98,9 +100,9 @@ function buildPrimaryNodes(
       return {
         id: node.node_id,
         type: "workflow",
-        position: PRIMARY_POSITIONS[node.node_id] ?? { x: 30, y: 120 },
+        position: { x: 20 + index * 210, y: 80 },
         data: {
-          label: node.label,
+          label: DISPLAY_LABELS[node.node_id] ?? node.label,
           status,
           accentColor,
           NodeIcon: NODE_ICONS[node.node_id] ?? FALLBACK_ICON,
@@ -172,7 +174,6 @@ function buildPrimaryEdges(
   onSelectEdge: (id: string) => void,
 ): Edge<FlowEdgeData>[] {
   return run.workflow.edges
-    .filter((e) => PRIMARY_EDGE_IDS.has(e.edge_id))
     .map((edge) => {
       const clickable = CLICKABLE_EDGE_IDS.has(edge.edge_id);
       const hasPayload = edgePayloads[edge.edge_id] !== undefined;
@@ -198,13 +199,13 @@ function buildSubagentEdges(
   onSelectEdge: (id: string) => void,
 ): Edge<FlowEdgeData>[] {
   return subNodes.map((sub) => {
-    const id = `edge_${sub.id}_to_research_agent`;
+    const id = `edge_research_agent_to_${sub.id}`;
     const status = sub.data.status as string;
     const strokeColor = status === "completed" ? "#10b981" : status === "running" ? "#06b6d4" : "#1e3a5f";
     return makeEdge({
       id,
-      source: sub.id,
-      target: "research_agent",
+      source: "research_agent",
+      target: sub.id,
       clickable: true,
       hasPayload: edgePayloads[id] !== undefined,
       title: "View subagent result",
@@ -222,12 +223,12 @@ function buildToolEdges(
   onSelectEdge: (id: string) => void,
 ): Edge<FlowEdgeData>[] {
   return list.map((tool) => {
-    const id = `edge_${tool.node_id}_to_${tool.parent_id}`;
+    const id = `edge_${tool.parent_id}_to_${tool.node_id}`;
     const strokeColor = tool.status === "completed" ? "#10b981" : tool.status === "running" ? "#f97316" : "#1e3a5f";
     return makeEdge({
       id,
-      source: tool.node_id,
-      target: tool.parent_id,
+      source: tool.parent_id,
+      target: tool.node_id,
       clickable: true,
       hasPayload: edgePayloads[id] !== undefined,
       title: `View ${tool.tool_name} result`,
@@ -242,21 +243,19 @@ function buildToolEdges(
 // Positioning
 
 function subagentPosition(index: number, total: number): XYPosition {
-  // Two-column grid below research_agent (x:90, y:300); each column 192px wide, centered at x=90.
-  const cols = Math.min(total, 2);
-  const col = index % cols;
-  const row = Math.floor(index / cols);
+  const cols = Math.min(total, 3);
+  const col = index % Math.max(cols, 1);
+  const row = Math.floor(index / Math.max(cols, 1));
   const nodeWidth = 172;
   const gap = 20;
   const totalWidth = cols * nodeWidth + (cols - 1) * gap;
-  const startX = 90 - totalWidth / 2;
-  return { x: startX + col * (nodeWidth + gap), y: 440 + row * 140 };
+  const startX = PRIMARY_POSITIONS.research_agent.x - totalWidth / 2 + nodeWidth / 2;
+  return { x: startX + col * (nodeWidth + gap), y: 260 + row * 132 };
 }
 
 function toolPosition(parentPos: XYPosition | undefined, siblingIndex: number): XYPosition {
-  const p = parentPos ?? { x: 90, y: 440 };
-  // Stack tools vertically below their parent subagent.
-  return { x: p.x, y: p.y + 130 + siblingIndex * 110 };
+  const p = parentPos ?? PRIMARY_POSITIONS.research_agent;
+  return { x: p.x, y: p.y + 150 + siblingIndex * 104 };
 }
 
 // Event parsing
@@ -306,11 +305,12 @@ export function toolsFromEvents(events: StreamEvent[]): ToolGraphNode[] {
     if (!isGraphTool(toolName)) continue;
     const invId = ev.data.invocation_id;
     if (typeof invId !== "string" || invId.length === 0) continue;
-    const nodeId = `tool_${ev.agent_id}_${invId}`;
+    const parentId = ev.node_id ?? ev.agent_id;
+    const nodeId = `tool_${parentId}_${invId}`;
     const existing = map.get(nodeId);
     map.set(nodeId, {
       node_id: nodeId,
-      parent_id: ev.agent_id,
+      parent_id: parentId,
       label: toolLabel(ev, existing?.label),
       status: ev.event_type === "tool.started" ? "running" : ev.event_type === "tool.completed" ? "completed" : "failed",
       tool_name: typeof toolName === "string" ? toolName : "tool",

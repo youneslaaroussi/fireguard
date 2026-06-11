@@ -3,6 +3,7 @@ from __future__ import annotations
 from app.agentic.config import AppConfig
 from app.agentic.models import ChatMessage, MessageRole, ModelTier, TokenUsage, ToolDefinition
 from app.agentic.vertex import (
+    _content_from_vertex_dict,
     _openai_tool_calls,
     _request_payload,
     _usage_from_response,
@@ -61,6 +62,7 @@ def test_vertex_request_payload_maps_messages_tools_and_function_responses() -> 
                         "id": "call_1",
                         "type": "function",
                         "function": {"name": "echo_json", "arguments": '{"value": 7}'},
+                        "metadata": {"vertex_thought_signature": "YWJj"},
                     }
                 ],
             ),
@@ -91,11 +93,14 @@ def test_vertex_request_payload_maps_messages_tools_and_function_responses() -> 
 
     assert payload["systemInstruction"]["parts"] == [{"text": "system instructions"}]
     assert payload["contents"][1]["parts"] == [
-        {"functionCall": {"name": "echo_json", "args": {"value": 7}}}
+        {"functionCall": {"name": "echo_json", "args": {"value": 7}}, "thoughtSignature": "YWJj"}
     ]
     assert payload["contents"][2]["parts"] == [
         {"functionResponse": {"name": "echo_json", "response": {"ok": True}}}
     ]
+    content = _content_from_vertex_dict(payload["contents"][1])
+    assert content.parts is not None
+    assert content.parts[0].thought_signature == b"abc"
     declaration = payload["tools"][0]["functionDeclarations"][0]
     assert declaration["name"] == "echo_json"
     assert declaration["parameters"]["type"] == "OBJECT"
@@ -135,14 +140,13 @@ def test_vertex_response_helpers_map_usage_and_tool_calls() -> None:
         ModelTier.light,
         "agent:chat_agent",
     )
-    calls = _openai_tool_calls([{"name": "echo_json", "args": {"value": 7}}])
+    calls = _openai_tool_calls([{"name": "echo_json", "args": {"value": 7}, "thought_signature": "YWJj"}])
 
     assert isinstance(usage, TokenUsage)
     assert usage.total_tokens == 5
-    assert calls == [
-        {
-            "id": "call_vertex_0",
-            "type": "function",
-            "function": {"name": "echo_json", "arguments": '{"value": 7}'},
-        }
-    ]
+    assert calls is not None
+    assert len(calls) == 1
+    assert calls[0]["id"].startswith("call_vertex_0_")
+    assert calls[0]["type"] == "function"
+    assert calls[0]["function"] == {"name": "echo_json", "arguments": '{"value": 7}'}
+    assert calls[0]["metadata"] == {"vertex_thought_signature": "YWJj"}

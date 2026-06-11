@@ -1,4 +1,4 @@
-import { Card, Checkbox, FormGroup, HTMLSelect, InputGroup, Slider } from "@blueprintjs/core";
+import { Card, Checkbox, FormGroup, InputGroup, Slider } from "@blueprintjs/core";
 import type { ReplayRequest } from "../types";
 import { sources } from "./state";
 
@@ -30,14 +30,6 @@ export function Controls({ value, onChange }: Props) {
         </FormGroup>
         <FormGroup label={`Speed: 1s = ${value.speed.toLocaleString()}s`}>
           <Slider min={60} max={86400} stepSize={60} labelStepSize={21600} value={value.speed} onChange={(n) => patch({ speed: n })} />
-        </FormGroup>
-        <FormGroup label="Event limit">
-          <HTMLSelect fill value={value.limit} onChange={(e) => patch({ limit: Number(e.currentTarget.value) })}>
-            <option value={1000}>1,000</option>
-            <option value={5000}>5,000</option>
-            <option value={10000}>10,000</option>
-            <option value={25000}>25,000</option>
-          </HTMLSelect>
         </FormGroup>
         <FormGroup label="Sources">
           {sources.map((source) => (

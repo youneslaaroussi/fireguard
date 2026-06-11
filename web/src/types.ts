@@ -6,7 +6,6 @@ export type ReplayRequest = {
   end_date: string;
   sources: string[];
   speed: number;
-  limit: number;
 };
 
 export type FireEvent = {

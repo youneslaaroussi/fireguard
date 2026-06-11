@@ -69,8 +69,8 @@ EVACUATION_RESEARCH_SYSTEM_PROMPT = (
     "shelter (type=shelter_open or shelter_closed), any blockages (type=blockage), and the "
     "recommended alternate if the primary is blocked (type=alternate). Include all evaluated "
     "routes with status=safe/blocked. Write a 1-2 sentence message summarizing the decision.\n\n"
-    "Then call complete_workflow_node with a 'research_notes' field. Do NOT repeat any tool call. "
-    "Your research notes must cover: affected zone (name, population, homes), shelter availability "
+    "Then call complete_workflow_node with a 'message' field for the user. Do NOT repeat any tool call. "
+    "Your message must cover: affected zone (name, population, homes), shelter availability "
     "(list each facility name, community, OPEN/CLOSED, distance from zone), best evacuation route "
     "(origin → shelter name, distance km, duration minutes, SAFE/UNSAFE), road closures with reason, "
     "and the single recommended evacuation action with specific shelter name and route."
@@ -178,71 +178,25 @@ def built_in_workflow(workflow_id: str) -> WorkflowDefinition:
 def built_in_evacuation_workflow() -> WorkflowDefinition:
     research = AgentDefinition(
         agent_id="evacuation_research",
-        name="Evacuation Research Agent",
+        name="Evacuation Analysis",
         model_tier=ModelTier.pro,
         tool_names=EVACUATION_TOOLS,
         system_prompt=EVACUATION_RESEARCH_SYSTEM_PROMPT,
         max_turns=20,
     )
-    writer = AgentDefinition(
-        agent_id="evacuation_writer",
-        name="Evacuation Writer Agent",
-        model_tier=ModelTier.pro,
-        tool_names=["emit_message", "complete_workflow_node"],
-        system_prompt=(
-            "You are the FireGuard evacuation writer. Turn the research notes into a concise "
-            "operational evacuation brief. Structure:\n"
-            "## Threat Detection\n"
-            "One sentence: what fired, where, FRP, time.\n"
-            "## Affected Zone\n"
-            "Zone name, population, homes, distance to hotspot.\n"
-            "## Shelter Status\n"
-            "Table or short list: facility name, community, status (OPEN/CLOSED), distance from zone.\n"
-            "## Recommended Evacuation Route\n"
-            "Origin → Destination. Distance, estimated drive time, route safety (SAFE/UNSAFE + reason).\n"
-            "## Blocked Routes\n"
-            "Any routes evaluated and rejected, with reason.\n"
-            "## Recommended Action\n"
-            "One clear sentence: what the incident commander should do right now.\n\n"
-            "STRICT RULES: No preamble. No conclusion. No next-step offers. Start immediately with "
-            "## Threat Detection. End after ## Recommended Action."
-        ),
-    )
-    style = AgentDefinition(
-        agent_id="evacuation_style",
-        name="Evacuation Style Agent",
-        model_tier=ModelTier.pro,
-        tool_names=["emit_message", "complete_workflow_node"],
-        system_prompt=(
-            "You are the FireGuard style agent. Apply minimal polish to this evacuation brief: "
-            "clean up formatting, ensure the table is readable, add a :::callout block around "
-            "## Recommended Action. Do NOT change any facts, distances, times, or names. "
-            "Output the complete revised markdown. No preamble."
-        ),
-    )
     return WorkflowDefinition(
         workflow_id="fireguard_evacuation",
         name="FireGuard Evacuation Analysis",
         start_node_id="human_trigger",
-        agents=[research, writer, style],
+        agents=[research],
         nodes=[
             WorkflowNode(node_id="human_trigger", label="Human Trigger", config=HumanTriggerNode()),
             WorkflowNode(
                 node_id="research_agent",
-                label="Research Agent",
+                label="Data Checks",
                 config=AgentNode(agent_id="evacuation_research"),
             ),
-            WorkflowNode(
-                node_id="writer_agent",
-                label="Writer Agent",
-                config=AgentNode(agent_id="evacuation_writer"),
-            ),
-            WorkflowNode(
-                node_id="style_agent",
-                label="Style Agent",
-                config=AgentNode(agent_id="evacuation_style"),
-            ),
-            WorkflowNode(node_id="terminal", label="Terminal", config=TerminalNode()),
+            WorkflowNode(node_id="terminal", label="Response", config=TerminalNode()),
         ],
         edges=[
             NodeEdge(
@@ -251,18 +205,8 @@ def built_in_evacuation_workflow() -> WorkflowDefinition:
                 to_node_id="research_agent",
             ),
             NodeEdge(
-                edge_id="e_research_writer",
+                edge_id="e_research_terminal",
                 from_node_id="research_agent",
-                to_node_id="writer_agent",
-            ),
-            NodeEdge(
-                edge_id="e_writer_style",
-                from_node_id="writer_agent",
-                to_node_id="style_agent",
-            ),
-            NodeEdge(
-                edge_id="e_style_terminal",
-                from_node_id="style_agent",
                 to_node_id="terminal",
             ),
         ],

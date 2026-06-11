@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getConfig, getStats, replay } from "../api";
 import type { BcwsContext, FireEvent, ReplayRequest, Stats, ThreatPayload } from "../types";
+import type { MapAnnotation } from "../intelligence/types";
 import { AgenticIntelligenceApp } from "../intelligence/App";
 import { AgentOrb } from "./AgentOrb";
 import { EventStream } from "./EventStream";
@@ -16,8 +17,7 @@ const initial: ReplayRequest = {
   start_date: "2024-07-17",
   end_date: "2024-07-25",
   sources,
-  speed: 14400,
-  limit: 5000
+  speed: 43200
 };
 
 const emptyContext: BcwsContext = {
@@ -47,7 +47,6 @@ function BrandMark() {
 }
 
 export function App() {
-  const [view, setView] = useState<"replay" | "intelligence">("replay");
   const [request, setRequest] = useState<ReplayRequest>(initial);
   const [events, setEvents] = useState<FireEvent[]>([]);
   const [context, setContext] = useState<BcwsContext>(emptyContext);
@@ -59,6 +58,8 @@ export function App() {
   const [status, setStatus] = useState("Idle");
   const [threatAlert, setThreatAlert] = useState<ThreatPayload | null>(null);
   const [intelligencePrompt, setIntelligencePrompt] = useState<string | null>(null);
+  const [agentOverlayOpen, setAgentOverlayOpen] = useState(false);
+  const [mapAnnotation, setMapAnnotation] = useState<MapAnnotation | null>(null);
   const sessionContext = buildSessionContext(request, status, busy, events, context, stats, threatAlert);
 
   useEffect(() => {
@@ -73,6 +74,8 @@ export function App() {
     setContext(emptyContext);
     setThreatAlert(null);
     setIntelligencePrompt(null);
+    setAgentOverlayOpen(false);
+    setMapAnnotation(null);
     setReplayProgress(0);
     setStatus("Starting");
     try {
@@ -103,7 +106,7 @@ export function App() {
           const payload = { hotspot: message.hotspot, zone: message.zone };
           setThreatAlert(payload);
           setIntelligencePrompt(buildEvacuationPrompt(payload, request));
-          setView("intelligence");
+          setAgentOverlayOpen(true);
         } else if (message.type === "done") {
           setReplayProgress(1);
           setStatus(`Complete · ${message.events.toLocaleString()} detections`);
@@ -119,84 +122,80 @@ export function App() {
   }
 
   return (
-    <div className={view === "replay" ? "shell--replay" : "shell--intelligence"}>
-      {view === "replay" ? (
-        <>
-          <MapPanel
-            token={mapboxToken}
-            events={events}
-            context={context}
-            lat={request.latitude}
-            lon={request.longitude}
-            radiusKm={request.radius_km}
-            onAreaChange={(lat, lon, radiusKm) =>
-              setRequest((r) => ({ ...r, latitude: lat, longitude: lon, radius_km: Math.round(radiusKm) }))
-            }
-          />
+    <div className="shell--replay">
+      <MapPanel
+        token={mapboxToken}
+        events={events}
+        context={context}
+        lat={request.latitude}
+        lon={request.longitude}
+        radiusKm={request.radius_km}
+        annotation={mapAnnotation}
+        threat={threatAlert}
+        onAreaChange={(lat, lon, radiusKm) =>
+          setRequest((r) => ({ ...r, latitude: lat, longitude: lon, radius_km: Math.round(radiusKm) }))
+        }
+      />
 
-          <header className="appHeader">
-            <div className="headerRow">
-              <BrandMark />
-              <div className="headerSep" />
-              <StatsStrip value={stats} />
-              <div className="headerFill" />
-              {threatAlert !== null && (
-                <div className="threatChip">
-                  <span className="threatDot" />
-                  {threatAlert.zone.name}
-                </div>
-              )}
-              <div className={`acqChip${busy ? " acqChip--on" : ""}`}>
-                <span className="acqDot" />
-                {busy ? "ACQUIRING" : "IDLE"}
-              </div>
-            </div>
-
-            <Timeline
-              start={request.start_date}
-              end={request.end_date}
-              progress={replayProgress}
-              status={status}
-              busy={busy}
-              onReplay={() => void startReplay()}
-            />
-
-            {error && (
-              <div className="errorBar">
-                <span className="errorLabel">ERR</span>
-                <span className="errorMsg">{error}</span>
-                <button className="errorClose" onClick={() => setError(null)}>✕</button>
-              </div>
-            )}
-          </header>
-
-          <EventStream events={events} />
-          <AgentOrb sessionContext={sessionContext} />
-        </>
-      ) : (
-        <>
-          <header className="appHeader appHeader--minimal">
-            <div className="headerRow">
-              <BrandMark />
-              <div className="headerSep" />
-              <button className="navChip" onClick={() => setView("replay")}>← REPLAY MAP</button>
-              <div className="headerFill" />
-              {threatAlert !== null && (
-                <div className="threatChip">
-                  <span className="threatDot" />
-                  THREAT · {threatAlert.zone.name}
-                </div>
+      <header className="appHeader">
+        <div className="headerRow">
+          <BrandMark />
+          <div className="headerSep" />
+          <StatsStrip value={stats} />
+          <div className="headerFill" />
+          {threatAlert !== null && (
+            <div className="threatChip">
+              <span className="threatDot" />
+              {threatAlert.zone.name}
+              {intelligencePrompt !== null && (
+                <button
+                  className="threatViewBtn"
+                  type="button"
+                  onClick={() => setAgentOverlayOpen(true)}
+                >
+                  OPEN
+                </button>
               )}
             </div>
-          </header>
+          )}
+          <div className={`acqChip${busy ? " acqChip--on" : ""}`}>
+            <span className="acqDot" />
+            {busy ? "ACQUIRING" : "IDLE"}
+          </div>
+        </div>
+
+        <Timeline
+          start={request.start_date}
+          end={request.end_date}
+          progress={replayProgress}
+          status={status}
+          busy={busy}
+          onReplay={() => void startReplay()}
+        />
+
+        {error && (
+          <div className="errorBar">
+            <span className="errorLabel">ERR</span>
+            <span className="errorMsg">{error}</span>
+            <button className="errorClose" onClick={() => setError(null)}>✕</button>
+          </div>
+        )}
+      </header>
+
+      <EventStream events={events} />
+      {!agentOverlayOpen && <AgentOrb sessionContext={sessionContext} />}
+      {agentOverlayOpen && intelligencePrompt !== null && (
+        <div className="agentOverlay" role="dialog" aria-label="FireGuard agent">
           <AgenticIntelligenceApp
             autoPrompt={intelligencePrompt}
             workflowId="fireguard_evacuation"
             sessionContext={sessionContext}
             threat={threatAlert}
-            mapboxToken={mapboxToken}
+            mode="overlay"
+            onClose={() => setAgentOverlayOpen(false)}
+            onAnnotation={(ann) => setMapAnnotation(ann)}
           />
-        </>
+        </div>
       )}
     </div>
   );
@@ -241,7 +240,6 @@ function buildSessionContext(
       end_date: request.end_date,
       sources: request.sources,
       speed: request.speed,
-      limit: request.limit,
       status,
       phase: busy ? "acquiring_or_replaying" : "idle",
       streamed_event_count: events.length,

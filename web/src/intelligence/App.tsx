@@ -1,13 +1,8 @@
-import { Button, Dialog, Intent, SegmentedControl, Tab, Tabs, Tag } from "@blueprintjs/core";
+import { Button, Dialog, Intent, Tag } from "@blueprintjs/core";
 import Editor from "@monaco-editor/react";
-import { isValidElement, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import rehypeKatex from "rehype-katex";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkDirective from "remark-directive";
 import remarkGfm from "remark-gfm";
-import remarkMath from "remark-math";
-import "katex/dist/katex.min.css";
-import { MapAnnotationPanel } from "./MapAnnotationPanel";
 import type { MapAnnotation } from "./types";
 import {
   createSession,
@@ -49,405 +44,6 @@ const TEXT_ATTACHMENT_TYPES = new Set([
   "text/plain",
 ]);
 
-type WorkspaceTabId = "graph" | "map" | "deliverable" | "report";
-type ReportStyleId = "risk" | "atlas" | "technical" | "brief";
-
-const REPORT_STYLE_OPTIONS = [
-  { label: "Risk", value: "risk" },
-  { label: "Map", value: "atlas" },
-  { label: "Technical", value: "technical" },
-  { label: "Brief", value: "brief" },
-];
-
-interface ReportHeading {
-  depth: number;
-  number: string | null;
-  title: string;
-}
-
-interface ReportParts {
-  title: string;
-  subtitle: string | null;
-  bodyMarkdown: string;
-  headings: ReportHeading[];
-}
-
-interface ReportBodyPage {
-  id: string;
-  markdown: string;
-}
-
-const REPORT_BODY_PAGE_TARGET_UNITS = 86;
-const REPORT_MAJOR_SECTION_BREAK_UNITS = 42;
-
-function remarkReportDirectives() {
-  return (tree: unknown) => {
-    function walk(node: unknown) {
-      if (node === null || typeof node !== "object") return;
-      const current = node as Record<string, unknown>;
-      if (current.type === "containerDirective" || current.type === "leafDirective") {
-        const data = (current.data ?? (current.data = {})) as Record<string, unknown>;
-        data.hName = "div";
-        data.hProperties = {
-          className: `report-directive report-directive-${String(current.name)}`,
-        };
-      }
-      if (Array.isArray(current.children)) {
-        for (const child of current.children) walk(child);
-      }
-    }
-    walk(tree);
-  };
-}
-
-function normalizeMathMarkdown(markdown: string): string {
-  return markdown
-    .replace(/\\\[([\s\S]*?)\\\]/g, (_, math: string) => `\n\n$$\n${math.trim()}\n$$\n\n`)
-    .replace(/\\\(([\s\S]*?)\\\)/g, (_, math: string) => `$${math.trim()}$`)
-    .replace(/^\s*\[\s*(.*\\[A-Za-z][^\n]*)\s*\]\s*$/gm, (_, math: string) => `\n\n$$\n${math.trim()}\n$$\n\n`)
-    .replace(/\(\s*([^()\n]*\\[A-Za-z][^()\n]*)\s*\)/g, (_, math: string) => `$${math.trim()}$`)
-    .replace(/\[\s*([^\]\n]*\\[A-Za-z][^\]\n]*)\s*\]/g, (_, math: string) => `$${math.trim()}$`);
-}
-
-function stripMarkdownHeading(line: string): string {
-  return line
-    .replace(/^#{1,6}\s+/, "")
-    .replace(/\*\*/g, "")
-    .replace(/__/g, "")
-    .trim();
-}
-
-function splitNumberedHeading(text: string): { number: string; title: string } | null {
-  const match = text.trim().match(/^(\d+(?:\.\d+)*)(?:[.)])?\s+(.+)$/);
-  if (match === null) return null;
-  return { number: match[1], title: match[2].trim() };
-}
-
-function isPlainSectionHeading(line: string): boolean {
-  const trimmed = line.trim();
-  if (trimmed.length < 4 || trimmed.length > 82) return false;
-  if (!/[A-Za-z]/.test(trimmed)) return false;
-  if (/^[#>*\-+`|]/.test(trimmed)) return false;
-  if (/[.!?:;,]$/.test(trimmed)) return false;
-  if (/^\d/.test(trimmed)) return false;
-  const words = trimmed.split(/\s+/);
-  if (words.length > 8) return false;
-  return words.some((word) => /^[A-Z0-9]/.test(word));
-}
-
-function normalizeReportStructure(markdown: string): string {
-  const lines = normalizeMathMarkdown(markdown).split("\n");
-  let insideFence = false;
-  return lines
-    .map((line) => {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("```")) {
-        insideFence = !insideFence;
-        return line;
-      }
-      if (insideFence || trimmed.length === 0 || /^#{1,6}\s+/.test(trimmed)) {
-        return line;
-      }
-      const numbered = splitNumberedHeading(trimmed);
-      if (numbered !== null) {
-        const level = numbered.number.includes(".") ? "###" : "##";
-        return `${level} ${numbered.number} ${numbered.title}`;
-      }
-      if (isPlainSectionHeading(trimmed)) {
-        return `## ${trimmed}`;
-      }
-      return line;
-    })
-    .join("\n");
-}
-
-function extractReportParts(markdown: string, language: "markdown" | "json"): ReportParts {
-  if (language === "json") {
-    return {
-      title: "Structured FireGuard Output",
-      subtitle: "JSON fallback",
-      bodyMarkdown: `\`\`\`json\n${markdown}\n\`\`\``,
-      headings: [],
-    };
-  }
-
-  const normalized = normalizeReportStructure(markdown.trim());
-  const lines = normalized.split("\n");
-  let firstContentIndex = lines.findIndex((line) => line.trim().length > 0);
-  if (firstContentIndex === -1) {
-    return { title: "FireGuard Intelligence", subtitle: null, bodyMarkdown: "", headings: [] };
-  }
-
-  const firstLine = lines[firstContentIndex].trim();
-  const title = stripMarkdownHeading(firstLine).length > 0 ? stripMarkdownHeading(firstLine) : "FireGuard Intelligence";
-  lines.splice(firstContentIndex, 1);
-
-  firstContentIndex = lines.findIndex((line) => line.trim().length > 0);
-  const subtitleCandidate = firstContentIndex === -1 ? "" : stripMarkdownHeading(lines[firstContentIndex]);
-  const subtitle =
-    subtitleCandidate.length > 0 &&
-    subtitleCandidate.length < 80 &&
-    subtitleCandidate === subtitleCandidate.toUpperCase()
-      ? subtitleCandidate
-      : null;
-  if (subtitle !== null && firstContentIndex !== -1) {
-    lines.splice(firstContentIndex, 1);
-  }
-
-  const bodyMarkdown = lines.join("\n").trim();
-  const headings = bodyMarkdown
-    .split("\n")
-    .flatMap((line): ReportHeading[] => {
-      const match = line.match(/^(#{1,3})\s+(.+)$/);
-      if (match === null) return [];
-      const text = stripMarkdownHeading(match[2]);
-      const numbered = splitNumberedHeading(text);
-      return [
-        {
-          depth: match[1].length,
-          number: numbered?.number ?? null,
-          title: numbered?.title ?? text,
-        },
-      ];
-    })
-    .slice(0, 12);
-
-  return { title, subtitle, bodyMarkdown, headings };
-}
-
-function splitMarkdownBlocks(markdown: string): string[] {
-  const blocks: string[] = [];
-  const current: string[] = [];
-  let insideFence = false;
-  let insideContainerDirective = false;
-
-  function flush() {
-    const block = current.join("\n").trim();
-    if (block.length > 0) {
-      blocks.push(block);
-    }
-    current.length = 0;
-  }
-
-  for (const line of markdown.split("\n")) {
-    const trimmed = line.trim();
-
-    if (/^(```|~~~)/.test(trimmed)) {
-      current.push(line);
-      insideFence = !insideFence;
-      continue;
-    }
-
-    if (!insideFence && /^::pagebreak\s*$/.test(trimmed)) {
-      flush();
-      blocks.push(trimmed);
-      continue;
-    }
-
-    if (!insideFence && /^:::[A-Za-z][\w-]*(?:\s+.*)?$/.test(trimmed)) {
-      flush();
-      current.push(line);
-      insideContainerDirective = true;
-      continue;
-    }
-
-    if (!insideFence && insideContainerDirective) {
-      current.push(line);
-      if (trimmed === ":::") {
-        insideContainerDirective = false;
-        flush();
-      }
-      continue;
-    }
-
-    if (!insideFence && trimmed.length === 0) {
-      flush();
-      continue;
-    }
-
-    current.push(line);
-  }
-
-  flush();
-  return blocks;
-}
-
-function extractPageBreakRemainder(block: string): string | null {
-  const trimmed = block.trim();
-  if (/^::pagebreak\s*$/.test(trimmed)) return "";
-
-  const lines = block.split("\n");
-  if (!/^:::pagebreak\s*$/.test(lines[0]?.trim() ?? "")) return null;
-
-  const remainderLines = lines.slice(1);
-  if (remainderLines.at(-1)?.trim() === ":::") {
-    remainderLines.pop();
-  }
-  return remainderLines.join("\n").trim();
-}
-
-function plainMarkdownText(markdown: string): string {
-  return markdown
-    .replace(/^#{1,6}\s+/gm, "")
-    .replace(/^>\s?/gm, "")
-    .replace(/^\s*(?:[-*+]|\d+[.)])\s+/gm, "")
-    .replace(/[*_`~[\]()|:]/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function estimateMarkdownBlockUnits(block: string): number {
-  const trimmed = block.trim();
-  if (trimmed.length === 0) return 0;
-
-  if (/^!\[.*?\]\(.*?\)\s*$/.test(trimmed)) return 40;
-
-  if (/^#\s+/.test(trimmed)) return 16;
-  if (/^##\s+/.test(trimmed)) return 10;
-  if (/^###\s+/.test(trimmed)) return 7;
-  if (/^####\s+/.test(trimmed)) return 5;
-
-  const lines = trimmed.split("\n");
-  const text = plainMarkdownText(trimmed);
-  const textUnits = Math.max(1, Math.ceil(text.length / 92));
-
-  if (/^(```|~~~)/.test(trimmed)) {
-    return Math.min(30, 4 + lines.length * 1.2);
-  }
-
-  if (/^:::(callout|summary)\b/.test(trimmed)) {
-    return 5 + textUnits * 1.7;
-  }
-
-  if (/^:::full-width\b/.test(trimmed)) {
-    return 4 + Math.max(lines.length * 1.2, textUnits * 1.5);
-  }
-
-  const tableRows = lines.filter((line) => /^\s*\|.+\|\s*$/.test(line)).length;
-  if (tableRows >= 2) {
-    return 5 + tableRows * 2.1;
-  }
-
-  const listItems = lines.filter((line) => /^\s*(?:[-*+]|\d+[.)])\s+/.test(line)).length;
-  if (listItems > 0) {
-    return 2 + listItems * 1.35 + textUnits * 1.2;
-  }
-
-  if (/^>/.test(trimmed)) {
-    return 6 + textUnits * 2;
-  }
-
-  return Math.max(2, textUnits * 1.6 + lines.length * 0.55);
-}
-
-function isMajorMarkdownHeading(block: string): boolean {
-  return /^#{1,2}\s+/.test(block.trim());
-}
-
-function paginateReportMarkdown(markdown: string): ReportBodyPage[] {
-  const blocks = splitMarkdownBlocks(markdown);
-  const pages: string[] = [];
-  const current: string[] = [];
-  let currentUnits = 0;
-
-  function flush() {
-    const page = current.join("\n\n").trim();
-    if (page.length > 0) {
-      pages.push(page);
-    }
-    current.length = 0;
-    currentUnits = 0;
-  }
-
-  function addBlock(block: string, nextBlock: string | null) {
-    const units = estimateMarkdownBlockUnits(block);
-    const nextUnits = nextBlock !== null ? Math.min(estimateMarkdownBlockUnits(nextBlock), 12) : 0;
-    const isImage = /^!\[.*?\]\(.*?\)\s*$/.test(block.trim());
-    const shouldBreak =
-      current.length > 0 &&
-      (currentUnits + units + nextUnits > REPORT_BODY_PAGE_TARGET_UNITS ||
-        (isMajorMarkdownHeading(block) && currentUnits > REPORT_MAJOR_SECTION_BREAK_UNITS) ||
-        (isImage && currentUnits > 20));
-
-    if (shouldBreak) {
-      flush();
-    }
-
-    current.push(block.trim());
-    currentUnits += units;
-  }
-
-  blocks.forEach((block, index) => {
-    const pageBreakRemainder = extractPageBreakRemainder(block);
-    if (pageBreakRemainder !== null) {
-      flush();
-      if (pageBreakRemainder.length > 0) {
-        addBlock(pageBreakRemainder, blocks[index + 1] ?? null);
-      }
-      return;
-    }
-
-    addBlock(block, blocks[index + 1] ?? null);
-  });
-
-  flush();
-
-  return pages.map((page, index) => ({
-    id: `body-page-${index + 1}`,
-    markdown: page,
-  }));
-}
-
-function reactNodeText(node: ReactNode): string {
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (Array.isArray(node)) return node.map(reactNodeText).join("");
-  if (isValidElement<{ children?: ReactNode }>(node)) return reactNodeText(node.props.children);
-  return "";
-}
-
-function ReportMarkdown({ markdown }: { markdown: string }) {
-  return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm, remarkMath, remarkDirective, remarkReportDirectives]}
-      rehypePlugins={[[rehypeKatex, { strict: false, throwOnError: false }]]}
-      components={{
-        h1({ children }) {
-          const text = reactNodeText(children);
-          const numbered = splitNumberedHeading(text);
-          return (
-            <h1 className="report-section-heading">
-              {numbered !== null && <span className="report-section-number">{numbered.number}</span>}
-              <span>{numbered?.title ?? children}</span>
-            </h1>
-          );
-        },
-        h2({ children }) {
-          const text = reactNodeText(children);
-          const numbered = splitNumberedHeading(text);
-          return (
-            <h2 className={numbered !== null ? "report-chapter-heading numbered" : "report-chapter-heading"}>
-              {numbered !== null && <span>{numbered.number}</span>}
-              <strong>{numbered?.title ?? children}</strong>
-            </h2>
-          );
-        },
-        h3({ children }) {
-          const text = reactNodeText(children);
-          const numbered = splitNumberedHeading(text);
-          return (
-            <h3 className={numbered !== null ? "report-minor-heading numbered" : "report-minor-heading"}>
-              {numbered !== null && <span>{numbered.number}</span>}
-              <strong>{numbered?.title ?? children}</strong>
-            </h3>
-          );
-        },
-      }}
-    >
-      {markdown}
-    </ReactMarkdown>
-  );
-}
-
 function statusIntent(status: string): Intent {
   if (status === "completed") return Intent.SUCCESS;
   if (status === "failed" || status === "rejected") return Intent.DANGER;
@@ -486,12 +82,13 @@ function isActivityEvent(event: StreamEvent): boolean {
   );
 }
 
-function agentLabel(agentId: string | null | undefined): string {
-  if (agentId === "chat_agent") return "Chat Agent";
-  if (agentId === "research_agent") return "Research Agent";
-  if (agentId === "writer_agent") return "Writer Agent";
-  if (agentId === "style_agent") return "Style Agent";
-  return agentId ?? "Agent";
+function agentLabel(agentId: string | null | undefined, nodeId: string | null | undefined): string {
+  const id = agentId ?? nodeId;
+  if (id === "chat_agent") return "Request Router";
+  if (id === "research_agent" || id === "evacuation_research") return "Data Checks";
+  if (id === "writer_agent" || id === "evacuation_writer") return "Evacuation Brief";
+  if (id === "style_agent" || id === "evacuation_style") return "Brief Formatter";
+  return id ?? "Agent";
 }
 
 function toolTitle(annotation: ChatAnnotation): string {
@@ -585,7 +182,9 @@ type AgenticIntelligenceAppProps = {
   workflowId?: string;
   sessionContext?: Record<string, unknown> | null;
   threat?: unknown;
-  mapboxToken?: string;
+  mode?: "full" | "overlay";
+  onClose?: () => void;
+  onAnnotation?: (annotation: MapAnnotation) => void;
 };
 
 export function AgenticIntelligenceApp({
@@ -593,13 +192,14 @@ export function AgenticIntelligenceApp({
   workflowId = "fireguard_intelligence",
   sessionContext = null,
   threat = null,
-  mapboxToken = "",
+  mode = "full",
+  onClose,
+  onAnnotation,
 }: AgenticIntelligenceAppProps) {
   const [busy, setBusy] = useState(false);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [currentSession, setCurrentSession] = useState<SessionRecord | null>(null);
   const [run, setRun] = useState<WorkflowRun | null>(null);
-  const [deliverableRun, setDeliverableRun] = useState<WorkflowRun | null>(null);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [nodeDetail, setNodeDetail] = useState<NodeDetail | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -607,10 +207,6 @@ export function AgenticIntelligenceApp({
   const [selectedEdgePayload, setSelectedEdgePayload] = useState<EdgePayload | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [approvalBusy, setApprovalBusy] = useState(false);
-  const [activeTabId, setActiveTabId] = useState<WorkspaceTabId>("graph");
-  const [mapAnnotation, setMapAnnotation] = useState<MapAnnotation | null>(null);
-  const [reportStyleId, setReportStyleId] = useState<ReportStyleId>("risk");
-  const [rightTabId, setRightTabId] = useState<"chat" | "activity">("chat");
   const [chatInput, setChatInput] = useState("");
   const [chatAttachments, setChatAttachments] = useState<ChatAttachment[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -622,6 +218,9 @@ export function AgenticIntelligenceApp({
   const modalOpenRef = useRef(false);
   const detailRefreshTimerRef = useRef<number | null>(null);
   const lastAutoPromptRef = useRef<string | null>(null);
+  const onAnnotationRef = useRef(onAnnotation);
+
+  useEffect(() => { onAnnotationRef.current = onAnnotation; }, [onAnnotation]);
 
   useEffect(() => {
     selectedNodeIdRef.current = selectedNodeId;
@@ -664,63 +263,6 @@ export function AgenticIntelligenceApp({
       2,
     );
   }, [nodeDetail]);
-
-  useEffect(() => {
-    if (run === null) {
-      setDeliverableRun(null);
-      return;
-    }
-    const hasDeliverable =
-      run.node_states.style_agent?.status === "completed" ||
-      run.node_states.writer_agent?.status === "completed";
-    if (hasDeliverable) {
-      setDeliverableRun(run);
-      return;
-    }
-    setDeliverableRun((current) => (current?.session_id === run.session_id ? current : null));
-  }, [run]);
-
-  const finalDeliverable = useMemo(() => {
-    const styleState = deliverableRun?.node_states.style_agent;
-    const stylePayload = styleState?.output_payload;
-    if (styleState?.status === "completed" && stylePayload !== null && stylePayload !== undefined) {
-      const styledMessage = stylePayload.message;
-      if (typeof styledMessage === "string" && styledMessage.trim().length > 0) {
-        return styledMessage;
-      }
-      return JSON.stringify(stylePayload, null, 2);
-    }
-    const writerState = deliverableRun?.node_states.writer_agent;
-    const payload = writerState?.output_payload;
-    if (writerState?.status !== "completed" || payload === null || payload === undefined) {
-      return "Writer result is not available yet.";
-    }
-    const message = payload.message;
-    if (typeof message === "string" && message.trim().length > 0) {
-      return message;
-    }
-    return JSON.stringify(payload, null, 2);
-  }, [deliverableRun]);
-
-  const finalDeliverableLanguage = useMemo(() => {
-    const styleState = deliverableRun?.node_states.style_agent;
-    const stylePayload = styleState?.output_payload;
-    if (styleState?.status === "completed" && stylePayload !== null && stylePayload !== undefined) {
-      return typeof stylePayload?.message === "string" ? "markdown" : "json";
-    }
-    const writerState = deliverableRun?.node_states.writer_agent;
-    const payload = writerState?.output_payload;
-    return typeof payload?.message === "string" ? "markdown" : "json";
-  }, [deliverableRun]);
-
-  const reportParts = useMemo(
-    () => extractReportParts(finalDeliverable, finalDeliverableLanguage),
-    [finalDeliverable, finalDeliverableLanguage],
-  );
-  const reportBodyPages = useMemo(
-    () => paginateReportMarkdown(reportParts.bodyMarkdown),
-    [reportParts.bodyMarkdown],
-  );
 
   const activityAnnotations = useMemo(
     () =>
@@ -772,10 +314,10 @@ export function AgenticIntelligenceApp({
       ) {
         continue;
       }
-      const edgeId = `edge_${event.agent_id}_to_research_agent`;
+      const edgeId = `edge_research_agent_to_${event.agent_id}`;
       payloads[edgeId] = {
-        from_node_id: event.agent_id,
-        to_node_id: "research_agent",
+        from_node_id: "research_agent",
+        to_node_id: event.agent_id,
         condition: event.event_type,
         payload: event.data,
       };
@@ -802,11 +344,12 @@ export function AgenticIntelligenceApp({
       ) {
         continue;
       }
-      const toolNodeId = `tool_${event.agent_id}_${invocationId}`;
-      const edgeId = `edge_${toolNodeId}_to_${event.agent_id}`;
+      const parentNodeId = event.node_id ?? event.agent_id;
+      const toolNodeId = `tool_${parentNodeId}_${invocationId}`;
+      const edgeId = `edge_${parentNodeId}_to_${toolNodeId}`;
       payloads[edgeId] = {
-        from_node_id: toolNodeId,
-        to_node_id: event.agent_id,
+        from_node_id: parentNodeId,
+        to_node_id: toolNodeId,
         condition: event.event_type,
         payload: event.data,
       };
@@ -890,12 +433,12 @@ export function AgenticIntelligenceApp({
         event.event_type === "subagent.failed" ||
         event.event_type === "fleet.child.completed")
     ) {
-      const edgeId = `edge_${event.agent_id}_to_research_agent`;
+      const edgeId = `edge_research_agent_to_${event.agent_id}`;
       setEdgePayloads((current) => ({
         ...current,
         [edgeId]: {
-          from_node_id: event.agent_id ?? edgeId,
-          to_node_id: "research_agent",
+          from_node_id: "research_agent",
+          to_node_id: event.agent_id ?? edgeId,
           condition: event.event_type,
           payload: event.data,
         },
@@ -911,13 +454,14 @@ export function AgenticIntelligenceApp({
         typeof invocationId === "string" &&
         isGraphTool(toolName)
       ) {
-        const toolNodeId = `tool_${event.agent_id}_${invocationId}`;
-        const edgeId = `edge_${toolNodeId}_to_${event.agent_id}`;
+        const parentNodeId = event.node_id ?? event.agent_id;
+        const toolNodeId = `tool_${parentNodeId}_${invocationId}`;
+        const edgeId = `edge_${parentNodeId}_to_${toolNodeId}`;
         setEdgePayloads((current) => ({
           ...current,
           [edgeId]: {
-            from_node_id: toolNodeId,
-            to_node_id: event.agent_id ?? edgeId,
+            from_node_id: parentNodeId ?? edgeId,
+            to_node_id: toolNodeId,
             condition: event.event_type,
             payload: event.data,
           },
@@ -966,8 +510,7 @@ export function AgenticIntelligenceApp({
       if (toolName === "fireguard_map_annotation" && isObj(output) && output.ok === true) {
         const ann = (output as Record<string, unknown>).annotation;
         if (isObj(ann)) {
-          setMapAnnotation(ann as unknown as MapAnnotation);
-          setActiveTabId("map");
+          onAnnotationRef.current?.(ann as unknown as MapAnnotation);
         }
       }
     }
@@ -1152,7 +695,6 @@ export function AgenticIntelligenceApp({
     setError(null);
     setNodeDetail(null);
     setSelectedNodeId(null);
-    setMapAnnotation(null);
     try {
       sourceRef.current?.close();
       const session =
@@ -1330,311 +872,181 @@ export function AgenticIntelligenceApp({
   }
 
   return (
-    <div className="agenticIntelligence app-shell bp6-dark">
+    <div className={`agenticIntelligence agenticIntelligence--${mode} app-shell bp6-dark`}>
       <header className="topbar">
         <div className="brand">
           <h1>FireGuard Intelligence</h1>
           {run !== null && <Tag intent={statusIntent(run.status)}>{run.status}</Tag>}
         </div>
-        <Button
-          icon="stop"
-          text="Stop"
-          intent={Intent.DANGER}
-          disabled={!isActive(run) || busy}
-          onClick={() => void handleStopRun()}
-        />
+        <div className="topbar-actions">
+          <Button
+            icon="stop"
+            text="Stop"
+            intent={Intent.DANGER}
+            disabled={!isActive(run) || busy}
+            onClick={() => void handleStopRun()}
+          />
+          {mode === "overlay" && onClose !== undefined && (
+            <Button icon="cross" minimal title="Close" onClick={onClose} />
+          )}
+        </div>
       </header>
 
       {error !== null && <div className="error-banner">{error}</div>}
 
-      <aside className="sessions-panel">
-        <div className="sessions-header">
-          <strong>Sessions</strong>
-          <Button small icon="plus" text="New" loading={busy && run === null} onClick={() => void handleNewSession()} />
-        </div>
-        <div className="sessions-list">
-          {sessions.length === 0 ? (
-            <div className="empty-sessions">No sessions yet.</div>
-          ) : (
-            sessions.map((session) => {
-              const active = currentSession?.session_id === session.session_id || run?.session_id === session.session_id;
-              return (
-                <button
-                  key={session.session_id}
-                  className={active ? "session-item active" : "session-item"}
-                  type="button"
-                  disabled={busy}
-                  onClick={() => void handleLoadSession(session)}
-                >
-                  <span className="session-title">{session.title}</span>
-                  <span className="session-meta">
-                    {session.latest_run === null ? "No runs" : `${session.latest_run.status} - ${session.latest_run.run_id.slice(0, 12)}`}
-                  </span>
-                </button>
-              );
-            })
-          )}
-        </div>
-      </aside>
+      {mode === "full" && (
+        <aside className="sessions-panel">
+          <div className="sessions-header">
+            <strong>Sessions</strong>
+            <Button small icon="plus" text="New" loading={busy && run === null} onClick={() => void handleNewSession()} />
+          </div>
+          <div className="sessions-list">
+            {sessions.length === 0 ? (
+              <div className="empty-sessions">No sessions yet.</div>
+            ) : (
+              sessions.map((session) => {
+                const active = currentSession?.session_id === session.session_id || run?.session_id === session.session_id;
+                return (
+                  <button
+                    key={session.session_id}
+                    className={active ? "session-item active" : "session-item"}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void handleLoadSession(session)}
+                  >
+                    <span className="session-title">{session.title}</span>
+                    <span className="session-meta">
+                      {session.latest_run === null ? "No runs" : `${session.latest_run.status} - ${session.latest_run.run_id.slice(0, 12)}`}
+                    </span>
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </aside>
+      )}
 
       <main className="workspace">
-        <Tabs
-          id="workspace-tabs"
-          className="workspace-tabs"
-          selectedTabId={activeTabId}
-          onChange={(nextTabId) => setActiveTabId(nextTabId as WorkspaceTabId)}
-        >
-          <Tab
-            id="graph"
-            title="Graph"
-            panel={
-              <div className="graph-only">
-                <WorkflowGraph
-                  run={run}
-                  selectedNodeId={selectedNodeId}
-                  edgePayloads={edgePayloads}
-                  events={runEvents}
-                  onSelectNode={(nodeId) => void handleSelectNode(nodeId)}
-                  onSelectEdge={handleSelectEdge}
-                  onRestartFromNode={isActive(run) || busy ? null : (nodeId) => void handleRestartFromNode(nodeId)}
-                />
-              </div>
-            }
+        <div className="graph-only">
+          <WorkflowGraph
+            run={run}
+            selectedNodeId={selectedNodeId}
+            edgePayloads={edgePayloads}
+            events={runEvents}
+            onSelectNode={(nodeId) => void handleSelectNode(nodeId)}
+            onSelectEdge={handleSelectEdge}
+            onRestartFromNode={isActive(run) || busy ? null : (nodeId) => void handleRestartFromNode(nodeId)}
           />
-          <Tab
-            id="map"
-            title={mapAnnotation !== null ? "Map ●" : "Map"}
-            panel={
-              <div className="ann-tab-panel">
-                <MapAnnotationPanel annotation={mapAnnotation} mapboxToken={mapboxToken} />
-              </div>
-            }
-          />
-          <Tab
-            id="deliverable"
-            title="Deliverable"
-            panel={
-              <div className="deliverable-editor">
-                <Editor
-                  language={finalDeliverableLanguage}
-                  theme="vs-dark"
-                  value={finalDeliverable}
-                  options={{
-                    readOnly: true,
-                    minimap: { enabled: false },
-                    wordWrap: "on",
-                    fontSize: 13,
-                    lineHeight: 20,
-                    scrollBeyondLastLine: false,
-                    automaticLayout: true,
-                  }}
-                />
-              </div>
-            }
-          />
-          <Tab
-            id="report"
-            title="Report"
-            panel={
-              <div className="report-preview">
-                <div className="report-style-picker" aria-label="Report style">
-                  <span>Style</span>
-                  <SegmentedControl
-                    intent={Intent.PRIMARY}
-                    options={REPORT_STYLE_OPTIONS}
-                    size="small"
-                    value={reportStyleId}
-                    onValueChange={(value) => setReportStyleId(value as ReportStyleId)}
-                  />
-                </div>
-                <div className={`report-pages report-style-${reportStyleId}`}>
-                  <section className="report-page report-cover-page" aria-label="Report cover">
-                    <div className="report-cover-illustration" aria-hidden="true">
-                      <span />
-                      <span />
-                      <span />
-                    </div>
-                    <div className="report-cover-copy">
-                      <p className="report-kicker">FireGuard Intelligence</p>
-                      <h1>{reportParts.title}</h1>
-                      {reportParts.subtitle !== null && <p className="report-subtitle">{reportParts.subtitle}</p>}
-                    </div>
-                    {reportParts.headings.length > 0 && (
-                      <ol className="report-cover-toc" aria-label="Report contents">
-                        {reportParts.headings.slice(0, 10).map((heading, index) => (
-                          <li key={`${heading.depth}-${heading.number ?? "section"}-${heading.title}`}>
-                            <span>{heading.number ?? String(index + 1)}</span>
-                            <strong>{heading.title}</strong>
-                          </li>
-                        ))}
-                      </ol>
-                    )}
-                    <div className="report-color-strip" aria-hidden="true" />
-                  </section>
-
-                  {reportBodyPages.map((page, index) => {
-                    const pageNumber = index + 2;
-                    return (
-                      <section
-                        key={page.id}
-                        className="report-page report-body-page"
-                        aria-label={`Report page ${pageNumber}`}
-                      >
-                        <header className="report-page-header">
-                          <span>{reportParts.title}</span>
-                          <strong>{String(pageNumber).padStart(2, "0")}</strong>
-                        </header>
-                        <article className="report-body-content">
-                          <ReportMarkdown markdown={page.markdown} />
-                        </article>
-                        <footer className="report-page-footer">
-                          <span>FireGuard Intelligence</span>
-                          <span>Page {pageNumber}</span>
-                        </footer>
-                        <div className="report-color-strip" aria-hidden="true" />
-                      </section>
-                    );
-                  })}
-                </div>
-              </div>
-            }
-          />
-        </Tabs>
+        </div>
       </main>
 
       <aside className="chat-panel">
-        <Tabs
-          id="right-tabs"
-          selectedTabId={rightTabId}
-          onChange={(nextTabId) => setRightTabId(nextTabId as "chat" | "activity")}
-        >
-          <Tab
-            id="chat"
-            title="Chat"
-            panel={
-              <section className="chat-tab">
-                <div className="chat-messages">
-                  {chatMessages.length === 0 ? (
-                    <div className="empty-chat">Ask the chat agent to start an intelligence workflow.</div>
-                  ) : (
-                    chatMessages.map((message) => (
-                      <article key={message.id} className={`chat-message ${message.role}`}>
-                        <div className="message-meta">
-                          <span>{message.role === "user" ? "You" : agentLabel(message.agent_id)}</span>
-                          {message.role === "assistant" && (
-                            <Button
-                              small
-                              minimal
-                              icon="reset"
-                              text="Restart"
-                              disabled={busy || isActive(run)}
-                              onClick={() => void handleRestartFrom(message)}
-                            />
-                          )}
-                        </div>
-                        <div className="message-content">{message.content.length > 0 ? message.content : "..."}</div>
-                        {message.attachments !== undefined && message.attachments.length > 0 && (
-                          <div className="message-attachments">
-                            {message.attachments.map((attachment) => (
-                              <span key={attachment.id} className="attachment-chip readonly">
-                                {attachment.name}
-                                <small>{formatBytes(attachment.size)}</small>
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                        {message.annotations.length > 0 && (
-                          <div className="message-tools">
-                            {message.annotations.map((annotation, index) => (
-                              <ToolCard
-                                key={`${message.id}:${index}`}
-                                annotation={annotation}
-                                disabled={busy || isActive(run)}
-                                onAskSubmit={(content) => void sendChatMessage(content)}
-                              />
-                            ))}
-                          </div>
-                        )}
-                      </article>
-                    ))
-                  )}
-                </div>
-                <div className="chat-input-row">
-                  <input
-                    ref={fileInputRef}
-                    className="file-input"
-                    type="file"
-                    multiple
-                    accept="image/*,.pdf,.txt,.md,.csv,.json,.xml,.yaml,.yml,text/*,application/pdf,application/json"
-                    onChange={(event) => void handleAttachmentFiles(event.target.files)}
-                  />
-                  <Button
-                    icon="upload"
-                    title="Attach files"
-                    disabled={isActive(run) || busy}
-                    onClick={() => fileInputRef.current?.click()}
-                  />
-                  <textarea
-                    value={chatInput}
-                    placeholder="Message the chat agent..."
-                    rows={2}
-                    onChange={(event) => setChatInput(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault();
-                        void handleSendChat();
-                      }
-                    }}
-                  />
-                  <Button
-                    intent={Intent.PRIMARY}
-                    icon="send-message"
-                    disabled={(chatInput.trim().length === 0 && chatAttachments.length === 0) || isActive(run) || busy}
-                    onClick={() => void handleSendChat()}
-                  />
-                </div>
-                {chatAttachments.length > 0 && (
-                  <div className="composer-attachments">
-                    {chatAttachments.map((attachment) => (
-                      <button
-                        key={attachment.id}
-                        className="attachment-chip"
-                        type="button"
-                        onClick={() => removeAttachment(attachment.id)}
-                        title="Remove attachment"
-                      >
-                        {attachment.name}
-                        <small>{formatBytes(attachment.size)}</small>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </section>
-            }
-          />
-          <Tab
-            id="activity"
-            title="Activity"
-            panel={
-              <section className="activity-tab">
-                {activityAnnotations.length === 0 ? (
-                  <div className="empty-chat">No tool or workflow activity yet.</div>
-                ) : (
-                  activityAnnotations
-                    .map((annotation, index) => (
-                      <ToolCard
-                        key={`${annotation.event_id}:activity:${index}`}
-                        annotation={annotation}
-                        expanded
+        <section className="chat-tab">
+          <div className="chat-messages">
+            {chatMessages.length === 0 ? (
+              <div className="empty-chat">Agent output appears here.</div>
+            ) : (
+              chatMessages.map((message) => (
+                <article key={message.id} className={`chat-message ${message.role}`}>
+                  <div className="message-meta">
+                    <span>{message.role === "user" ? "You" : agentLabel(message.agent_id, message.node_id)}</span>
+                    {message.role === "assistant" && (
+                      <Button
+                        small
+                        minimal
+                        icon="reset"
+                        text="Restart"
                         disabled={busy || isActive(run)}
-                        onAskSubmit={(content) => void sendChatMessage(content)}
+                        onClick={() => void handleRestartFrom(message)}
                       />
-                    ))
-                )}
-              </section>
-            }
-          />
-        </Tabs>
+                    )}
+                  </div>
+                  <div className="message-content">
+                    {message.content.length > 0 ? (
+                      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        {message.content}
+                      </ReactMarkdown>
+                    ) : (
+                      "..."
+                    )}
+                  </div>
+                  {message.attachments !== undefined && message.attachments.length > 0 && (
+                    <div className="message-attachments">
+                      {message.attachments.map((attachment) => (
+                        <span key={attachment.id} className="attachment-chip readonly">
+                          {attachment.name}
+                          <small>{formatBytes(attachment.size)}</small>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  {message.annotations.length > 0 && (
+                    <div className="message-tools">
+                      {message.annotations.map((annotation, index) => (
+                        <ToolCard
+                          key={`${message.id}:${index}`}
+                          annotation={annotation}
+                          disabled={busy || isActive(run)}
+                          onAskSubmit={(content) => void sendChatMessage(content)}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </article>
+              ))
+            )}
+          </div>
+          <div className="chat-input-row">
+            <input
+              ref={fileInputRef}
+              className="file-input"
+              type="file"
+              multiple
+              accept="image/*,.pdf,.txt,.md,.csv,.json,.xml,.yaml,.yml,text/*,application/pdf,application/json"
+              onChange={(event) => void handleAttachmentFiles(event.target.files)}
+            />
+            <Button
+              icon="upload"
+              title="Attach files"
+              disabled={isActive(run) || busy}
+              onClick={() => fileInputRef.current?.click()}
+            />
+            <textarea
+              value={chatInput}
+              placeholder="Message FireGuard..."
+              rows={2}
+              onChange={(event) => setChatInput(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey) {
+                  event.preventDefault();
+                  void handleSendChat();
+                }
+              }}
+            />
+            <Button
+              intent={Intent.PRIMARY}
+              icon="send-message"
+              disabled={(chatInput.trim().length === 0 && chatAttachments.length === 0) || isActive(run) || busy}
+              onClick={() => void handleSendChat()}
+            />
+          </div>
+          {chatAttachments.length > 0 && (
+            <div className="composer-attachments">
+              {chatAttachments.map((attachment) => (
+                <button
+                  key={attachment.id}
+                  className="attachment-chip"
+                  type="button"
+                  onClick={() => removeAttachment(attachment.id)}
+                  title="Remove attachment"
+                >
+                  {attachment.name}
+                  <small>{formatBytes(attachment.size)}</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </section>
       </aside>
 
       <Dialog

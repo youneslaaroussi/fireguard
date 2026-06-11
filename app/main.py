@@ -67,7 +67,6 @@ class ReplayRequest(BaseModel):
     end_date: date
     sources: list[str] = Field(default_factory=lambda: list(FIRMS_SOURCES))
     speed: float = Field(default=3600, gt=1)
-    limit: int = Field(default=5000, gt=1, le=50000)
 
 
 def env(name):
@@ -1222,7 +1221,7 @@ def collect_chunk(source, area, start, days, weather_cache, place_cache):
     return indexed, False
 
 
-def query_events(req, start, days, area_bounds, remaining, source=None):
+def query_events(req, start, days, area_bounds, source=None):
     west, south, east, north = area_bounds
     end = start + timedelta(days=days)
     filters = [
@@ -1234,12 +1233,12 @@ def query_events(req, start, days, area_bounds, remaining, source=None):
     else:
         filters.append({"terms": {"source": req.sources}})
     body = {
-        "size": remaining,
+        "size": 1000,
         "sort": [{"acquired_at": "asc"}],
         "query": {
             "bool": {
                 "filter": filters
-            }
+            },
         },
         "_source": [
             "source",
@@ -1255,8 +1254,26 @@ def query_events(req, start, days, area_bounds, remaining, source=None):
             "place",
         ],
     }
-    hits = es("POST", f"/{index_name()}/_search", body)["hits"]["hits"]
-    return [hit["_source"] for hit in hits]
+    scroll_id = None
+    try:
+        response = es("POST", f"/{index_name()}/_search?scroll=1m", body)
+        scroll_id = response.get("_scroll_id")
+        while True:
+            hits = response["hits"]["hits"]
+            if not hits:
+                break
+            for hit in hits:
+                yield hit["_source"]
+            if not scroll_id:
+                break
+            response = es("POST", "/_search/scroll", {"scroll": "1m", "scroll_id": scroll_id})
+            scroll_id = response.get("_scroll_id")
+    finally:
+        if scroll_id:
+            try:
+                es("DELETE", "/_search/scroll", {"scroll_id": [scroll_id]})
+            except Exception:
+                pass
 
 
 def load_zone_centroids():
@@ -1398,25 +1415,26 @@ def replay_lines(req):
             time.sleep(0.1)
 
     replay_days = (req.end_date - req.start_date).days + 1
-    events = query_events(req, req.start_date, replay_days, area_bounds, req.limit)
-    if events:
-        base_at = datetime.fromisoformat(events[0]["acquired_at"])
-        sim_clock = base_at
-        for event in events:
-            event_at = datetime.fromisoformat(event["acquired_at"])
-            wait_seconds = max(0, (event_at - sim_clock).total_seconds() / req.speed)
-            if wait_seconds:
-                time.sleep(wait_seconds)
+    base_at = None
+    sim_clock = None
+    for event in query_events(req, req.start_date, replay_days, area_bounds):
+        event_at = datetime.fromisoformat(event["acquired_at"])
+        if base_at is None:
+            base_at = event_at
             sim_clock = event_at
-            event["replay_second"] = (event_at - base_at).total_seconds() / req.speed
-            attach_bcws(event, bcws_context)
-            if not threat_emitted:
-                threat = threat_for_event(event, zones)
-                if threat is not None:
-                    yield ndjson(threat)
-                    threat_emitted = True
-            emitted += 1
-            yield ndjson({"type": "event", "event": event})
+        wait_seconds = max(0, (event_at - sim_clock).total_seconds() / req.speed)
+        if wait_seconds:
+            time.sleep(wait_seconds)
+        sim_clock = event_at
+        event["replay_second"] = (event_at - base_at).total_seconds() / req.speed
+        attach_bcws(event, bcws_context)
+        if not threat_emitted:
+            threat = threat_for_event(event, zones)
+            if threat is not None:
+                yield ndjson(threat)
+                threat_emitted = True
+        emitted += 1
+        yield ndjson({"type": "event", "event": event})
     yield ndjson({"type": "done", "events": emitted})
 
 

@@ -44,7 +44,9 @@ export const NODE_ORDER = [
   "terminal",
 ];
 
-export const PRIMARY_EDGE_IDS = new Set([
+export const CLICKABLE_EDGE_IDS = new Set([
+  "e_trigger_research",
+  "e_research_terminal",
   "edge_trigger_to_chat",
   "edge_chat_to_research",
   "edge_research_to_writer",
@@ -52,11 +54,14 @@ export const PRIMARY_EDGE_IDS = new Set([
   "edge_style_to_terminal",
 ]);
 
-export const CLICKABLE_EDGE_IDS = new Set([
-  "edge_chat_to_research",
-  "edge_research_to_writer",
-  "edge_writer_to_style",
-]);
+export const DISPLAY_LABELS: Record<string, string> = {
+  human_trigger: "Trigger",
+  chat_agent: "Request Router",
+  research_agent: "Data Checks",
+  writer_agent: "Evacuation Brief",
+  style_agent: "Brief Formatter",
+  terminal: "Response",
+};
 
 export const NODE_ICONS: Record<string, LucideIcon> = {
   human_trigger: UserRound,
@@ -114,10 +119,10 @@ export const STATUS_TEXT: Record<string, string> = {
 
 /** Fixed positions for the primary pipeline column (top-to-bottom) */
 export const PRIMARY_POSITIONS: Record<string, XYPosition> = {
-  human_trigger: { x: 90, y:   20 },
-  chat_agent:    { x: 90, y:  160 },
-  research_agent:{ x: 90, y:  300 },
-  writer_agent:  { x: 90, y:  440 },
-  style_agent:   { x: 90, y:  580 },
-  terminal:      { x: 90, y:  720 },
+  human_trigger: { x: 20, y: 80 },
+  chat_agent:    { x: 230, y: 80 },
+  research_agent:{ x: 440, y: 80 },
+  writer_agent:  { x: 650, y: 80 },
+  style_agent:   { x: 860, y: 80 },
+  terminal:      { x: 1070, y: 80 },
 };

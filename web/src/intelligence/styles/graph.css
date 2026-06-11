@@ -218,6 +218,58 @@
   fill: #1e2d3d;
 }
 
+/* G6 renderer */
+
+.agenticIntelligence .workflow-graph--g6 {
+  background:
+    radial-gradient(circle at 20% 0%, rgba(37, 99, 235, 0.18), transparent 34%),
+    radial-gradient(circle at 82% 18%, rgba(20, 184, 166, 0.13), transparent 28%),
+    #07111d;
+}
+
+.agenticIntelligence .g6-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+.agenticIntelligence .g6-canvas canvas {
+  outline: none;
+}
+
+.agenticIntelligence .g6-hint {
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  z-index: 2;
+  padding: 4px 7px;
+  border: 1px solid rgba(30, 58, 95, 0.76);
+  border-radius: 6px;
+  background: rgba(7, 17, 29, 0.78);
+  color: #64748b;
+  font-size: 10px;
+  line-height: 14px;
+  pointer-events: none;
+}
+
+.agenticIntelligence .g6-count {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 2;
+  padding: 3px 7px;
+  border: 1px solid rgba(30, 58, 95, 0.76);
+  border-radius: 999px;
+  background: rgba(7, 17, 29, 0.78);
+  color: #8fb4d6;
+  font-size: 10px;
+  line-height: 14px;
+  pointer-events: none;
+}
+
+.agenticIntelligence .g6-minimap {
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.34);
+}
+
 /* Platform badge on tool nodes */
 
 .agenticIntelligence .gflow-platform-badge {
