@@ -104,6 +104,13 @@ def data_env_ready():
     )
 
 
+def es_auth_headers():
+    api_key = env("ELASTICSEARCH_API_KEY").strip()
+    if api_key and not api_key.lower().startswith("no-auth"):
+        return {"Authorization": f"ApiKey {api_key}"}
+    return {}
+
+
 def http(method, url, body=None, headers=None, timeout=300):
     req = urllib.request.Request(url, data=body, headers=headers or {}, method=method)
     with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -111,7 +118,7 @@ def http(method, url, body=None, headers=None, timeout=300):
 
 
 def es(method, path, body=None):
-    headers = {"Authorization": f"ApiKey {env('ELASTICSEARCH_API_KEY')}"}
+    headers = es_auth_headers()
     data = None
     if body is not None:
         headers["Content-Type"] = "application/json"
@@ -1173,7 +1180,7 @@ def bulk(docs, target_index=None):
         lines.append(json.dumps(doc, separators=(",", ":")))
     if not lines:
         return 0
-    headers = {"Authorization": f"ApiKey {env('ELASTICSEARCH_API_KEY')}", "Content-Type": "application/x-ndjson"}
+    headers = {**es_auth_headers(), "Content-Type": "application/x-ndjson"}
     raw = http("POST", env("ELASTICSEARCH_URL").rstrip("/") + "/_bulk", ("\n".join(lines) + "\n").encode("utf-8"), headers)
     out = json.loads(raw)
     if out.get("errors"):
@@ -1541,6 +1548,31 @@ def startup():
 @app.get("/api/health")
 def health():
     return {"ok": True}
+
+
+@app.post("/api/admin/seed")
+def admin_seed():
+    if not data_env_ready():
+        return {"error": "ES not configured"}
+    results = {}
+    try:
+        create_indices()
+        results["create_indices"] = "ok"
+    except Exception as exc:
+        results["create_indices"] = str(exc)
+    try:
+        results["zones"] = seed_evacuation_zones()
+    except Exception as exc:
+        results["zones"] = str(exc)
+    try:
+        results["shelters"] = seed_shelters()
+    except Exception as exc:
+        results["shelters"] = str(exc)
+    try:
+        results["road_events"] = seed_road_events()
+    except Exception as exc:
+        results["road_events"] = str(exc)
+    return results
 
 
 @app.get("/api/config")

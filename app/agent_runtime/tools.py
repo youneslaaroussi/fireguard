@@ -1086,6 +1086,11 @@ def _fireguard_index(prefix: str, suffix: str) -> str:
     return f"{prefix.strip()}-{suffix}"
 
 
+def _has_elasticsearch_api_key(api_key: str) -> bool:
+    value = api_key.strip()
+    return bool(value) and not value.lower().startswith("no-auth")
+
+
 async def _elastic_search(
     base_url: str,
     api_key: str,
@@ -1131,23 +1136,38 @@ async def _elastic_mcp_search(
     import shutil
     use_docker = bool(shutil.which("docker"))
     env_vars = {"ES_URL": _mcp_elasticsearch_url(base_url)}
-    if len(api_key.strip()) > 0:
-        env_vars["ES_API_KEY"] = api_key
+    has_api_key = _has_elasticsearch_api_key(api_key)
+    if has_api_key:
+        env_vars["ES_API_KEY"] = api_key.strip()
     if use_docker:
         image = os.environ.get("ELASTICSEARCH_MCP_IMAGE", "docker.elastic.co/mcp/elasticsearch")
+        args = [
+            "run",
+            "-i",
+            "--rm",
+            "--add-host=host.docker.internal:host-gateway",
+            "-e",
+            "ES_URL",
+        ]
+        if has_api_key:
+            args.extend(["-e", "ES_API_KEY"])
+        args.extend([image, "stdio"])
         server = StdioServerParameters(
             command="docker",
-            args=["run", "-i", "--rm", "--add-host=host.docker.internal:host-gateway",
-                  "-e", "ES_URL", "-e", "ES_API_KEY", image, "stdio"],
+            args=args,
             env=env_vars,
         )
         search_kwargs: dict[str, Any] = {"index": index, "query_body": query_body}
     else:
         binary = shutil.which("mcp-server-elasticsearch") or "mcp-server-elasticsearch"
+        server_env = {**os.environ, **env_vars}
+        if not has_api_key:
+            server_env.pop("ES_API_KEY", None)
+            server_env.pop("ELASTICSEARCH_API_KEY", None)
         server = StdioServerParameters(
             command=binary,
             args=["stdio"],
-            env={**os.environ, **env_vars},
+            env=server_env,
         )
         search_kwargs = {"index": index, "queryBody": query_body}
     async with stdio_client(server) as (read_stream, write_stream):
@@ -1194,6 +1214,9 @@ def _mcp_tool_result_object(result: Any) -> dict[str, Any]:
         try:
             parsed = json.loads(item)
         except json.JSONDecodeError:
+            doc = _mcp_text_document(item)
+            if doc is not None:
+                docs.append(doc)
             continue
         if isinstance(parsed, dict):
             object_payload = parsed
@@ -1216,6 +1239,19 @@ def _mcp_tool_result_object(result: Any) -> dict[str, Any]:
             "hits": [{"_source": doc} for doc in docs],
         }
     }
+
+
+def _mcp_text_document(text: str) -> dict[str, Any] | None:
+    doc: dict[str, Any] = {}
+    for line in text.splitlines():
+        field, separator, raw_value = line.partition(": ")
+        if not separator or field.endswith(" (highlighted)"):
+            continue
+        try:
+            doc[field] = json.loads(raw_value)
+        except json.JSONDecodeError:
+            doc[field] = raw_value
+    return doc or None
 
 
 def _required_float(
